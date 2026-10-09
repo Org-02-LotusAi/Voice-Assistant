@@ -52,7 +52,7 @@ def _make_handler(filename: str, media_type: str):
     async def handler(request: Request) -> Response:
         headers = {
             "Cache-Control": "no-cache",
-            "Content-Security-Policy": content_security_policy(request.app.state.settings.livekit_url),
+            "Content-Security-Policy": content_security_policy(request.app.state.settings.livekit_client_url),
         }
         return FileResponse(str(path), media_type=media_type, headers=headers)
 

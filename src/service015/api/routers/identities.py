@@ -144,7 +144,7 @@ def join_token(
         )
         .to_jwt()
     )
-    return JoinToken(livekit_url=settings.livekit_url, room=room, token=token, participant_identity=participant_identity)
+    return JoinToken(livekit_url=settings.livekit_client_url, room=room, token=token, participant_identity=participant_identity)
 
 
 @router.get(

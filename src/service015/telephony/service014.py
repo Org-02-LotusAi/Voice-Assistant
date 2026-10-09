@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import secrets
+import string
 from typing import Any, Callable, Protocol
 
 import aiohttp
@@ -25,6 +27,17 @@ log = logging.getLogger("service015.telephony")
 
 E164 = re.compile(r"^\+[1-9][0-9]{1,14}$")
 HTTP_TIMEOUT_S = 60.0  # the call can ring for a while before Service 014 answers the POST
+# livekit_sip: the dial request blocks until the callee answers or this ringing timeout expires (then 502);
+# the HTTP client timeout leaves headroom for SIP signalling on top of it.
+RINGING_TIMEOUT_S = 45
+SIP_REQUEST_TIMEOUT_S = RINGING_TIMEOUT_S + 15.0
+_SUFFIX_ALPHABET = string.ascii_lowercase + string.digits
+
+
+def caller_identity(to: str) -> str:
+    """Unique LiveKit participant identity per call: `phone-<last4>-<rand4>` (two numbers sharing the last
+    four digits, or a redial, must not collide inside the same room)."""
+    return f"phone-{to[-4:]}-{''.join(secrets.choice(_SUFFIX_ALPHABET) for _ in range(4))}"
 
 
 class TelephonyFailed(DomainError):
@@ -54,12 +67,14 @@ class HttpBackend:
     """
 
     def __init__(self, base_url: str, api_key: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        if not api_key:
+            raise ValueError("HttpBackend requires a non-empty API key")
         self._url = base_url.rstrip("/") + "/calls"
         self._api_key = api_key
         self._transport = transport
 
     async def dial(self, room: str, to: str) -> dict[str, str]:
-        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+        headers = {"Authorization": f"Bearer {self._api_key}"}
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=HTTP_TIMEOUT_S) as client:
                 resp = await client.post(self._url, json={"room": room, "to": to}, headers=headers)
@@ -95,12 +110,13 @@ class LiveKitSipBackend:
             sip_trunk_id=self._trunk_id,
             sip_call_to=to,
             room_name=room,
-            participant_identity=f"phone-{to[-4:]}",
+            participant_identity=caller_identity(to),
             wait_until_answered=True,
+            ringing_timeout={"seconds": RINGING_TIMEOUT_S},
         )
         lk = self._factory()
         try:
-            info = await lk.sip.create_sip_participant(request)
+            info = await lk.sip.create_sip_participant(request, timeout=SIP_REQUEST_TIMEOUT_S)
         except (ServerError, aiohttp.ClientError, asyncio.TimeoutError) as exc:
             log.warning("livekit sip dial failed: %s to=%s", type(exc).__name__, mask_number(to))
             raise TelephonyFailed(
@@ -123,6 +139,8 @@ class Service014Client:
         if mode == "http":
             if not s.service014_url:
                 return cls(mode, config_error="SERVICE014_URL is not set")
+            if not s.service014_api_key:
+                return cls(mode, config_error="SERVICE014_API_KEY is not set (required in http mode)")
             return cls(mode, HttpBackend(s.service014_url, s.service014_api_key))
         if mode == "livekit_sip":
             if not s.service014_sip_trunk_id:

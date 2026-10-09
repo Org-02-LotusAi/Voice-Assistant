@@ -17,6 +17,8 @@ dependencies = [
     "livekit-plugins-silero==1.8.3",
     "moonshine-voice==0.1.5",
     "numpy>=2.5.3",
+    "psutil>=5.9",
+    "aiohttp>=3.9",
 ]
 
 [project.scripts]

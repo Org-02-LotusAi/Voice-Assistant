@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str = Field("none", validation_alias="LLM_REASONING_EFFORT")
 
     livekit_url: str = Field("ws://localhost:7880", validation_alias="LIVEKIT_URL")
+    # URL handed to browsers/humans (join tokens, UI CSP) when it differs from the server-side LIVEKIT_URL
+    # (Docker: ws://livekit:7880 inside the network, wss://lk.example.com for browsers). Empty = use LIVEKIT_URL.
+    livekit_public_url: str = Field("", validation_alias="LIVEKIT_PUBLIC_URL")
     livekit_api_key: str = Field("devkey", validation_alias="LIVEKIT_API_KEY")
     livekit_api_secret: str = Field("secret", validation_alias="LIVEKIT_API_SECRET")
 
@@ -69,6 +72,11 @@ class Settings(BaseSettings):
 
     moonshine_arch: Literal["tiny", "small", "medium"] = Field("small", validation_alias="MOONSHINE_ARCH")
     moonshine_language: str = Field("en", validation_alias="MOONSHINE_LANGUAGE")
+
+    @property
+    def livekit_client_url(self) -> str:
+        """The LiveKit URL a human's browser or SIP-less client should connect to."""
+        return self.livekit_public_url or self.livekit_url
 
     @field_validator("api_keys", mode="before")
     @classmethod

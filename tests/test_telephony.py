@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from types import SimpleNamespace
 
 import httpx
@@ -133,6 +134,17 @@ def test_livekit_sip_info_reports_dispatch_rule_direct(db_file):
     assert_conforms("/identities/{identity_id}/phone", "get", r)
 
 
+def test_http_mode_without_api_key_is_503_not_silent_unauthenticated(db_file):
+    s = Settings(SERVICE015_API_KEYS="adm:admin,ope:operator", SERVICE015_DB_PATH=str(db_file), _env_file=None,
+                 SERVICE014_MODE="http", SERVICE014_URL="http://s014.test")
+    c = app_client(db_file, tel=Service014Client.from_settings(s))
+    r = c.post("/identities/ava-001/phone/dial", json={"to": NUMBER}, headers=H["operator"])
+    assert r.status_code == 503 and r.json()["error"]["code"] == "telephony_not_configured"
+    assert "SERVICE014_API_KEY" in r.json()["error"]["message"]
+    with pytest.raises(ValueError):
+        HttpBackend("http://s014.test", "")
+
+
 def test_misconfigured_modes_are_503(db_file):
     for kw in (dict(SERVICE014_MODE="http"), dict(SERVICE014_MODE="livekit_sip")):
         s = Settings(SERVICE015_API_KEYS="adm:admin,ope:operator", SERVICE015_DB_PATH=str(db_file), _env_file=None, **kw)
@@ -144,14 +156,15 @@ def test_misconfigured_modes_are_503(db_file):
 # ---- livekit_sip backend (mocked LiveKitAPI) ----
 
 class FakeSip:
-    def __init__(self, exc=None):
-        self.requests, self.exc = [], exc
+    def __init__(self, exc=None, sip_call_id="SCL_abc"):
+        self.requests, self.exc, self.timeouts, self.sip_call_id = [], exc, [], sip_call_id
 
-    async def create_sip_participant(self, request):
+    async def create_sip_participant(self, request, *, timeout=None):
         self.requests.append(request)
+        self.timeouts.append(timeout)
         if self.exc:
             raise self.exc
-        return SimpleNamespace(sip_call_id="SCL_abc", participant_id="PA_1")
+        return SimpleNamespace(sip_call_id=self.sip_call_id, participant_id="PA_1")
 
 
 class FakeLk:
@@ -170,9 +183,38 @@ async def test_livekit_sip_builds_exact_request():
     assert out == {"call_id": "SCL_abc", "status": "answered"}
     req = sip.requests[0]
     assert isinstance(req, api.CreateSIPParticipantRequest)
-    assert (req.sip_trunk_id, req.sip_call_to, req.room_name, req.participant_identity, req.wait_until_answered) == (
-        "ST_trunk", NUMBER, "ava-001", "phone-3210", True)
+    assert (req.sip_trunk_id, req.sip_call_to, req.room_name, req.wait_until_answered) == (
+        "ST_trunk", NUMBER, "ava-001", True)
+    assert re.fullmatch(r"phone-3210-[a-z0-9]{4}", req.participant_identity)
+    assert req.ringing_timeout.seconds == 45  # bounded block: ringing timeout, then 502
+    assert sip.timeouts == [60.0]
     assert lk.closed
+
+
+@pytest.mark.anyio
+async def test_livekit_sip_caller_identity_is_unique_per_call():
+    ids = set()
+    for _ in range(30):
+        sip = FakeSip()
+        await LiveKitSipBackend("ws://x", "k", "s", "ST", lambda sip=sip: FakeLk(sip)).dial("ava-001", NUMBER)
+        ids.add(sip.requests[0].participant_identity)
+    assert len(ids) > 20 and all(i.startswith("phone-3210-") for i in ids)
+
+
+@pytest.mark.anyio
+async def test_livekit_sip_falls_back_to_participant_id_when_no_sip_call_id():
+    out = await LiveKitSipBackend("ws://x", "k", "s", "ST", lambda: FakeLk(FakeSip(sip_call_id=""))).dial("r", NUMBER)
+    assert out == {"call_id": "PA_1", "status": "answered"}
+
+
+@pytest.mark.anyio
+async def test_livekit_sip_timeout_is_502_and_closes_client(caplog):
+    lk = FakeLk(FakeSip(asyncio.TimeoutError()))
+    caplog.set_level(logging.DEBUG)
+    with pytest.raises(TelephonyFailed) as e:
+        await LiveKitSipBackend("ws://x", "k", "s", "ST", lambda: lk).dial("ava-001", NUMBER)
+    assert e.value.status == 502 and e.value.code == "telephony_failed"
+    assert lk.closed and NUMBER not in caplog.text
 
 
 @pytest.mark.anyio

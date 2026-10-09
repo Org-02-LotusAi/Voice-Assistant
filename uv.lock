@@ -1293,6 +1293,7 @@ name = "service015"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "livekit-agents" },
@@ -1301,6 +1302,7 @@ dependencies = [
     { name = "livekit-plugins-silero" },
     { name = "moonshine-voice" },
     { name = "numpy" },
+    { name = "psutil" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
@@ -1317,6 +1319,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "livekit-agents", specifier = "==1.8.3" },
@@ -1325,6 +1328,7 @@ requires-dist = [
     { name = "livekit-plugins-silero", specifier = "==1.8.3" },
     { name = "moonshine-voice", specifier = "==0.1.5" },
     { name = "numpy", specifier = ">=2.5.3" },
+    { name = "psutil", specifier = ">=5.9" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-settings" },
     { name = "python-multipart", specifier = ">=0.0.32" },

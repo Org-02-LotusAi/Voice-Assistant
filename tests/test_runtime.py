@@ -529,3 +529,14 @@ def test_create_app_wires_livekit_supervisor_only_when_configured(tmp_path, monk
         LIVEKIT_API_SECRET="secret", _env_file=None,
     )
     assert isinstance(create_app(configured).state.supervisor, LiveKitSupervisor)
+
+
+def test_join_token_and_ui_csp_use_the_public_livekit_url(db_file):
+    stack = FakeVoiceStack()
+    with TestClient(make_app(db_file, stack)) as c:
+        assert voiced_identity(c).status_code == 201
+        s = c.app.state.settings
+        c.app.state.settings = s.model_copy(update={"livekit_public_url": "wss://lk.example.com"})
+        body = c.post("/identities/ava-001/join-token", headers=H["operator"]).json()
+        assert body["livekit_url"] == "wss://lk.example.com"
+        assert "wss://lk.example.com" in c.get("/talk.html").headers["content-security-policy"]

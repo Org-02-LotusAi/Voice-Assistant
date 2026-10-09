@@ -151,3 +151,11 @@ def test_failing_migration_rolls_back_and_is_not_recorded(tmp_path):
     assert "ok" in _tables(conn)
     assert [r["name"] for r in conn.execute("SELECT name FROM schema_migrations")] == ["001_ok.sql"]
     assert not conn.in_transaction
+
+
+def test_livekit_public_url_is_what_browsers_get():
+    s = Settings(SERVICE015_API_KEYS="a:admin", LIVEKIT_URL="ws://livekit:7880", _env_file=None)
+    assert s.livekit_client_url == "ws://livekit:7880"  # unset -> same URL
+    s = Settings(SERVICE015_API_KEYS="a:admin", LIVEKIT_URL="ws://livekit:7880",
+                 LIVEKIT_PUBLIC_URL="wss://lk.example.com", _env_file=None)
+    assert s.livekit_url == "ws://livekit:7880" and s.livekit_client_url == "wss://lk.example.com"

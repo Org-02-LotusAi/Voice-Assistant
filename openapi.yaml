@@ -432,10 +432,15 @@ paths:
       description: |
         Service 015 does not implement SIP/PSTN. The call is placed through Service 014
         (`SERVICE014_MODE`): `livekit_sip` uses LiveKit `CreateSIPParticipant` on the shared
-        LiveKit deployment (participant identity `phone-<last4>`, waits until answered);
+        LiveKit deployment (participant identity `phone-<last4>-<rand4>`, unique per call; waits until answered);
         `http` POSTs `{room, to}` to `{SERVICE014_URL}/calls` with a bearer `SERVICE014_API_KEY`.
         **The `http` contract is an ASSUMPTION** (the real Service 014 HTTP API is not yet known) and
         is isolated in one class. `disabled` (the default) answers 503 `telephony_not_configured`.
+
+        **This request is synchronous.** In `livekit_sip` mode it blocks until the callee answers or the
+        45 s ringing timeout expires (then 502 `telephony_failed`); in `http` mode it blocks until Service 014
+        replies (up to 60 s). Callers should use a client timeout of at least 70 s. In `http` mode a missing
+        `SERVICE014_API_KEY` is reported as 503 `telephony_not_configured` (never an unauthenticated call).
 
         Errors: 404 unknown identity; 409 `identity_not_ready` unless presence is READY or BUSY;
         422 `invalid_request` when `to` is not E.164; 502 `telephony_failed` / `telephony_bad_response`
