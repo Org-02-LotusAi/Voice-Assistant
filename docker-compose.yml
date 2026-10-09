@@ -1,0 +1,210 @@
+# Service 015 full stack.
+#
+#   CPU (dev / smoke):   docker compose --profile cpu up -d --build
+#   GPU (EC2 g4dn/g5):   docker compose --profile gpu up -d --build
+#   + TLS front (Caddy): add  --profile tls     (needs SERVICE015_DOMAIN and LIVEKIT_DOMAIN, see deploy/EC2.md)
+#   + SIP for Service 014: add --profile sip
+# Without a cpu|gpu profile only livekit, redis and service015 start (no voice stack; launch will fail preflight).
+# Copy .env.example to .env first (compose reads it for ${...} substitution; service015 also receives it via env_file).
+name: service015
+
+x-voice-image: &voice-build
+  context: .
+  dockerfile: engine/Dockerfile
+
+x-voicebox-cmd: &voicebox-cmd
+  - python
+  - -m
+  - backend.main
+  - --host
+  - 0.0.0.0
+  - --port
+  - "17493"
+  - --data-dir
+  - /var/lib/voicebox-store   # must not contain a path component named "data" (docs/DEPENDENCIES.md trap 1)
+
+x-voicebox-hc: &voicebox-hc
+  test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:17493/health', timeout=4).status == 200 else 1)"]
+  interval: 20s
+  timeout: 5s
+  retries: 10
+  start_period: 60s
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    restart: unless-stopped
+    # LIVEKIT_NODE_IP: 127.0.0.1 for laptops, the instance's public (Elastic) IP on EC2.
+    command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0", "--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-secret}"
+    volumes: ["./deploy/livekit.yaml:/etc/livekit.yaml:ro"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    depends_on:
+      redis: {condition: service_healthy}
+
+  # ---- voice stack, CPU ----
+  voicebox:
+    profiles: ["cpu"]
+    image: service015-engine:cpu
+    build:
+      <<: *voice-build
+      args: {DEVICE: cpu}
+    restart: unless-stopped
+    ports: ["127.0.0.1:17493:17493"]   # loopback only: host-side scripts (seeding, acceptance run)
+    command: *voicebox-cmd
+    working_dir: /opt/voicebox
+    volumes: ["voicebox-store:/var/lib/voicebox-store", "model-cache:/models"]
+    healthcheck: *voicebox-hc
+    networks: {default: {aliases: [voicebox]}}
+
+  engine:
+    profiles: ["cpu"]
+    image: service015-engine:cpu
+    build:
+      <<: *voice-build
+      args: {DEVICE: cpu}
+    restart: unless-stopped
+    ports: ["127.0.0.1:17494:17494"]   # loopback only: host-side scripts (seeding, acceptance run)
+    environment:
+      VOICE_ENGINE_DEVICE: cpu
+      CHATTERBOX_VARIANT: "${CHATTERBOX_VARIANT:-turbo}"
+      VOICEBOX_URL: http://voicebox:17493
+    volumes: ["model-cache:/models"]
+    depends_on:
+      voicebox: {condition: service_healthy}
+    networks: {default: {aliases: [engine]}}
+
+  # ---- voice stack, GPU (NVIDIA container toolkit required on the host) ----
+  voicebox-gpu:
+    profiles: ["gpu"]
+    image: service015-engine:cuda
+    build:
+      <<: *voice-build
+      args: {DEVICE: cuda}
+    restart: unless-stopped
+    ports: ["127.0.0.1:17493:17493"]   # loopback only: host-side scripts (seeding, acceptance run)
+    command: *voicebox-cmd
+    working_dir: /opt/voicebox
+    volumes: ["voicebox-store:/var/lib/voicebox-store", "model-cache:/models"]
+    healthcheck: *voicebox-hc
+    deploy: &gpu-reservation
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: 1, capabilities: [gpu]}
+    networks: {default: {aliases: [voicebox]}}
+
+  engine-gpu:
+    profiles: ["gpu"]
+    image: service015-engine:cuda
+    build:
+      <<: *voice-build
+      args: {DEVICE: cuda}
+    restart: unless-stopped
+    ports: ["127.0.0.1:17494:17494"]   # loopback only: host-side scripts (seeding, acceptance run)
+    environment:
+      VOICE_ENGINE_DEVICE: cuda
+      CHATTERBOX_VARIANT: "${CHATTERBOX_VARIANT:-turbo}"
+      VOICEBOX_URL: http://voicebox:17493
+    volumes: ["model-cache:/models"]
+    depends_on:
+      voicebox-gpu: {condition: service_healthy}
+    deploy: *gpu-reservation
+    networks: {default: {aliases: [engine]}}
+
+  # ---- the product ----
+  service015:
+    build: .
+    image: service015
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      SERVICE015_HOST: 0.0.0.0
+      SERVICE015_DB_PATH: /var/lib/service015/service015.db
+      # Server side talks to LiveKit over the compose network; browsers use LIVEKIT_PUBLIC_URL (from .env).
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-secret}"
+      LIVEKIT_PUBLIC_URL: "${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}"
+      VOICEBOX_URL: http://voicebox:17493
+      VOICE_ENGINE_URL: http://engine:17494
+    ports:
+      - "${SERVICE015_BIND:-127.0.0.1}:8015:8015"
+    volumes:
+      - service015-data:/var/lib/service015
+      - service015-cache:/home/service015/.cache   # Moonshine + Silero models
+    depends_on:
+      livekit: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8015/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---- optional: SIP gateway so Service 014 can reach phones (needs the LiveKit server above + redis) ----
+  sip:
+    profiles: ["sip"]
+    image: livekit/sip:v1.17.0   # released 2026-09-23
+    restart: unless-stopped
+    environment:
+      SIP_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:-devkey}
+        api_secret: ${LIVEKIT_API_SECRET:-secret}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: 10000-20000
+        use_external_ip: true
+        logging:
+          level: info
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "10000-20000:10000-20000/udp"
+    depends_on:
+      redis: {condition: service_healthy}
+      livekit: {condition: service_started}
+
+  # ---- optional: TLS front for https (getUserMedia) and wss ----
+  caddy:
+    profiles: ["tls"]
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      SERVICE015_DOMAIN: "${SERVICE015_DOMAIN:-}"
+      LIVEKIT_DOMAIN: "${LIVEKIT_DOMAIN:-}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - service015
+      - livekit
+
+volumes:
+  redis-data:
+  voicebox-store:
+  model-cache:
+  service015-data:
+  service015-cache:
+  caddy-data:
+  caddy-config:

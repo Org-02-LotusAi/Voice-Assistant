@@ -1,0 +1,10 @@
+# LiveKit server config for docker-compose.yml. API keys come from the LIVEKIT_KEYS env var, the advertised
+# node IP from --node-ip (LIVEKIT_NODE_IP). Redis is shared with the optional livekit/sip service.
+port: 7880
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+redis:
+  address: redis:6379
+logging:
+  level: info

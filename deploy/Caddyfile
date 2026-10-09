@@ -1,0 +1,10 @@
+# TLS front for a single EC2 host (compose `tls` profile). Two DNS names pointing at the instance:
+#   {$SERVICE015_DOMAIN}  -> service015 API + Workbench UI (https is required for getUserMedia / microphone)
+#   {$LIVEKIT_DOMAIN}     -> LiveKit signalling (wss). Media (UDP 7882 / TCP 7881) is NOT proxied; it goes direct.
+{$SERVICE015_DOMAIN} {
+	reverse_proxy service015:8015
+}
+
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy livekit:7880
+}
