@@ -1,4 +1,9 @@
-"""Sentence / clause splitting for low first-chunk latency. Pure Python, no third-party imports."""
+"""Sentence / clause splitting that bounds time-to-first-audio and the worst-case wait behind an in-flight chunk.
+
+Chatterbox's token loop has no cancel hook, so an in-flight chunk cannot be aborted. Chunk length is therefore the
+only lever on barge-in latency: the first chunk is ~FIRST_TARGET chars, later chunks are at most MAX_CHUNK chars.
+Pure Python, no third-party imports.
+"""
 from __future__ import annotations
 
 import re
@@ -7,38 +12,40 @@ _SENTENCE_END = re.compile(r"(?<=[.!?…])[\"')\]]*\s+|\n+")
 _CLAUSE_END = re.compile(r"(?<=[,;:—–])\s+|\s+-\s+")
 
 FIRST_CHUNK_MIN = 14  # chars: a first piece shorter than this is merged with what follows
-FIRST_CHUNK_TARGET = 60  # a first sentence longer than this is cut at its first natural clause break
-MAX_CHUNK = 220  # chars: Chatterbox gets unstable on long outputs, so no chunk exceeds this
-MERGE_BELOW = 10  # later sentences shorter than this are glued to the next one
+FIRST_TARGET = 40  # a first sentence longer than this is cut: at a clause break <= FIRST_MAX, else at a word boundary
+FIRST_MAX = 45
+MAX_CHUNK = 120  # chars: no later chunk is longer (bounds the uninterruptible in-flight wait)
+MERGE_BELOW = 10  # later short pieces are glued to a neighbour
 
 
 def _split_sentences(text: str) -> list[str]:
     return [p.strip() for p in _SENTENCE_END.split(text) if p and p.strip()]
 
 
-def _split_long(piece: str) -> list[str]:
-    """Break a piece longer than MAX_CHUNK at clause breaks, then at spaces."""
-    if len(piece) <= MAX_CHUNK:
-        return [piece]
-    out: list[str] = []
-    cur = ""
-    for clause in (c for c in _CLAUSE_END.split(piece) if c):
-        for word_group in _hard_wrap(clause):
-            if cur and len(cur) + 1 + len(word_group) > MAX_CHUNK:
-                out.append(cur)
-                cur = word_group
-            else:
-                cur = f"{cur} {word_group}".strip()
-    if cur:
-        out.append(cur)
-    return out
+def _cut_first(sentence: str) -> tuple[str, str]:
+    """Cut the opening sentence to ~FIRST_TARGET chars. Returns (head, rest); rest may be empty."""
+    if len(sentence) <= FIRST_TARGET:
+        return sentence, ""
+    parts = [c for c in _CLAUSE_END.split(sentence) if c]
+    head = ""
+    for i, clause in enumerate(parts):
+        head = f"{head} {clause}".strip()
+        if len(head) > FIRST_MAX:
+            break
+        if len(head) >= FIRST_CHUNK_MIN:
+            return head, " ".join(parts[i + 1:]).strip()
+    # No usable clause break: cut at a word boundary near the target.
+    idx = sentence.rfind(" ", 0, FIRST_TARGET + 1)
+    if idx < FIRST_CHUNK_MIN:
+        idx = sentence.find(" ", FIRST_CHUNK_MIN)
+    if idx == -1:
+        return sentence, ""
+    return sentence[:idx].strip(), sentence[idx:].strip()
 
 
 def _hard_wrap(clause: str) -> list[str]:
-    if len(clause) <= MAX_CHUNK:
-        return [clause]
-    words, out, cur = clause.split(), [], ""
-    for w in words:
+    out, cur = [], ""
+    for w in clause.split():
         if cur and len(cur) + 1 + len(w) > MAX_CHUNK:
             out.append(cur)
             cur = w
@@ -49,23 +56,31 @@ def _hard_wrap(clause: str) -> list[str]:
     return out
 
 
+def _split_long(piece: str) -> list[str]:
+    """Break a piece longer than MAX_CHUNK at clause breaks, then at spaces."""
+    if len(piece) <= MAX_CHUNK:
+        return [piece]
+    out: list[str] = []
+    cur = ""
+    for clause in (c for c in _CLAUSE_END.split(piece) if c):
+        for group in _hard_wrap(clause):
+            if cur and len(cur) + 1 + len(group) > MAX_CHUNK:
+                out.append(cur)
+                cur = group
+            else:
+                cur = f"{cur} {group}".strip()
+    if cur:
+        out.append(cur)
+    return out
+
+
 def split_for_streaming(text: str) -> list[str]:
-    """Return chunks in speaking order. The first chunk is as short as a natural clause allows."""
-    text = " ".join(text.split()) if "\n" not in text else text.strip()
-    sentences = _split_sentences(text)
+    """Return chunks in speaking order. The first is ~40 chars; the rest are sentences of at most 120 chars."""
+    sentences = _split_sentences(" ".join(text.split()) if "\n" not in text else "\n".join(" ".join(l.split()) for l in text.splitlines()))
     if not sentences:
         return []
-    # Cut the first sentence at its first clause break when it is long.
-    first = sentences[0]
-    if len(first) > FIRST_CHUNK_TARGET:
-        head = ""
-        parts = [c for c in _CLAUSE_END.split(first) if c]
-        for i, clause in enumerate(parts):
-            head = f"{head} {clause}".strip()
-            if len(head) >= FIRST_CHUNK_MIN:
-                rest = " ".join(parts[i + 1:]).strip()
-                sentences[0:1] = [head] + ([rest] if rest else [])
-                break
+    head, rest = _cut_first(sentences[0])
+    sentences[0:1] = [head] + ([rest] if rest else [])
     # Merge tiny pieces forward so we never synthesize 2-word chunks (they sound clipped).
     merged: list[str] = []
     carry = ""
@@ -79,6 +94,10 @@ def split_for_streaming(text: str) -> list[str]:
         merged.append(s)
     if carry:
         merged.append(carry)
+    # A short final piece joins the previous one (never the first chunk, which must stay short).
+    if len(merged) > 2 and len(merged[-1]) < MERGE_BELOW and len(merged[-2]) + 1 + len(merged[-1]) <= MAX_CHUNK:
+        last = merged.pop()
+        merged[-1] = f"{merged[-1]} {last}"
     chunks: list[str] = []
     for m in merged:
         chunks.extend(_split_long(m))

@@ -30,8 +30,8 @@ prefers it for both variants. If `turbo-nano` is requested and the importable pa
 - `POST /warm {"profile_id"}` -> fetches the profile's samples from Voicebox, takes the longest one > 5 s (else 422 `reference_too_short`),
   `prepare_conditionals`, caches the conditionals (LRU, 8 profiles), runs one tiny generate. Returns timings. 404 `profile_not_found`, 503 `voicebox_unavailable`.
 - `POST /synthesize/stream {"profile_id","text"}` -> `audio/pcm` (s16le, mono, 24 kHz), header `X-Sample-Rate: 24000`
-  (also `X-Chunk-Count`). Text is split into clauses/sentences (`textsplit.py`: a long first sentence is cut at its first natural clause
-  so the first audio comes sooner; tiny fragments are merged; no chunk > 220 chars). Each chunk's PCM is sent as soon as it is generated.
+  (also `X-Chunk-Count`, `X-Request-Id`). Text is split into clauses/sentences (`textsplit.py`: first chunk ~40 chars, cut at a clause
+  break else a word boundary; tiny fragments are merged; no later chunk > 120 chars). Each chunk's PCM is sent as soon as it is generated.
   Unprepared profiles are warmed inline first. Errors as for `/warm`; 503 `engine_loading` / `engine_error` while not ready.
 - `POST /preview {"profile_id","text"}` -> the same synthesis path, returned as one `audio/wav`.
 
@@ -40,8 +40,29 @@ Errors are `{"code": ..., "detail": ...}` JSON.
 ## Concurrency and barge-in
 All model calls run on one worker thread under one lock, so requests are served serially (Chatterbox is not re-entrant, and the
 conditionals are swapped onto the model per chunk). Before every chunk the stream handler checks `await request.is_disconnected()`;
-if the client has gone, remaining chunks are not generated. **An in-flight chunk cannot be aborted** (a single `generate` call is
-uninterruptible), so a new request waits at most one chunk (one sentence) behind an abandoned stream. Keep chunks short for that reason.
+Starlette also cancels the generator when the client goes away. Either way remaining chunks are not generated and the request ends
+as `cancelled`.
+
+**An in-flight chunk cannot be aborted.** Chatterbox's `inference_turbo` is a hand-written token loop with no callback,
+stopping criteria or injectable processor (the logits processors are locals), and we do not monkeypatch private internals. The wait
+is bounded by chunk size instead: first chunk about 40 chars (cut at a clause break <= 45 chars, else at a word boundary), later
+chunks at most 120 chars. Worst-case wait for a request that arrives right after a barge-in is therefore one 120-char chunk
+(about 8 s of audio): ~50 s on this CPU (RTF 6), roughly 1 s on a GPU. Clients should not wait for the abandoned stream; just
+issue the next request (it queues behind at most that one chunk).
+
+## Detecting a failed or truncated stream (clients: read this)
+Errors before the first byte are plain HTTP errors: JSON `{"code","detail"}` with status 404 `profile_not_found`, 422 `reference_too_short`
+/ `corrupt_reference` / `invalid_request` / `empty_text`, 503 `voicebox_unavailable` / `engine_loading` / `engine_error`, 500 `synthesis_failed`.
+
+Once the 200 and headers are sent, an error cannot change the status. The engine then logs `stream failed ... code=<code>`, records it,
+and **aborts the response without the terminating chunk**. Clients detect this as follows (all three agree):
+1. The HTTP read ends abnormally (httpx `RemoteProtocolError`/`ReadError`, aiohttp `ClientPayloadError`). Treat as failure.
+2. Every response carries `X-Request-Id` and `X-Chunk-Count` (set before streaming). After the stream ends (or breaks), call
+   `GET /requests/{request_id}` -> `{request_id, profile_id, state: streaming|complete|cancelled|failed, chunks_total, chunks_done, code, detail}`.
+   The stream was complete only if `state == "complete"` (`chunks_done == chunks_total`). On `failed`, `code` is one of
+   `voicebox_unavailable`, `reference_too_short`, `corrupt_reference`, `profile_not_found`, `synthesis_failed`.
+3. Statuses are kept for the last 256 requests (404 `request_not_found` afterwards).
+`/preview` returns the same coded JSON error (no bare 500) because nothing has been sent yet.
 
 ## Logs
 One line per request: `synth profile=... chunks=done/total first_chunk_s=... audio_s=... wall_s=... rtf=...`. Audio is never logged.
@@ -50,3 +71,5 @@ One line per request: `synth profile=... chunks=done/total first_chunk_s=... aud
 `VOICE_ENGINE_URL=http://127.0.0.1:17494 uv run pytest tests/engine -v -s` (live tests skip when the engine is not reachable;
 `tests/engine/test_textsplit.py` always runs). If another worker's code breaks `tests/conftest.py`, add `--confcutdir=tests/engine`.
 Measured latency/RTF: `docs/DEPENDENCIES.md`.
+
+Notes: `profile_id` must match `^[A-Za-z0-9_-]{1,64}$` (it is placed in a Voicebox URL path). If the checkpoint ships no built-in conditionals, `/health` is `ok` with `warm:false` until the first `/warm`.

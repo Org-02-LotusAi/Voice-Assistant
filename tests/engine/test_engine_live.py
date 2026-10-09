@@ -60,16 +60,29 @@ def test_stream_first_chunk_before_full_synthesis(engine_url, profile_id):
 
 
 def test_barge_in_stops_remaining_chunks(engine_url, profile_id):
-    """Closing the connection after the first bytes must stop work: a follow-up request is not queued behind
-    the whole abandoned text (only behind the one in-flight chunk)."""
-    long_text = "Hello, this is Ava. " + "It is a pleasure to speak with you today. " * 3
-    with httpx.stream("POST", f"{engine_url}/synthesize/stream", json={"profile_id": profile_id, "text": long_text}, timeout=SLOW) as r:
-        next(r.iter_bytes())  # first chunk received, then drop the connection
+    """After the client drops the stream, the engine reports fewer chunks generated than requested, and a follow-up
+    request's first chunk arrives within a bounded time (<= the abandoned in-flight chunk plus its own first chunk)."""
+    long_text = ("Hello, this is Ava, and I am happy to help. It is a pleasure to speak with you today. "
+                 "Please tell me what you need. I will do my best to assist you right away.")
     t0 = time.perf_counter()
-    r = httpx.post(f"{engine_url}/synthesize/stream", json={"profile_id": profile_id, "text": "Okay."}, timeout=SLOW)
-    elapsed = time.perf_counter() - t0
-    assert r.status_code == 200 and len(r.content) > 0
-    print(f"\nfollow-up after barge-in took {elapsed:.1f}s")
+    with httpx.stream("POST", f"{engine_url}/synthesize/stream", json={"profile_id": profile_id, "text": long_text}, timeout=SLOW) as r:
+        rid, total = r.headers["x-request-id"], int(r.headers["x-chunk-count"])
+        assert total >= 4
+        next(r.iter_bytes())  # first chunk received, then drop the connection
+    first_chunk_s = time.perf_counter() - t0
+    t1 = time.perf_counter()
+    with httpx.stream("POST", f"{engine_url}/synthesize/stream", json={"profile_id": profile_id, "text": "Okay, sure."}, timeout=SLOW) as r2:
+        it = r2.iter_bytes()
+        next(it)
+        follow_first_s = time.perf_counter() - t1
+        for _ in it:
+            pass
+    # Worst case: wait for the in-flight 2nd chunk (<= 120 chars, here about 3x the ~35-char first chunk) + own chunk.
+    print(f"\nabandoned first chunk {first_chunk_s:.1f}s; follow-up first chunk {follow_first_s:.1f}s")
+    assert follow_first_s < 5 * first_chunk_s + 5
+    st = httpx.get(f"{engine_url}/requests/{rid}", timeout=10).json()
+    assert st["state"] == "cancelled"
+    assert st["chunks_done"] < st["chunks_total"] and st["chunks_done"] <= 2, st
 
 
 def test_preview_returns_wav(engine_url, profile_id):

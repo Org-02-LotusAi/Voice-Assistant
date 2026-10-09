@@ -22,6 +22,7 @@ import os
 import sys
 import tempfile
 import threading
+import uuid
 import time
 import wave
 from collections import OrderedDict
@@ -31,6 +32,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -42,6 +44,8 @@ log = logging.getLogger("voice-engine")
 SAMPLE_RATE = 24000
 ENGINE_NAME = "chatterbox-turbo"
 CACHE_SIZE = 8
+REQUESTS_KEPT = 256
+PROFILE_ID_RE = r"^[A-Za-z0-9_-]{1,64}$"  # goes into a Voicebox URL path
 MIN_REFERENCE_S = 5.0
 WARM_TEXT = "Hello there."
 GEN_KWARGS = dict(temperature=0.8, top_k=1000, top_p=0.95, repetition_penalty=1.2, norm_loudness=True)
@@ -64,6 +68,33 @@ class ReferenceTooShort(Exception):
     pass
 
 
+class CorruptReference(Exception):
+    pass
+
+
+# Error codes, in HTTP responses (before streaming) and in /requests/{id} (after it started).
+HTTP_STATUS = {
+    "profile_not_found": 404,
+    "reference_too_short": 422,
+    "corrupt_reference": 422,
+    "voicebox_unavailable": 503,
+    "synthesis_failed": 500,
+}
+
+
+def classify(exc: BaseException) -> tuple[str, str]:
+    """Map an exception to a stable (code, detail). Never leaks tracebacks."""
+    if isinstance(exc, ProfileNotFound):
+        return "profile_not_found", f"Voicebox profile {exc} not found"
+    if isinstance(exc, ReferenceTooShort):
+        return "reference_too_short", f"profile {exc} has no sample longer than {MIN_REFERENCE_S:.0f} s"
+    if isinstance(exc, CorruptReference):
+        return "corrupt_reference", f"profile {exc} has no readable reference sample"
+    if isinstance(exc, VoiceboxUnavailable):
+        return "voicebox_unavailable", str(exc)
+    return "synthesis_failed", f"{type(exc).__name__}: {exc}"
+
+
 class State:
     """Shared engine state. `lock` serialises every model call; `executor` is the single worker thread."""
 
@@ -75,7 +106,8 @@ class State:
         self.lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tts")
         self.conds: OrderedDict[str, object] = OrderedDict()  # profile_id -> Conditionals (LRU, CACHE_SIZE)
-        self.prep_locks: dict[str, asyncio.Lock] = {}
+        self.prep_locks: dict[str, asyncio.Lock] = {}  # only while a prepare is in flight
+        self.requests: OrderedDict[str, dict] = OrderedDict()  # request_id -> status (LRU, REQUESTS_KEPT)
         self.load_s: float | None = None
         self.nano_supported: bool | None = None
 
@@ -177,10 +209,17 @@ async def fetch_reference(profile_id: str) -> tuple[bytes, float]:
             if r.status_code in (404, 422):
                 raise ProfileNotFound(profile_id)
             r.raise_for_status()
-            for sample in r.json():
+            samples = r.json()
+            readable = 0
+            for sample in samples:
                 a = await client.get(f"/samples/{sample['id']}")
                 a.raise_for_status()
-                dur = wav_duration(a.content)
+                try:
+                    dur = wav_duration(a.content)
+                except Exception as exc:  # noqa: BLE001 - unreadable sample is skipped, reported if none is usable
+                    log.warning("profile %s sample %s unreadable: %s: %s", profile_id, sample.get("id"), type(exc).__name__, exc)
+                    continue
+                readable += 1
                 if dur > MIN_REFERENCE_S and (best is None or dur > best[0]):
                     best = (dur, a.content)
     except httpx.TransportError as exc:
@@ -188,6 +227,8 @@ async def fetch_reference(profile_id: str) -> tuple[bytes, float]:
     except httpx.HTTPStatusError as exc:
         raise VoiceboxUnavailable(f"{VOICEBOX_URL}: HTTP {exc.response.status_code}") from exc
     if best is None:
+        if samples and readable == 0:
+            raise CorruptReference(profile_id)
         raise ReferenceTooShort(profile_id)
     return best[1], best[0]
 
@@ -236,25 +277,29 @@ async def ensure_profile(profile_id: str) -> dict | None:
     if profile_id in STATE.conds:
         return None
     plock = STATE.prep_locks.setdefault(profile_id, asyncio.Lock())
-    async with plock:
-        if profile_id in STATE.conds:
-            return None
-        t0 = time.perf_counter()
-        wav_bytes, dur = await fetch_reference(profile_id)
-        fetch_s = time.perf_counter() - t0
-        timings = await asyncio.get_running_loop().run_in_executor(STATE.executor, _prepare_blocking, profile_id, wav_bytes)
-        timings.update(fetch_reference_s=round(fetch_s, 3), reference_s=round(dur, 2))
-        return timings
+    try:
+        async with plock:
+            if profile_id in STATE.conds:
+                return None
+            t0 = time.perf_counter()
+            wav_bytes, dur = await fetch_reference(profile_id)
+            fetch_s = time.perf_counter() - t0
+            timings = await asyncio.get_running_loop().run_in_executor(STATE.executor, _prepare_blocking, profile_id, wav_bytes)
+            timings.update(fetch_reference_s=round(fetch_s, 3), reference_s=round(dur, 2))
+            return timings
+    finally:
+        if not plock.locked() and STATE.prep_locks.get(profile_id) is plock:
+            del STATE.prep_locks[profile_id]  # bound the dict: entries live only while a prepare is in flight
 
 
 # ---------------------------------------------------------------- HTTP
 
 class WarmRequest(BaseModel):
-    profile_id: str = Field(min_length=1)
+    profile_id: str = Field(pattern=PROFILE_ID_RE)
 
 
 class SynthRequest(BaseModel):
-    profile_id: str = Field(min_length=1)
+    profile_id: str = Field(pattern=PROFILE_ID_RE)
     text: str = Field(min_length=1, max_length=4000)
 
 
@@ -272,12 +317,20 @@ def _require_ready() -> None:
 async def _ensure_or_http(profile_id: str) -> dict | None:
     try:
         return await ensure_profile(profile_id)
-    except ProfileNotFound:
-        raise _error(404, "profile_not_found", f"Voicebox profile {profile_id} not found") from None
-    except ReferenceTooShort:
-        raise _error(422, "reference_too_short", f"profile {profile_id} has no sample longer than {MIN_REFERENCE_S:.0f} s") from None
-    except VoiceboxUnavailable as exc:
-        raise _error(503, "voicebox_unavailable", str(exc)) from None
+    except (ProfileNotFound, ReferenceTooShort, CorruptReference, VoiceboxUnavailable) as exc:
+        code, detail = classify(exc)
+        log.warning("request rejected code=%s profile=%s", code, profile_id)
+        raise _error(HTTP_STATUS[code], code, detail) from None
+    except Exception as exc:  # noqa: BLE001 - coded 500, never a bare traceback
+        code, detail = classify(exc)
+        log.exception("prepare failed code=%s profile=%s", code, profile_id)
+        raise _error(500, code, detail) from None
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc(_: Request, exc: RequestValidationError):
+    first = exc.errors()[0]
+    return JSONResponse(status_code=422, content={"code": "invalid_request", "detail": f"{first['msg']}: {'.'.join(str(x) for x in first['loc'])}"})
 
 
 @app.exception_handler(HTTPException)
@@ -317,29 +370,51 @@ async def warm(req: WarmRequest):
     return {"profile_id": req.profile_id, "status": "warm", "timings": timings}
 
 
-async def _stream_chunks(request: Request, profile_id: str, chunks: list[str], t_start: float):
+def _new_request(profile_id: str, total: int) -> dict:
+    rec = {"request_id": uuid.uuid4().hex, "profile_id": profile_id, "state": "streaming", "chunks_total": total,
+           "chunks_done": 0, "code": None, "detail": None}
+    STATE.requests[rec["request_id"]] = rec
+    while len(STATE.requests) > REQUESTS_KEPT:
+        STATE.requests.popitem(last=False)
+    return rec
+
+
+async def _stream_chunks(request: Request, rec: dict, chunks: list[str], t_start: float):
+    """Yield PCM per chunk. Sets rec.state to complete | cancelled | failed. On failure it logs the code and RE-RAISES,
+    which aborts the HTTP response without the terminating chunk (clients see an incomplete read)."""
     loop = asyncio.get_running_loop()
-    audio_s, first_s, done = 0.0, None, 0
+    profile_id = rec["profile_id"]
+    audio_s, first_s = 0.0, None
     try:
         for i, chunk in enumerate(chunks):
             if await request.is_disconnected():
                 log.info("client disconnected: skipping %d remaining chunk(s) (barge-in)", len(chunks) - i)
+                rec["state"] = "cancelled"
                 return
             try:
                 pcm = await loop.run_in_executor(STATE.executor, _generate_blocking, profile_id, chunk)
             except ProfileNotFound:  # conditionals evicted by other requests mid-stream: rebuild once
                 await ensure_profile(profile_id)
                 pcm = await loop.run_in_executor(STATE.executor, _generate_blocking, profile_id, chunk)
-            done += 1
+            rec["chunks_done"] += 1
             audio_s += len(pcm) / 2 / SAMPLE_RATE
             if first_s is None:
                 first_s = time.perf_counter() - t_start
             yield pcm
+        rec["state"] = "complete"
+    except asyncio.CancelledError:  # Starlette cancelled us because the client went away
+        rec["state"] = "cancelled"
+        raise
+    except Exception as exc:  # noqa: BLE001 - classified, logged with code, then re-raised to abort the response
+        rec["state"] = "failed"
+        rec["code"], rec["detail"] = classify(exc)
+        log.error("stream failed request=%s profile=%s code=%s detail=%s", rec["request_id"], profile_id, rec["code"], rec["detail"])
+        raise
     finally:
         wall = time.perf_counter() - t_start
         log.info(
-            "synth profile=%s chunks=%d/%d chars=%d first_chunk_s=%s audio_s=%.2f wall_s=%.2f rtf=%s",
-            profile_id, done, len(chunks), sum(map(len, chunks)),
+            "synth request=%s profile=%s state=%s chunks=%d/%d chars=%d first_chunk_s=%s audio_s=%.2f wall_s=%.2f rtf=%s",
+            rec["request_id"], profile_id, rec["state"], rec["chunks_done"], len(chunks), sum(map(len, chunks)),
             None if first_s is None else round(first_s, 2), audio_s, wall,
             None if audio_s <= 0 else round(wall / audio_s, 2),
         )
@@ -353,11 +428,21 @@ async def synthesize_stream(req: SynthRequest, request: Request):
     if not chunks:
         raise _error(422, "empty_text", "text has no speakable content")
     await _ensure_or_http(req.profile_id)
+    rec = _new_request(req.profile_id, len(chunks))
     return StreamingResponse(
-        _stream_chunks(request, req.profile_id, chunks, t_start),
+        _stream_chunks(request, rec, chunks, t_start),
         media_type="audio/pcm",
-        headers={"X-Sample-Rate": str(SAMPLE_RATE), "X-Chunk-Count": str(len(chunks)), "Cache-Control": "no-store"},
+        headers={"X-Sample-Rate": str(SAMPLE_RATE), "X-Chunk-Count": str(len(chunks)),
+                 "X-Request-Id": rec["request_id"], "Cache-Control": "no-store"},
     )
+
+
+@app.get("/requests/{request_id}")
+async def request_status(request_id: str):
+    rec = STATE.requests.get(request_id)
+    if rec is None:
+        raise _error(404, "request_not_found", f"unknown or expired request {request_id}")
+    return rec
 
 
 @app.post("/preview")
@@ -368,14 +453,21 @@ async def preview(req: SynthRequest, request: Request):
     if not chunks:
         raise _error(422, "empty_text", "text has no speakable content")
     await _ensure_or_http(req.profile_id)
-    pcm = b"".join([c async for c in _stream_chunks(request, req.profile_id, chunks, t_start)])
+    rec = _new_request(req.profile_id, len(chunks))
+    try:
+        pcm = b"".join([c async for c in _stream_chunks(request, rec, chunks, t_start)])
+    except Exception:  # noqa: BLE001 - _stream_chunks already classified and logged it
+        raise _error(HTTP_STATUS[rec["code"]], rec["code"], rec["detail"]) from None
+    if rec["state"] != "complete":
+        raise _error(499, "client_disconnected", "client went away during preview")
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(SAMPLE_RATE)
         w.writeframes(pcm)
-    return Response(buf.getvalue(), media_type="audio/wav", headers={"X-Sample-Rate": str(SAMPLE_RATE)})
+    return Response(buf.getvalue(), media_type="audio/wav",
+                    headers={"X-Sample-Rate": str(SAMPLE_RATE), "X-Request-Id": rec["request_id"]})
 
 
 def main() -> None:
