@@ -12,6 +12,7 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 from tests.conftest import H, FakeSupervisor, make_settings
+from tests.voice_fakes import make_wav
 from service015.api.app import create_app, package_version
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "openapi.yaml"
@@ -52,6 +53,12 @@ def _response_schema(path, method, status):
 
 
 def assert_conforms(path, method, response):
+    resp = SPEC["paths"][path][method]["responses"][str(response.status_code)]
+    if "$ref" not in resp and "application/json" not in resp.get("content", {}):
+        # binary success response (audio/wav): the declared media type must be what was sent
+        ctype = response.headers["content-type"].split(";")[0]
+        assert ctype in resp["content"], (path, method, ctype)
+        return
     schema = _response_schema(path, method, response.status_code)
     errors = list(_validator(schema).iter_errors(response.json()))
     assert not errors, f"{method.upper()} {path} {response.status_code}: {[e.message for e in errors][:3]}"
@@ -110,6 +117,7 @@ def test_error_body_is_spec_shaped_for_every_status(client):
 
 def _concrete(path):
     path = re.sub(r"\{session_id\}", "no-such-session", path)
+    path = re.sub(r"\{voice_profile_id\}", "vp-ava", path)
     return re.sub(r"\{identity_id\}", "ava-001", re.sub(r"\{template_id\}", "sales-representative", path))
 
 
@@ -118,6 +126,10 @@ BODIES = {
     ("/templates/{template_id}/instantiate", "post"): {"overrides": {"name": "Ava", "company": "Safi"}},
     ("/identities/{identity_id}", "patch"): {"overrides": {"role": "Lead"}},
     ("/identities/{identity_id}/phone/dial", "post"): {"to": "+919876543210"},
+    ("/voices/{voice_profile_id}/authorizations", "post"): {
+        "consent_statement": "Synthetic voice, authorized by construction.", "subject_name": "Zira (synthetic)",
+        "authorized_by": "operator", "source": "seed"},
+    ("/voices/{voice_profile_id}/preview", "post"): {"text": "Hello there."},
     ("/expert/experience", "post"): {"title": "t", "body": "b", "source": "s", "repo": "r", "branch": "main", "sha": "abcdef1"},
     ("/expert/sessions/{session_id}/ask", "post"): {"question": "What is Service 015?"},
 }
@@ -129,12 +141,18 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
     # seed state the operations need
     client.post("/templates/sales-representative/instantiate",
                 json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+    client.post("/voices/vp-ava/authorizations", json=BODIES[("/voices/{voice_profile_id}/authorizations", "post")],
+                headers=H["admin"])  # so preview can answer 200
     url = _concrete(path)
     body = BODIES.get((path, method))
     if (path, method) == ("/templates", "post"):
         body = client.get("/templates/customer-support", headers=H["viewer"]).json()
         body = {k: v for k, v in body.items() if k not in ("version", "created_at")}
     kw = {"json": body} if body is not None else {}
+    if (path, method) == ("/voices", "post"):
+        kw = {"data": {"name": "Ben", "language": "en", "description": "", "reference_text": "hello there",
+                       "consent_statement": "I consent.", "subject_name": "Ben", "authorized_by": "Ops"},
+              "files": {"file": ("ref.wav", make_wav(6.0), "audio/wav")}}
 
     if required == "none":
         r = client.request(method, url, **kw)

@@ -3,13 +3,21 @@ from fastapi.testclient import TestClient
 
 from service015.api.app import create_app
 from service015.config import Settings
+from tests.voice_fakes import FakeVoiceStack
 
 KEYS = {"adm": "admin", "ope": "operator", "vie": "viewer"}
 H = {role: {"Authorization": f"Bearer {key}"} for key, role in KEYS.items()}
 
 
 def make_settings(db_path) -> Settings:
-    return Settings(SERVICE015_API_KEYS="adm:admin,ope:operator,vie:viewer", SERVICE015_DB_PATH=str(db_path), _env_file=None)
+    # Voicebox / engine point at a closed port: tests never reach the real services unless they inject a client.
+    return Settings(
+        SERVICE015_API_KEYS="adm:admin,ope:operator,vie:viewer",
+        SERVICE015_DB_PATH=str(db_path),
+        VOICEBOX_URL="http://127.0.0.1:9",
+        VOICE_ENGINE_URL="http://127.0.0.1:9",
+        _env_file=None,
+    )
 
 
 @pytest.fixture
@@ -18,8 +26,14 @@ def db_file(tmp_path):
 
 
 @pytest.fixture
-def client(db_file):
-    with TestClient(create_app(make_settings(db_file))) as c:
+def voice_stack():
+    return FakeVoiceStack()
+
+
+@pytest.fixture
+def client(db_file, voice_stack):
+    app = create_app(make_settings(db_file), voicebox=voice_stack.voicebox.client, voice_engine=voice_stack.engine.client)
+    with TestClient(app) as c:
         yield c
 
 

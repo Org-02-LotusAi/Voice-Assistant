@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from service015.api.routers import expert, health, identities, meeting, phone, templates
+from service015.api.routers import expert, health, identities, meeting, phone, templates, voices
 from service015.config import Settings, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
@@ -22,6 +22,8 @@ from service015.expert.llm import Llm, OpenAICompatLlm
 from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSupervisor
 from service015.telephony.service014 import Service014Client
 from service015.templates_repo import seed_starter_templates
+from service015.voice.engine import VoiceEngineClient
+from service015.voice.voicebox import VoiceboxClient
 
 log = logging.getLogger("service015.api")
 
@@ -42,6 +44,8 @@ def create_app(
     supervisor: RuntimeSupervisor | None = None,
     telephony: Service014Client | None = None,
     expert_llm: Llm | None = None,
+    voicebox: VoiceboxClient | None = None,
+    voice_engine: VoiceEngineClient | None = None,
 ) -> FastAPI:
     # Packaged copy of the repo-root openapi.yaml (a test keeps them byte-identical); raises if missing.
     openapi_yaml = resources.files("service015").joinpath("openapi.yaml").read_bytes()
@@ -70,6 +74,10 @@ def create_app(
     app.state.supervisor = supervisor if supervisor is not None else NullSupervisor(settings.db_path)
     app.state.telephony = telephony if telephony is not None else Service014Client.from_settings(settings)
     app.state.expert_llm = expert_llm if expert_llm is not None else OpenAICompatLlm.from_settings(settings)
+    app.state.voicebox = voicebox if voicebox is not None else VoiceboxClient(settings.voicebox_url, settings.voicebox_timeout_s)
+    app.state.voice_engine = (
+        voice_engine if voice_engine is not None else VoiceEngineClient(settings.voice_engine_url, settings.voice_engine_timeout_s)
+    )
     app.state.version = package_version()
     app.state.openapi_yaml = openapi_yaml
 
@@ -92,7 +100,7 @@ def create_app(
         log.exception("unhandled error on %s %s", request.method, request.url.path)
         return error_response(500, "internal_error", "internal server error")
 
-    app.state.routers = (health.router, templates.router, identities.router, meeting.router, phone.router, expert.router)
+    app.state.routers = (health.router, templates.router, identities.router, meeting.router, phone.router, expert.router, voices.router)
     for router in app.state.routers:
         app.include_router(router)
     return app

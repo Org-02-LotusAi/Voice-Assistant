@@ -24,6 +24,7 @@ tags:
   - name: meeting
   - name: phone
   - name: expert
+  - name: voices
 
 paths:
   /health:
@@ -155,7 +156,9 @@ paths:
       description: |
         Binds the new Identity to `template_version` (latest when omitted) permanently.
         Failures: `override_not_allowed`, `missing_required_field`, `invalid_override` (all 422),
-        `template_not_found` (404).
+        `template_not_found` (404). A non-null resolved `voice.profile_id` must exist in Voicebox and have a cloning
+        authorization: 422 `voice_profile_not_found` / `voice_not_authorized`; Voicebox down: 503
+        `voicebox_unavailable` (nothing is persisted).
       x-required-role: operator
       parameters:
         - {$ref: "#/components/parameters/TemplateId"}
@@ -175,6 +178,8 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
   /identities:
     get:
@@ -220,6 +225,9 @@ paths:
         Merges `overrides` into the stored overrides (a `null` value clears that override) and
         re-validates against the template version the Identity is bound to (never the latest).
         `identity_id`, `participant_identity` and `default_room` never change.
+        Changing `voice.profile_id` to a non-null value applies the same voice rules as instantiate
+        (422 `voice_profile_not_found` / `voice_not_authorized`, 503 `voicebox_unavailable`); patches that leave the
+        voice unchanged, and clearing it, do not call Voicebox.
       x-required-role: operator
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
@@ -239,6 +247,8 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
   /identities/{identity_id}/self-context:
     get:
@@ -412,6 +422,122 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
 
+  /voices:
+    get:
+      operationId: listVoices
+      tags: [voices]
+      summary: List cloned Voicebox voice profiles and whether each is authorized
+      description: |
+        Cloned Voicebox profiles only (the Chatterbox Turbo engine needs cloned voices). `authorized` is true when
+        a `voice_authorizations` row exists for the profile; only authorized voices can be attached to an Identity.
+        Voicebox down: 503 `voicebox_unavailable`.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Cloned voice profiles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/VoiceProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+    post:
+      operationId: createVoice
+      tags: [voices]
+      summary: Clone a voice from a reference sample and record its authorization
+      description: |
+        Creates the Voicebox cloned profile (Chatterbox Turbo) from the uploaded reference audio, then records the
+        `voice_authorizations` row (consent statement, subject, authorizing person). If Voicebox fails nothing is
+        recorded; if recording fails the new profile is removed again. The raw audio is never stored by this
+        service, returned, or logged. Max sample size 25 MiB (422 `sample_too_large`; 422 `empty_sample`).
+        Voicebox down: 503 `voicebox_unavailable`; Voicebox rejecting the sample: 502 `voicebox_rejected`.
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: "#/components/schemas/VoiceCreateForm"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The created profile, already authorized.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VoiceProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /voices/{voice_profile_id}/authorizations:
+    post:
+      operationId: authorizeVoice
+      tags: [voices]
+      summary: Record a cloning authorization for a profile created directly in Voicebox
+      description: |
+        The profile must exist in Voicebox (404 `voice_profile_not_found`) and be a cloned profile
+        (422 `voice_profile_not_cloned`). Multiple authorization rows per profile are allowed (append-only).
+        Voicebox down: 503 `voicebox_unavailable`.
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/VoiceProfileId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VoiceAuthorizationCreate"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The recorded authorization.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VoiceAuthorization"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /voices/{voice_profile_id}/preview:
+    post:
+      operationId: previewVoice
+      tags: [voices]
+      summary: Synthesize a short preview of an authorized voice (audio/wav)
+      description: |
+        Synthesis runs on the voice engine sidecar (Chatterbox Turbo). On CPU a short sentence takes roughly
+        15-40 s; the wait is bounded by `VOICE_ENGINE_TIMEOUT_S` (default 120). The voice must exist in Voicebox
+        (404 `voice_profile_not_found`) and be authorized (422 `voice_not_authorized`). Engine or Voicebox down:
+        503 `voice_engine_unavailable` / `voicebox_unavailable`. `text` defaults to
+        "Hello, this is a preview of my voice." (max 500 characters).
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/VoiceProfileId"}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VoicePreviewRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: A complete WAV file (mono, 16-bit PCM, 24 kHz).
+          content:
+            audio/wav:
+              schema: {type: string, format: binary}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
   /expert/experience:
     post:
       operationId: addExpertExperience
@@ -533,6 +659,11 @@ components:
       in: path
       required: true
       schema: {type: string}
+    VoiceProfileId:
+      name: voice_profile_id
+      in: path
+      required: true
+      schema: {type: string}
 
   responses:
     Unauthorized:
@@ -549,14 +680,16 @@ components:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     NotFound:
-      description: Resource not found (`template_not_found`, `identity_not_found`).
+      description: Resource not found (`template_not_found`, `identity_not_found`, `voice_profile_not_found`).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     Unprocessable:
       description: |
         Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
-        `invalid_override`.
+        `invalid_override`, `voice_profile_not_found` / `voice_not_authorized` (the resolved `voice.profile_id` must
+        exist in Voicebox and have a cloning authorization), `voice_profile_not_cloned`, `empty_sample`,
+        `sample_too_large`, `reference_too_short`.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -565,8 +698,15 @@ components:
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
+    BadGateway:
+      description: An upstream service answered unexpectedly (`voicebox_rejected`, `voicebox_bad_response`, `voice_engine_error`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
     DependencyUnavailable:
-      description: A required backing service is not available (`dependency_unavailable`).
+      description: |
+        A required backing service is not available (`dependency_unavailable`, `voicebox_unavailable`,
+        `voice_engine_unavailable`, `telephony_not_configured`). Nothing is persisted.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -597,12 +737,70 @@ components:
           type: object
           description: |
             `database`: ok | error. `runtime`: ok when a runtime supervisor is configured,
-            otherwise not_configured (informational; does not degrade status).
+            otherwise not_configured (informational; does not degrade status). `voicebox`: ok | unavailable.
+            `voice_engine`: ok | loading | error | unavailable (the sidecar's own status). The voice
+            dependencies are informational: they never fail or degrade /health.
           additionalProperties: {type: string}
-          required: [database, runtime]
+          required: [database, runtime, voicebox, voice_engine]
           properties:
             database: {type: string, enum: [ok, error]}
             runtime: {type: string, enum: [ok, not_configured]}
+            voicebox: {type: string, enum: [ok, unavailable]}
+            voice_engine: {type: string, enum: [ok, loading, error, unavailable]}
+
+    VoiceProfile:
+      type: object
+      additionalProperties: false
+      required: [voice_profile_id, name, language, engine, authorized]
+      properties:
+        voice_profile_id: {type: string}
+        name: {type: string}
+        language: {type: string}
+        engine: {type: string, enum: [chatterbox-turbo]}
+        authorized: {type: boolean, description: "True when a voice_authorizations row exists for this profile."}
+
+    VoiceCreateForm:
+      type: object
+      additionalProperties: false
+      required: [name, reference_text, file, consent_statement, subject_name, authorized_by]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100, pattern: '\S'}
+        language: {type: string, minLength: 2, maxLength: 20, pattern: "^[A-Za-z][A-Za-z0-9_-]*$", default: en}
+        description: {type: string, maxLength: 1000, default: ""}
+        reference_text: {type: string, minLength: 1, maxLength: 4000, pattern: '\S', description: Exact transcript of the sample.}
+        file: {type: string, format: binary, description: Reference audio, longer than 5 s, at most 25 MiB.}
+        consent_statement: {type: string, minLength: 1, maxLength: 4000, pattern: '\S'}
+        subject_name: {type: string, minLength: 1, maxLength: 200, pattern: '\S', description: Whose voice is cloned.}
+        authorized_by: {type: string, minLength: 1, maxLength: 200, pattern: '\S', description: Who authorized the cloning.}
+
+    VoiceAuthorizationCreate:
+      type: object
+      additionalProperties: false
+      required: [consent_statement, subject_name, authorized_by]
+      properties:
+        consent_statement: {type: string, minLength: 1, maxLength: 4000, pattern: '\S'}
+        subject_name: {type: string, minLength: 1, maxLength: 200, pattern: '\S'}
+        authorized_by: {type: string, minLength: 1, maxLength: 200, pattern: '\S'}
+        source: {type: string, minLength: 1, maxLength: 200, pattern: '\S', default: voicebox_direct}
+
+    VoiceAuthorization:
+      type: object
+      additionalProperties: false
+      required: [id, voice_profile_id, authorized_by, subject_name, consent_statement, source, created_at]
+      properties:
+        id: {type: integer}
+        voice_profile_id: {type: string}
+        authorized_by: {type: string}
+        subject_name: {type: string}
+        consent_statement: {type: string}
+        source: {type: string}
+        created_at: {type: string, format: date-time}
+
+    VoicePreviewRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 500, pattern: '\S', description: "Default: Hello, this is a preview of my voice."}
 
     OverrideKey:
       type: string

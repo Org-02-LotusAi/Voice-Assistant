@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     service014_sip_trunk_id: str = Field("", validation_alias="SERVICE014_SIP_TRUNK_ID")
 
     voicebox_url: str = Field("http://127.0.0.1:17493", validation_alias="VOICEBOX_URL")
+    voicebox_timeout_s: float = Field(30.0, gt=0, validation_alias="VOICEBOX_TIMEOUT_S")
+    voice_engine_url: str = Field("http://127.0.0.1:17494", validation_alias="VOICE_ENGINE_URL")
+    # Preview synthesis on CPU runs at RTF ~6-9 (15-40 s for a short sentence); GPU production is much faster.
+    voice_engine_timeout_s: float = Field(120.0, gt=0, validation_alias="VOICE_ENGINE_TIMEOUT_S")
 
     @field_validator("api_keys", mode="before")
     @classmethod

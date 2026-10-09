@@ -135,3 +135,32 @@ class Citation(_Strict):
 class AskResponse(_Strict):
     answer: str
     citations: list[Citation]
+
+
+class VoiceProfile(_Strict):
+    voice_profile_id: str
+    name: str
+    language: str
+    engine: Literal["chatterbox-turbo"]
+    authorized: bool
+
+
+class VoiceAuthorizationCreate(_Strict):
+    consent_statement: str = Field(min_length=1, max_length=4000, pattern=r"\S")
+    subject_name: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    authorized_by: str = Field(min_length=1, max_length=200, pattern=r"\S")
+    source: str = Field(default="voicebox_direct", min_length=1, max_length=200, pattern=r"\S")
+
+
+class VoiceAuthorization(_Strict):
+    id: int
+    voice_profile_id: str
+    authorized_by: str
+    subject_name: str
+    consent_statement: str
+    source: str
+    created_at: str
+
+
+class VoicePreviewRequest(_Strict):
+    text: str | None = Field(default=None, min_length=1, max_length=500, pattern=r"\S")

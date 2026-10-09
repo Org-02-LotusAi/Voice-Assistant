@@ -147,6 +147,20 @@ def patch_identity(conn: sqlite3.Connection, identity_id: str, overrides_patch: 
     return resolved
 
 
+def patched_voice_profile_id(
+    conn: sqlite3.Connection, identity_id: str, overrides_patch: dict[str, Any]
+) -> tuple[str | None, str | None]:
+    """(current, after-patch) resolved `voice.profile_id`, computed with patch_identity's merge rules (read-only)."""
+    row = _get_row(conn, identity_id)
+    template = get_template(conn, row["template_id"], row["template_version"])
+    current = json.loads(row["overrides_json"])
+    merged = {**current, **overrides_patch}
+    for key in [k for k, v in overrides_patch.items() if v is None]:
+        merged.pop(key)
+    default = template.voice.default_voice_profile_id
+    return current.get("voice.profile_id", default), merged.get("voice.profile_id", default)
+
+
 def get_status(conn: sqlite3.Connection, identity_id: str) -> RuntimeStatus:
     row = conn.execute(
         "SELECT identity_id, presence, status_detail, pid, launched_at, heartbeat_at, last_error "

@@ -8,12 +8,14 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from service015 import identities_repo
-from service015.api.deps import get_conn, get_supervisor
+from service015.api.deps import get_conn, get_supervisor, get_voicebox
 from service015.api.schemas import IdentitySummary, ParticipantStatus, PatchIdentityRequest, SelfContext
 from service015.auth import require_role
 from service015.resolver import ResolvedIdentity
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
 from service015.selfcontext import build_instructions, build_self_context
+from service015.voice.authz import ensure_voice_usable
+from service015.voice.voicebox import VoiceboxClient
 
 router = APIRouter(tags=["identities"])
 
@@ -45,7 +47,15 @@ def get_identity(identity_id: str, conn: sqlite3.Connection = Depends(get_conn))
 
 
 @router.patch("/identities/{identity_id}", response_model=ResolvedIdentity, dependencies=[Depends(require_role("operator"))])
-def patch_identity(identity_id: str, body: PatchIdentityRequest, conn: sqlite3.Connection = Depends(get_conn)):
+async def patch_identity(
+    identity_id: str,
+    body: PatchIdentityRequest,
+    conn: sqlite3.Connection = Depends(get_conn),
+    voicebox: VoiceboxClient = Depends(get_voicebox),
+):
+    before, after = identities_repo.patched_voice_profile_id(conn, identity_id, body.overrides)
+    if after != before:  # an unchanged voice was validated when it was attached; unrelated patches don't need Voicebox
+        await ensure_voice_usable(conn, voicebox, after)
     return identities_repo.patch_identity(conn, identity_id, body.overrides)
 
 
