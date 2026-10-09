@@ -20,7 +20,7 @@ from service015.telephony.service014 import (
     TelephonyFailed,
     mask_number,
 )
-from test_openapi_contract import assert_conforms
+from tests.test_openapi_contract import assert_conforms
 
 NUMBER = "+919876543210"
 

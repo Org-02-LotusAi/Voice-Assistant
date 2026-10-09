@@ -13,7 +13,7 @@ from service015.errors import ValidationFailed
 from service015.expert import qa, store
 from service015.expert.bm25 import BM25, tokenize
 from service015.expert.llm import LlmUnavailable, OpenAICompatLlm
-from test_openapi_contract import assert_conforms
+from tests.test_openapi_contract import assert_conforms
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROV = store.Provenance("repo-x", "main", "0123456789abcdef0123456789abcdef01234567")
