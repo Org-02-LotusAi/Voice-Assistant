@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from service015.api.routers import expert, health, identities, meeting, phone, templates, voices
+from service015.api.routers import expert, health, identities, meeting, phone, templates, ui, voices
 from service015.config import Settings, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
@@ -61,6 +61,9 @@ def create_app(
             seed_starter_templates(conn)
         finally:
             conn.close()
+        start = getattr(app.state.supervisor, "startup", None)
+        if start is not None:
+            await start()  # adopt a live runtime worker or mark orphaned rows OFFLINE runtime_lost
         try:
             yield
         finally:
@@ -81,7 +84,15 @@ def create_app(
         # LiveKit is "configured" when its URL and credentials were provided (env / .env), not merely defaulted.
         lk_fields = {"livekit_url", "livekit_api_key", "livekit_api_secret"}
         configured = lk_fields <= settings.model_fields_set and all(getattr(settings, f) for f in lk_fields)
-        supervisor = LiveKitSupervisor(settings) if configured else NullSupervisor(settings.db_path)
+        if configured:
+            supervisor = LiveKitSupervisor(settings)
+        else:
+            missing = sorted(lk_fields - settings.model_fields_set)
+            log.warning(
+                "LiveKit is not configured (set %s): launch/stop will answer 503 `runtime not configured`",
+                ", ".join(v.upper() for v in missing) or "LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET",
+            )
+            supervisor = NullSupervisor(settings.db_path)
     app.state.supervisor = supervisor
     app.state.telephony = telephony if telephony is not None else Service014Client.from_settings(settings)
     app.state.expert_llm = expert_llm if expert_llm is not None else OpenAICompatLlm.from_settings(settings)
@@ -128,6 +139,7 @@ def create_app(
     app.state.routers = (health.router, templates.router, identities.router, meeting.router, phone.router, expert.router, voices.router)
     for router in app.state.routers:
         app.include_router(router)
+    app.include_router(ui.router)  # static Workbench UI: unauthenticated, not part of openapi.yaml
     return app
 
 

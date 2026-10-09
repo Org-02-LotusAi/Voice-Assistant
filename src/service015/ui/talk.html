@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talk</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <h1>Talk to <span id="who"></span></h1>
+  <p><a href="/">Back to Workbench</a></p>
+
+  <div id="error" class="error hidden" role="alert"></div>
+  <div id="secureWarn" class="error hidden" role="alert">Microphone access needs a secure context. Open this page via http://localhost or serve it over HTTPS.</div>
+
+  <section>
+    <div class="row">
+      <button id="connect" type="button" class="primary">Connect</button>
+      <button id="hangup" type="button" class="danger" disabled>Hang up</button>
+    </div>
+    <p>Connection: <strong id="conn">disconnected</strong></p>
+    <p>Identity presence: <span id="presence" class="pill">...</span> <span id="presenceDetail" class="notice"></span></p>
+    <div id="audioSink"></div>
+  </section>
+
+  <section>
+    <h2>Transcript</h2>
+    <div id="transcript" class="log"><p class="notice">Appears here if the agent publishes transcription.</p></div>
+  </section>
+
+  <section id="latencyPanel" class="hidden">
+    <h2>Latency (ms, all recorded turns)</h2>
+    <div id="latency"></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js" integrity="sha384-G/xxtkVytOx/ia9Q8MXxM+V0ohsaY1fZAgVP3iSGTPz4wJ0s3+ulJNKXh/gnzEDZ" crossorigin="anonymous"></script>
+<script src="/ui/common.js"></script>
+<script src="/ui/talk.js"></script>
+</body>
+</html>

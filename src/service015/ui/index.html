@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <h1>AI Voice Identity Workbench</h1>
+
+  <section>
+    <label for="apikey">API key (stored in this browser only)</label>
+    <div class="row">
+      <input id="apikey" class="grow" type="password" autocomplete="off" placeholder="Bearer key">
+      <button id="savekey" class="primary" type="button">Save key</button>
+    </div>
+  </section>
+
+  <div id="globalError" class="error hidden" role="alert"></div>
+
+  <div class="tabs" role="tablist">
+    <button id="tab-wb" type="button" role="tab" aria-selected="true">Workbench</button>
+    <button id="tab-expert" type="button" role="tab" aria-selected="false">Expert</button>
+  </div>
+
+  <div id="pane-wb">
+    <section>
+      <h2 id="formTitle">New identity</h2>
+      <form id="form" autocomplete="off">
+        <label for="template">Template</label>
+        <select id="template"></select>
+        <div id="templateDesc" class="notice"></div>
+
+        <label for="f-name">Name</label>
+        <input id="f-name" data-key="name" type="text" maxlength="80">
+        <label for="f-company">Company</label>
+        <input id="f-company" data-key="company" type="text" maxlength="120">
+        <label for="f-role">Role</label>
+        <input id="f-role" data-key="role" type="text" maxlength="120">
+        <label for="f-language">Language</label>
+        <input id="f-language" data-key="language" type="text" placeholder="en-US">
+
+        <label for="f-voice">Voice</label>
+        <div class="row">
+          <select id="f-voice" class="grow" data-key="voice.profile_id"></select>
+          <button id="preview" type="button">Preview</button>
+          <button id="cancelPreview" type="button" class="hidden">Cancel</button>
+        </div>
+        <div id="previewState" class="notice"></div>
+        <audio id="previewAudio" controls class="hidden"></audio>
+
+        <label for="f-greeting">Greeting</label>
+        <textarea id="f-greeting" data-key="greeting"></textarea>
+        <label for="f-persona">Persona (instructions)</label>
+        <textarea id="f-persona" data-key="persona.instructions" rows="5"></textarea>
+        <label for="f-style">Speaking style</label>
+        <textarea id="f-style" data-key="conversation.speaking_style"></textarea>
+        <label for="f-barge"><input id="f-barge" data-key="conversation.barge_in" type="checkbox"> Barge-in (caller can interrupt)</label>
+
+        <div class="row" style="margin-top:12px">
+          <button id="create" type="button" class="primary">CREATE IDENTITY</button>
+          <button id="save" type="button" disabled>SAVE</button>
+          <button id="launch" type="button" disabled>LAUNCH</button>
+          <button id="stop" type="button" class="danger" disabled>STOP</button>
+          <button id="test" type="button" disabled>TEST</button>
+          <button id="reset" type="button">New</button>
+        </div>
+      </form>
+      <div id="formMsg" class="notice"></div>
+      <div id="formError" class="error hidden" role="alert"></div>
+    </section>
+
+    <section>
+      <div class="row"><h2 class="grow">Identities</h2><button id="refresh" type="button">Refresh</button></div>
+      <div id="identities"></div>
+    </section>
+  </div>
+
+  <div id="pane-expert" class="hidden">
+    <section>
+      <h2>Service Expert</h2>
+      <div class="row">
+        <button id="newSession" type="button">New session</button>
+        <span id="sessionId" class="notice mono"></span>
+      </div>
+      <label for="question">Question</label>
+      <textarea id="question" maxlength="2000"></textarea>
+      <div class="row" style="margin-top:8px"><button id="ask" type="button" class="primary">Ask</button></div>
+      <div id="expertError" class="error hidden" role="alert"></div>
+      <div id="expertLog" class="log hidden"></div>
+    </section>
+  </div>
+
+  <p class="notice">Microphone access (Talk page) needs a secure context: localhost works; any other host must be served over HTTPS.</p>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/app.js"></script>
+</body>
+</html>
