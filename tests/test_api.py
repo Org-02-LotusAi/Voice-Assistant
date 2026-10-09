@@ -2,7 +2,7 @@ import copy
 
 from fastapi.testclient import TestClient
 
-from conftest import H, make_settings
+from conftest import H, FakeSupervisor, make_settings
 from service015.api.app import create_app
 
 AVA = {"name": "Ava", "company": "Safi", "role": "Account Specialist"}
@@ -94,22 +94,7 @@ def test_launch_stop_null_supervisor_503(client):
 
 
 def test_injected_supervisor_used(db_file):
-    class Fake:
-        async def launch(self, identity_id):
-            return await self.status(identity_id) | {"presence": "STARTING"}
-
-        async def stop(self, identity_id):
-            return await self.status(identity_id)
-
-        async def status(self, identity_id):
-            return {
-                "identity_id": identity_id, "participant_identity": identity_id, "default_room": identity_id,
-                "presence": "OFFLINE", "status_detail": None, "last_error": None,
-                "capabilities": {"audio_receive": True, "audio_publish": True, "barge_in": True, "video_publish": False},
-                "launched_at": None, "heartbeat_at": None,
-            }
-
-    with TestClient(create_app(make_settings(db_file), Fake())) as c:
+    with TestClient(create_app(make_settings(db_file), FakeSupervisor())) as c:
         _instantiate(c)
         assert c.post("/identities/ava-001/launch", headers=H["operator"]).json()["presence"] == "STARTING"
         assert c.get("/health").json()["dependencies"]["runtime"] == "ok"
@@ -161,3 +146,17 @@ def test_restart_persistence(db_file):
     assert again["identity_id"] == "ava-001"
     assert again["participant"]["default_room"] == first["participant"]["default_room"] == "ava-001"
     assert again == first
+
+
+def test_health_degraded_when_db_unreachable(tmp_path, caplog):
+    # db_path is a directory: sqlite cannot open it. No lifespan, so startup does not fail first.
+    c = TestClient(create_app(make_settings(tmp_path)))
+    with caplog.at_level("ERROR", logger="service015.api"):
+        r = c.get("/health")
+    assert r.status_code == 503
+    assert r.json()["status"] == "degraded" and r.json()["dependencies"]["database"] == "error"
+    assert "database unreachable" in caplog.text
+
+
+def test_settings_repr_hides_api_keys(tmp_path):
+    assert "api_keys" not in repr(make_settings(tmp_path))

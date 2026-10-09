@@ -1,17 +1,17 @@
-import copy
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 import yaml
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from openapi_spec_validator import validate
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from conftest import H, make_settings
+from conftest import H, FakeSupervisor, make_settings
 from service015.api.app import create_app, package_version
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "openapi.yaml"
@@ -20,6 +20,20 @@ METHODS = ("get", "post", "put", "patch", "delete")
 OPS = [(p, m, op) for p, item in SPEC["paths"].items() for m, op in item.items() if m in METHODS]
 LOWER = {"admin": "operator", "operator": "viewer"}
 REGISTRY = Registry().with_resource("urn:spec", Resource.from_contents(SPEC, default_specification=DRAFT202012))
+
+
+FORMATS = FormatChecker(formats=[])
+
+
+@FORMATS.checks("date-time", raises=ValueError)
+def _is_date_time(value):
+    if not isinstance(value, str):
+        return True
+    return datetime.fromisoformat(value).tzinfo is not None  # RFC 3339 needs an offset
+
+
+def _validator(schema):
+    return Draft202012Validator(schema, registry=REGISTRY, format_checker=FORMATS)
 
 
 def _abs_refs(node):
@@ -39,7 +53,7 @@ def _response_schema(path, method, status):
 
 def assert_conforms(path, method, response):
     schema = _response_schema(path, method, response.status_code)
-    errors = list(Draft202012Validator(schema, registry=REGISTRY).iter_errors(response.json()))
+    errors = list(_validator(schema).iter_errors(response.json()))
     assert not errors, f"{method.upper()} {path} {response.status_code}: {[e.message for e in errors][:3]}"
 
 
@@ -161,3 +175,130 @@ def test_error_responses_conform(client):
         generic = re.sub(r"/(zzz-001|ava-001)", "/{identity_id}", path)
         generic = generic.replace("/nope", "/{template_id}").replace("/sales-representative", "/{template_id}")
         assert_conforms(generic, method, r)
+
+
+def _schema_errors(ref_or_schema, instance):
+    schema = {"$ref": "urn:spec#/components/schemas/" + ref_or_schema} if isinstance(ref_or_schema, str) else ref_or_schema
+    return list(_validator(schema).iter_errors(instance))
+
+
+def test_every_operation_declares_500():
+    for path, method, op in OPS:
+        assert "500" in op["responses"], (path, method)
+
+
+def test_packaged_spec_is_byte_identical_to_repo_root():
+    packaged = Path(__file__).resolve().parents[1] / "src" / "service015" / "openapi.yaml"
+    assert packaged.read_bytes() == SPEC_PATH.read_bytes()
+
+
+def test_served_spec_is_the_contract(client):
+    assert client.get("/openapi.yaml").content == SPEC_PATH.read_bytes()
+
+
+def test_format_checker_rejects_bad_date_time():
+    bad = {"identity_id": "a", "participant_identity": "a", "default_room": "a", "presence": "OFFLINE",
+           "status_detail": None, "last_error": None, "launched_at": "yesterday", "heartbeat_at": None,
+           "capabilities": {"audio_receive": True, "audio_publish": True, "barge_in": True, "video_publish": False}}
+    assert _schema_errors("ParticipantStatus", bad)
+    assert not _schema_errors("ParticipantStatus", {**bad, "launched_at": "2026-01-01T00:00:00+00:00"})
+
+
+@pytest.mark.parametrize("name", ["InstantiateRequest", "PatchIdentityRequest", "TemplateCreate"])
+def test_schema_examples_are_valid(name):
+    examples = SPEC["components"]["schemas"][name]["examples"]
+    assert examples
+    for ex in examples:
+        assert not _schema_errors(name, ex)
+
+
+def test_template_create_example_is_accepted_by_server(client):
+    ex = SPEC["components"]["schemas"]["TemplateCreate"]["examples"][0]
+    r = client.post("/templates", json=ex, headers=H["admin"])
+    assert r.status_code == 201, r.text
+    assert_conforms("/templates", "post", r)
+    ex = SPEC["components"]["schemas"]["InstantiateRequest"]["examples"][0]
+    r = client.post("/templates/sales-representative/instantiate", json=ex, headers=H["operator"])
+    assert r.status_code == 201, r.text
+    ex = SPEC["components"]["schemas"]["PatchIdentityRequest"]["examples"][0]
+    r = client.patch("/identities/ava-001", json=ex, headers=H["operator"])
+    assert r.status_code == 200, r.text
+
+
+def test_request_bodies_exercised_by_tests_match_spec(client):
+    """Every request body we send in the conformance test is valid against the spec request schema."""
+    for (path, method), body in BODIES.items():
+        if body is None:
+            continue
+        schema = _abs_refs(SPEC["paths"][path][method]["requestBody"]["content"]["application/json"]["schema"])
+        assert not list(_validator(schema).iter_errors(body)), (path, method)
+
+
+def test_unknown_override_key_is_spec_valid_and_rejected_by_server(client):
+    body = {"overrides": {"name": "Ava", "company": "Safi", "template_id": "x"}}
+    assert not _schema_errors("InstantiateRequest", body)
+    r = client.post("/templates/sales-representative/instantiate", json=body, headers=H["operator"])
+    assert r.status_code == 422 and r.json()["error"]["code"] == "override_not_allowed"
+    assert_conforms("/templates/{template_id}/instantiate", "post", r)
+
+
+VALUE_CASES = [
+    ("greeting", ""),
+    ("greeting", "   "),
+    ("greeting", "x" * 4001),
+    ("conversation.barge_in", "yes"),
+    ("persona.style", True),
+    ("language", "english"),
+    ("name", "N" * 81),
+    ("company", "A" * 121),
+    ("company", "multi" + chr(10) + "line"),
+]
+
+
+@pytest.mark.parametrize("key,value", VALUE_CASES)
+def test_override_value_rules_agree_between_spec_and_server(client, key, value):
+    ov = {"name": "Ava", "company": "Safi", key: value}
+    assert _schema_errors("InstantiateRequest", {"overrides": ov}), "spec should reject"
+    r = client.post("/templates/sales-representative/instantiate", json={"overrides": ov}, headers=H["operator"])
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_override", r.text
+    assert_conforms("/templates/{template_id}/instantiate", "post", r)
+
+
+def test_valid_override_values_accepted_by_both(client):
+    ov = {"name": "Ava", "company": "Safi", "language": "en-GB", "greeting": "Hi {name}", "conversation.barge_in": False}
+    assert not _schema_errors("InstantiateRequest", {"overrides": ov})
+    assert client.post("/templates/sales-representative/instantiate", json={"overrides": ov},
+                       headers=H["operator"]).status_code == 201
+
+
+@pytest.fixture
+def fake_client(db_file):
+    with TestClient(create_app(make_settings(db_file), FakeSupervisor())) as c:
+        c.post("/templates/sales-representative/instantiate",
+               json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+        yield c
+
+
+@pytest.mark.parametrize("path,method", [("/identities/{identity_id}/launch", "post"),
+                                         ("/identities/{identity_id}/stop", "post"),
+                                         ("/identities/{identity_id}/status", "get")])
+def test_supervisor_backed_200_bodies_conform(fake_client, path, method):
+    r = fake_client.request(method, _concrete(path), headers=H["operator"])
+    assert r.status_code == 200
+    assert_conforms(path, method, r)
+
+
+def test_unauthorized_has_www_authenticate_header(client):
+    r = client.get("/templates")
+    assert r.status_code == 401 and r.headers["www-authenticate"] == "Bearer"
+
+
+def test_500_matches_error_body(db_file):
+    app = create_app(make_settings(db_file), FakeSupervisor(explode=True))
+    with TestClient(app, raise_server_exceptions=False) as c:
+        c.post("/templates/sales-representative/instantiate",
+               json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+        r = c.post("/identities/ava-001/launch", headers=H["operator"])
+        assert r.status_code == 500 and r.json()["error"]["code"] == "internal_error"
+        assert_conforms("/identities/{identity_id}/launch", "post", r)
+        assert "boom" not in r.text

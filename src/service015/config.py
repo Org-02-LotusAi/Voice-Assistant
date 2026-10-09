@@ -36,7 +36,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True, hide_input_in_errors=True
     )
 
-    api_keys: Annotated[dict[str, Role], NoDecode] = Field(default_factory=dict, validation_alias="SERVICE015_API_KEYS")
+    api_keys: Annotated[dict[str, Role], NoDecode] = Field(default_factory=dict, validation_alias="SERVICE015_API_KEYS", repr=False)
     db_path: str = Field("./data/service015.db", validation_alias="SERVICE015_DB_PATH")
     host: str = Field("127.0.0.1", validation_alias="SERVICE015_HOST")
     port: int = Field(8015, validation_alias="SERVICE015_PORT")

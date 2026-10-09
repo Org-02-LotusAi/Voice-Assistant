@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from importlib import resources
 from importlib.metadata import version as _pkg_version
-from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -22,7 +22,6 @@ from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSuperv
 from service015.templates_repo import seed_starter_templates
 
 log = logging.getLogger("service015.api")
-OPENAPI_PATH = Path(__file__).resolve().parents[3] / "openapi.yaml"
 
 
 def package_version() -> str:
@@ -37,8 +36,10 @@ def error_response(
 
 
 def create_app(settings: Settings, supervisor: RuntimeSupervisor | None = None) -> FastAPI:
-    if not OPENAPI_PATH.is_file():
-        raise FileNotFoundError(f"openapi.yaml not found at {OPENAPI_PATH}")
+    # Packaged copy of the repo-root openapi.yaml (a test keeps them byte-identical); raises if missing.
+    openapi_yaml = resources.files("service015").joinpath("openapi.yaml").read_bytes()
+    if not settings.api_keys:
+        log.warning("SERVICE015_API_KEYS is empty: every protected route will answer 401")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -61,7 +62,7 @@ def create_app(settings: Settings, supervisor: RuntimeSupervisor | None = None) 
     app.state.settings = settings
     app.state.supervisor = supervisor if supervisor is not None else NullSupervisor(settings.db_path)
     app.state.version = package_version()
-    app.state.openapi_yaml = OPENAPI_PATH.read_bytes()
+    app.state.openapi_yaml = openapi_yaml
 
     @app.exception_handler(DomainError)
     async def _domain(request: Request, exc: DomainError) -> JSONResponse:

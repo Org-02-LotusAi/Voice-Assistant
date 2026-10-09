@@ -9,7 +9,9 @@ info:
     `Authorization: Bearer <key>`. Roles are hierarchical: admin includes operator includes viewer.
     The minimum role for each operation is given in `x-required-role` (`none` = unauthenticated).
 
-    Every non-2xx JSON body is an `ErrorBody`.
+    Every non-2xx JSON body is an `ErrorBody`, including 404 `not_found` / 405 `method_not_allowed`
+    for unknown routes or methods. `error.details` conventions: `field` names the offending override
+    (with `allowed` or `required` lists where relevant); 403 carries `required_role` and `role`.
 servers:
   - url: http://localhost:8015
     description: Local development
@@ -30,6 +32,7 @@ paths:
       security: []
       x-required-role: none
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Service and its dependencies are healthy.
           content:
@@ -49,6 +52,7 @@ paths:
       security: []
       x-required-role: none
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: The OpenAPI document.
           content:
@@ -62,6 +66,7 @@ paths:
       summary: List templates (latest version of each)
       x-required-role: viewer
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Template summaries ordered by template_id.
           content:
@@ -85,6 +90,7 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/TemplateCreate"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "201":
           description: The stored template version.
           content:
@@ -107,6 +113,7 @@ paths:
           required: false
           schema: {type: integer, minimum: 1}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: The template version.
           content:
@@ -126,6 +133,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/TemplateId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Version numbers.
           content:
@@ -155,6 +163,7 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/InstantiateRequest"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "201":
           description: The new Identity, fully resolved.
           content:
@@ -172,6 +181,7 @@ paths:
       summary: List identity summaries
       x-required-role: viewer
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Identity summaries ordered by identity_id.
           content:
@@ -191,6 +201,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: The resolved Identity.
           content:
@@ -216,6 +227,7 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/PatchIdentityRequest"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: The re-resolved Identity.
           content:
@@ -236,6 +248,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Self-context block, full instructions and the snapshot hash they derive from.
           content:
@@ -255,6 +268,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Participant status immediately after the launch request.
           content:
@@ -275,6 +289,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Participant status immediately after the stop request.
           content:
@@ -294,6 +309,7 @@ paths:
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: Current participant status.
           content:
@@ -313,6 +329,7 @@ paths:
         identity. No STT, TTS, LLM or prompt internals.
       x-required-role: viewer
       responses:
+        "500": {$ref: "#/components/responses/InternalError"}
         "200":
           description: One ParticipantStatus per identity, ordered by identity_id.
           content:
@@ -365,6 +382,11 @@ components:
       description: |
         Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
         `invalid_override`.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    InternalError:
+      description: Unexpected server error (`internal_error`) or corrupt stored data (`corrupt_template`, `corrupt_identity`).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -422,24 +444,66 @@ components:
         - conversation.speaking_style
         - conversation.barge_in
 
+    OverrideName:
+      type: string
+      minLength: 1
+      maxLength: 80
+      pattern: '\S'
+      description: Letters, spaces, apostrophe, hyphen and period only (checked server-side as `invalid_override`).
+    OverrideFact:
+      type: string
+      minLength: 1
+      maxLength: 120
+      pattern: '^[^\x00-\x1f\x7f]*\S[^\x00-\x1f\x7f]*$'
+      description: Single line, no control characters.
+    OverrideLanguage:
+      type: string
+      pattern: "^[a-z]{2,3}(-[A-Z]{2})?$"
+    OverrideText:
+      type: string
+      minLength: 1
+      maxLength: 4000
+      pattern: '\S'
+    OverrideBool:
+      type: boolean
+
     Overrides:
       type: object
-      description: Flat dotted keys exactly as named in a template's `allowed_overrides`. `conversation.barge_in` is boolean; all others are non-empty strings of at most 4000 characters.
-      propertyNames: {$ref: "#/components/schemas/OverrideKey"}
-      additionalProperties:
-        oneOf:
-          - {type: string}
-          - {type: boolean}
+      description: |
+        Flat dotted keys exactly as named in a template's `allowed_overrides`. The known keys and their
+        value rules are listed under `properties`. Unknown keys are not rejected by the schema; the server
+        answers 422 `override_not_allowed` for any key the template does not allow. Violating a value
+        rule answers 422 `invalid_override`.
+      properties:
+        name: {$ref: "#/components/schemas/OverrideName"}
+        company: {$ref: "#/components/schemas/OverrideFact"}
+        role: {$ref: "#/components/schemas/OverrideFact"}
+        language: {$ref: "#/components/schemas/OverrideLanguage"}
+        persona.instructions: {$ref: "#/components/schemas/OverrideText"}
+        persona.objective: {$ref: "#/components/schemas/OverrideText"}
+        persona.style: {$ref: "#/components/schemas/OverrideText"}
+        greeting: {$ref: "#/components/schemas/OverrideText"}
+        voice.profile_id: {$ref: "#/components/schemas/OverrideText"}
+        conversation.speaking_style: {$ref: "#/components/schemas/OverrideText"}
+        conversation.barge_in: {$ref: "#/components/schemas/OverrideBool"}
+      additionalProperties: {}
 
     OverridesPatch:
       type: object
       description: Like Overrides, but a `null` value clears that override.
-      propertyNames: {$ref: "#/components/schemas/OverrideKey"}
-      additionalProperties:
-        oneOf:
-          - {type: string}
-          - {type: boolean}
-          - {type: "null"}
+      properties:
+        name: {oneOf: [{$ref: "#/components/schemas/OverrideName"}, {type: "null"}]}
+        company: {oneOf: [{$ref: "#/components/schemas/OverrideFact"}, {type: "null"}]}
+        role: {oneOf: [{$ref: "#/components/schemas/OverrideFact"}, {type: "null"}]}
+        language: {oneOf: [{$ref: "#/components/schemas/OverrideLanguage"}, {type: "null"}]}
+        persona.instructions: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        persona.objective: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        persona.style: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        greeting: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        voice.profile_id: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        conversation.speaking_style: {oneOf: [{$ref: "#/components/schemas/OverrideText"}, {type: "null"}]}
+        conversation.barge_in: {oneOf: [{$ref: "#/components/schemas/OverrideBool"}, {type: "null"}]}
+      additionalProperties: {}
 
     TemplateFields:
       type: object
@@ -489,6 +553,22 @@ components:
         - {$ref: "#/components/schemas/TemplateFields"}
       required: [template_id, name, description, persona, conversation]
       unevaluatedProperties: false
+      examples:
+        - template_id: concierge
+          name: Concierge
+          description: Greets visitors and routes them to the right person.
+          default_self_facts: {language: en-US}
+          persona:
+            objective: Welcome visitors and find out who they need.
+            style: Warm and brief.
+            instructions: You are {name}, a concierge. Ask who the visitor wants to see, then confirm.
+          conversation:
+            greeting: Hello, this is {name}. Who are you here to see?
+            barge_in: true
+            speaking_style: Short, friendly sentences.
+          voice: {default_voice_profile_id: null, engine: chatterbox-turbo}
+          required_instance_fields: [name]
+          allowed_overrides: [name, language, greeting]
 
     TemplateBody:
       description: A stored, immutable template version.
@@ -531,6 +611,9 @@ components:
           type: [integer, "null"]
           minimum: 1
           description: Defaults to the latest version.
+      examples:
+        - overrides: {name: Ava, company: Safi, role: Account Specialist}
+          template_version: 1
 
     PatchIdentityRequest:
       type: object
@@ -538,6 +621,8 @@ components:
       required: [overrides]
       properties:
         overrides: {$ref: "#/components/schemas/OverridesPatch"}
+      examples:
+        - overrides: {role: Senior Specialist, conversation.barge_in: null}
 
     ResolvedIdentity:
       type: object
