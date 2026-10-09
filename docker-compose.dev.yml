@@ -1,0 +1,13 @@
+# Local LiveKit dev server (dev keys devkey/secret). livekit-server only; no SIP.
+# Single UDP mux port (7882): Docker Desktop handles port ranges badly. node-ip 127.0.0.1 so
+# ICE candidates point at the host loopback. For EC2 set LIVEKIT_NODE_IP to the instance's public IP.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    container_name: service015-livekit
+    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}", "--udp-port", "7882"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    restart: unless-stopped
