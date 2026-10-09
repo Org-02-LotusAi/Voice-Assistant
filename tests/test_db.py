@@ -25,13 +25,13 @@ def test_connect_sets_pragmas_and_creates_parent_dir(tmp_path):
 
 def test_migrate_is_idempotent(tmp_path):
     conn = connect(tmp_path / "t.db")
-    assert migrate(conn) == ["001_init.sql", "003_expert.sql"]
+    assert migrate(conn) == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql"]
     assert migrate(conn) == []
     names = _tables(conn)
     assert sorted(names) == sorted(TABLES | {"schema_migrations"})
     assert len(names) == len(set(names))
     rows = conn.execute("SELECT name, applied_at FROM schema_migrations").fetchall()
-    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql"]
+    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql"]
     assert rows[0]["applied_at"]
 
 

@@ -421,7 +421,8 @@ paths:
         Stores a fact verified during development as `verified_experience` knowledge. It survives every
         document re-ingest and is visible to every new Expert session (SOW 24). `repo`, `branch` and `sha`
         must be given together, or all omitted to resolve them with `git rev-parse` in the server's working
-        directory (422 `provenance_unresolved` if that fails).
+        directory (422 `provenance_unresolved` if that fails). `sha` must be 7-40 lowercase hex characters.
+        Idempotent on (`title`, `sha`): a repeat returns the existing item with 200 instead of 201.
       x-required-role: admin
       requestBody:
         required: true
@@ -430,6 +431,11 @@ paths:
             schema: {$ref: "#/components/schemas/ExperienceCreate"}
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: An item with the same title and sha already existed; returned unchanged.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpertKnowledgeItem"}
         "201":
           description: The stored knowledge item (metadata).
           content:
@@ -444,17 +450,17 @@ paths:
       operationId: listExpertKnowledge
       tags: [expert]
       summary: List knowledge metadata visible to the caller's role
-      description: Metadata only (never the text). Items whose `min_role` is above the caller's role are omitted.
+      description: |
+        Metadata only (never the text). Items whose `min_role` is above the caller's role are omitted.
+        `missing_required` lists manifest sources marked required that have no ingested chunk (a warning, not an error).
       x-required-role: viewer
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
         "200":
-          description: Knowledge items in ingestion order.
+          description: Knowledge items in ingestion order, plus required manifest sources still missing.
           content:
             application/json:
-              schema:
-                type: array
-                items: {$ref: "#/components/schemas/ExpertKnowledgeItem"}
+              schema: {$ref: "#/components/schemas/ExpertKnowledgeList"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
 
@@ -978,7 +984,7 @@ components:
         source: {type: string, minLength: 1, maxLength: 500, description: "Where the fact was verified (file, test, log)."}
         repo: {type: string, minLength: 1, maxLength: 500}
         branch: {type: string, minLength: 1, maxLength: 200}
-        sha: {type: string, minLength: 7, maxLength: 64}
+        sha: {type: string, pattern: "^[0-9a-f]{7,40}$"}
         min_role: {type: string, enum: [viewer, operator, admin], default: viewer}
       examples:
         - {title: Example warm-up fact, body: "Example: the first synthesis after a cold start takes much longer.", source: tests/example.log}
@@ -986,7 +992,7 @@ components:
     ExpertKnowledgeItem:
       type: object
       additionalProperties: false
-      required: [id, kind, title, source, repo, branch, sha, min_role, created_at]
+      required: [id, kind, title, source, repo, branch, sha, min_role, created_at, dirty]
       properties:
         id: {type: integer}
         kind: {type: string, enum: [document, verified_experience]}
@@ -997,6 +1003,19 @@ components:
         sha: {type: string}
         min_role: {type: string, enum: [viewer, operator, admin]}
         created_at: {type: string, format: date-time}
+        dirty: {type: boolean, description: "True when the working tree was dirty at ingest, so the text may differ from `sha`."}
+
+    ExpertKnowledgeList:
+      type: object
+      additionalProperties: false
+      required: [items, missing_required]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/ExpertKnowledgeItem"}
+        missing_required:
+          type: array
+          items: {type: string}
 
     ExpertSession:
       type: object

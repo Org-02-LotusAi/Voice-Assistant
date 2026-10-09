@@ -6,10 +6,10 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from service015.api.deps import get_conn, get_expert_llm
-from service015.api.schemas import AskRequest, AskResponse, ExperienceCreate, ExpertKnowledgeItem, ExpertSession
+from service015.api.schemas import AskRequest, AskResponse, ExperienceCreate, ExpertKnowledgeItem, ExpertKnowledgeList, ExpertSession
 from service015.auth import require_role
 from service015.errors import ValidationFailed
 from service015.expert import qa, store
@@ -24,19 +24,21 @@ router = APIRouter(tags=["expert"])
     response_model=ExpertKnowledgeItem,
     dependencies=[Depends(require_role("admin"))],
 )
-def add_experience(body: ExperienceCreate, conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+def add_experience(body: ExperienceCreate, response: Response, conn: sqlite3.Connection = Depends(get_conn)) -> Any:
     if body.repo and body.branch and body.sha:
         prov = store.Provenance(body.repo, body.branch, body.sha)
     elif body.repo or body.branch or body.sha:
         raise ValidationFailed("invalid_request", "give repo, branch and sha together, or none of them to resolve via git")
     else:
         prov = store.resolve_provenance(Path.cwd())
-    return store.add_experience(conn, body.title, body.body, body.source, prov, body.min_role)
+    item, created = store.add_experience(conn, body.title, body.body, body.source, prov, body.min_role)
+    response.status_code = 201 if created else 200  # idempotent on (title, sha)
+    return item
 
 
-@router.get("/expert/knowledge", response_model=list[ExpertKnowledgeItem])
+@router.get("/expert/knowledge", response_model=ExpertKnowledgeList)
 def list_knowledge(role: str = Depends(require_role("viewer")), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    return store.list_metadata(conn, role)
+    return {"items": store.list_metadata(conn, role), "missing_required": store.missing_required(conn)}
 
 
 @router.post("/expert/sessions", status_code=201, response_model=ExpertSession)

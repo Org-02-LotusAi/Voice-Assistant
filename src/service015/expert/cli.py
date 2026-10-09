@@ -42,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     finally:
         conn.close()
+    if args.command == "ingest" and result["missing_required"]:
+        print("warning: required sources missing: " + ", ".join(result["missing_required"]), file=sys.stderr)
+    if args.command == "ingest" and result["dirty"]:
+        print("warning: working tree is dirty; ingested text may differ from the recorded SHA", file=sys.stderr)
     print(json.dumps(result, indent=2))
     return 0
 

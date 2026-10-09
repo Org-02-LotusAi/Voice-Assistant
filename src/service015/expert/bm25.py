@@ -12,8 +12,28 @@ STOPWORDS = frozenset(
 )
 
 
+_SUFFIXES = ("ization", "izations", "izing", "ized", "izes", "ize", "ing", "ies", "ed", "es", "e", "s")
+
+
+def stem(token: str) -> str:
+    """Light suffix stripper (synthesize/synthesizes/synthesized -> synthesiz); leaves short tokens and digits alone."""
+    if len(token) <= 3 or token.isdigit():
+        return token
+    if token.endswith("ss"):
+        return token
+    for suf in _SUFFIXES:
+        if token.endswith(suf) and len(token) - len(suf) >= 3:
+            base = token[: -len(suf)]
+            if suf == "ies":
+                return base + "y"
+            if suf in ("ization", "izations", "izing", "ized", "izes", "ize"):
+                return base + "iz"
+            return base
+    return token
+
+
 def tokenize(text: str) -> list[str]:
-    return [t for t in _TOKEN.findall(text.lower()) if t not in STOPWORDS]
+    return [stem(t) for t in _TOKEN.findall(text.lower()) if t not in STOPWORDS]
 
 
 class BM25:

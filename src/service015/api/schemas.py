@@ -92,7 +92,7 @@ class ExperienceCreate(_Strict):
     source: str = Field(min_length=1, max_length=500)
     repo: str | None = Field(default=None, min_length=1, max_length=500)
     branch: str | None = Field(default=None, min_length=1, max_length=200)
-    sha: str | None = Field(default=None, min_length=7, max_length=64)
+    sha: str | None = Field(default=None, pattern=r"^[0-9a-f]{7,40}$")
     min_role: Literal["viewer", "operator", "admin"] = "viewer"
 
 
@@ -106,6 +106,12 @@ class ExpertKnowledgeItem(_Strict):
     sha: str
     min_role: Literal["viewer", "operator", "admin"]
     created_at: str
+    dirty: bool
+
+
+class ExpertKnowledgeList(_Strict):
+    items: list[ExpertKnowledgeItem]
+    missing_required: list[str]
 
 
 class ExpertSession(_Strict):

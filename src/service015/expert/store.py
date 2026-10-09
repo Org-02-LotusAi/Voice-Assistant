@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import sqlite3
 import subprocess
 import uuid
@@ -24,6 +25,7 @@ class Provenance:
     repo: str
     branch: str
     sha: str
+    dirty: bool = False
 
 
 def _now() -> str:
@@ -51,7 +53,8 @@ def resolve_provenance(root: Path) -> Provenance:
         repo = _git(root, "config", "--get", "remote.origin.url")
     except ValidationFailed:
         repo = top.name  # no remote configured: the repository directory name is the only identity there is
-    return Provenance(repo=repo, branch=branch, sha=sha)
+    dirty = bool(_git(root, "status", "--porcelain"))  # text may differ from `sha` when the tree is dirty
+    return Provenance(repo=repo, branch=branch, sha=sha, dirty=dirty)
 
 
 def load_manifest(path: str | Path | None = None) -> dict[str, Any]:
@@ -62,6 +65,8 @@ def load_manifest(path: str | Path | None = None) -> dict[str, Any]:
     )
     manifest = yaml.safe_load(text)
     for src in manifest["sources"]:
+        if not isinstance(src.get("required"), bool):
+            raise ValueError(f"manifest source {src['id']!r} must say required: true|false")
         if src["min_role"] not in ROLES:
             raise ValueError(f"manifest source {src['id']!r} has unknown min_role {src['min_role']!r}")
     return manifest
@@ -107,7 +112,8 @@ def ingest_manifest(
     """Ingest every manifest source found under `root` as `document` chunks with provenance.
 
     Re-ingest replaces the `document` chunks of each ingested source and NEVER touches
-    `verified_experience` rows. A missing non-optional source raises ValidationFailed (nothing is written).
+    `verified_experience` rows. Missing required sources never block ingestion: they are returned in
+    `missing_required` (callers warn). The manifest scope and RBAC blocks are ingested as a viewer document.
     """
     root = Path(root).resolve()
     manifest = load_manifest(manifest_path)
@@ -122,10 +128,8 @@ def ingest_manifest(
     for src in manifest["sources"]:
         files = sorted(p for p in root.glob(src["path"]) if p.is_file())
         if not files:
-            if src.get("optional"):
-                skipped.append({"source": src["path"], "reason": "not present"})
-                continue
-            raise ValidationFailed("source_missing", f"manifest source {src['path']!r} not found under {root}")
+            skipped.append({"source": src["path"], "reason": "not present"})
+            continue
         for f in files:
             rel = f.relative_to(root)
             why = _excluded(rel, never)
@@ -140,20 +144,52 @@ def ingest_manifest(
             plan.append((rel.as_posix(), src["min_role"], chunks))
             ingested[rel.as_posix()] = len(chunks)
 
+    scope_chunks = chunk_text(_scope_rbac_text(manifest), size, overlap)
+    plan.append((SCOPE_SOURCE, "viewer", scope_chunks))
+    ingested[SCOPE_SOURCE] = len(scope_chunks)
+
     now = _now()
     with conn:  # one transaction: replace all, or nothing
         for source, min_role, chunks in plan:
             conn.execute("DELETE FROM expert_knowledge WHERE kind = 'document' AND source = ?", (source,))
             for i, chunk in enumerate(chunks, 1):
                 conn.execute(
-                    "INSERT INTO expert_knowledge (kind, title, body, source, repo, branch, sha, min_role, created_at)"
-                    " VALUES ('document', ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (f"{source} (part {i}/{len(chunks)})", chunk, source, prov.repo, prov.branch, prov.sha, min_role, now),
+                    "INSERT INTO expert_knowledge (kind, title, body, source, repo, branch, sha, min_role, created_at, dirty)"
+                    " VALUES ('document', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (f"{source} (part {i}/{len(chunks)})", chunk, source, prov.repo, prov.branch, prov.sha, min_role, now,
+                     int(prov.dirty)),
                 )
-    return {"repo": prov.repo, "branch": prov.branch, "sha": prov.sha, "ingested": ingested, "skipped": skipped}
+    return {
+        "repo": prov.repo, "branch": prov.branch, "sha": prov.sha, "dirty": prov.dirty,
+        "ingested": ingested, "skipped": skipped, "missing_required": missing_required(conn, manifest_path),
+    }
 
 
-_META_COLS = "id, kind, title, source, repo, branch, sha, min_role, created_at"
+_META_COLS = "id, kind, title, source, repo, branch, sha, min_role, created_at, dirty"
+SCOPE_SOURCE = "manifest.yaml#scope-and-rbac"
+
+
+def _meta(row: sqlite3.Row) -> dict[str, Any]:
+    return {**dict(row), "dirty": bool(row["dirty"])}
+
+
+def _scope_rbac_text(manifest: dict[str, Any]) -> str:
+    lines = [f"Service Expert scope for {manifest['name']}: {' '.join(str(manifest['scope']).split())}", "", "RBAC context permissions:"]
+    lines += [f"- {role}: {desc}" for role, desc in manifest["rbac"].items()]
+    never = manifest.get("never_ingest", {})
+    lines += ["", "Raw voice samples are never ingested or exposed. Refused file types: "
+              + ", ".join(never.get("suffixes", [])) + "; refused directories: " + ", ".join(never.get("directories", [])) + "."]
+    return "\n".join(lines)
+
+
+def missing_required(conn: sqlite3.Connection, manifest_path: str | Path | None = None) -> list[str]:
+    """Manifest paths marked required that have no ingested document chunk."""
+    have = [r["source"] for r in conn.execute("SELECT DISTINCT source FROM expert_knowledge WHERE kind = 'document'")]
+    return [
+        s["path"]
+        for s in load_manifest(manifest_path)["sources"]
+        if s["required"] and not any(fnmatch.fnmatch(h, s["path"]) for h in have)
+    ]
 
 
 def add_experience(
@@ -163,24 +199,33 @@ def add_experience(
     source: str,
     provenance: Provenance,
     min_role: str = "viewer",
-) -> dict[str, Any]:
-    """Record one VERIFIED EXPERIENCE row (never replaced by a document re-ingest)."""
+) -> tuple[dict[str, Any], bool]:
+    """Record one VERIFIED EXPERIENCE row (never replaced by a document re-ingest).
+
+    Idempotent on (title, sha): returns (existing row, False) instead of adding a duplicate.
+    """
     if min_role not in ROLES:
         raise ValidationFailed("invalid_request", f"unknown min_role {min_role!r}")
+    existing = conn.execute(
+        f"SELECT {_META_COLS} FROM expert_knowledge WHERE kind = 'verified_experience' AND title = ? AND sha = ?",
+        (title, provenance.sha),
+    ).fetchone()
+    if existing is not None:
+        return _meta(existing), False
     with conn:
         cur = conn.execute(
-            "INSERT INTO expert_knowledge (kind, title, body, source, repo, branch, sha, min_role, created_at)"
-            " VALUES ('verified_experience', ?, ?, ?, ?, ?, ?, ?, ?)",
-            (title, body, source, provenance.repo, provenance.branch, provenance.sha, min_role, _now()),
+            "INSERT INTO expert_knowledge (kind, title, body, source, repo, branch, sha, min_role, created_at, dirty)"
+            " VALUES ('verified_experience', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, body, source, provenance.repo, provenance.branch, provenance.sha, min_role, _now(), int(provenance.dirty)),
         )
     row = conn.execute(f"SELECT {_META_COLS} FROM expert_knowledge WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return dict(row)
+    return _meta(row), True
 
 
 def list_metadata(conn: sqlite3.Connection, role: str) -> list[dict[str, Any]]:
     """Metadata only (never body) of the knowledge visible to `role`."""
     rows = conn.execute(f"SELECT {_META_COLS} FROM expert_knowledge ORDER BY id").fetchall()
-    return [dict(r) for r in rows if ROLE_RANK[r["min_role"]] <= ROLE_RANK[role]]
+    return [_meta(r) for r in rows if ROLE_RANK[r["min_role"]] <= ROLE_RANK[role]]
 
 
 def create_session(conn: sqlite3.Connection, role: str) -> str:
