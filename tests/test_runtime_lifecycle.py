@@ -336,3 +336,145 @@ def test_concurrent_launches_dispatch_once(db_file):
             t.join()
     assert results == [200, 200]
     assert len([call for call in lk.calls if call[0] == "create_dispatch"]) == 1
+
+
+# ------------------------------------------------------------------------------------------------ fix round 2: procs.py
+
+
+import os
+import subprocess
+import sys
+import time
+
+from service015.runtime.procs import WorkerProcess, is_our_worker, read_pidfile, write_pidfile
+
+
+def _wp(tmp_path) -> WorkerProcess:
+    return WorkerProcess({}, tmp_path / "w.log", tmp_path / "w.pid")
+
+
+def test_stale_pidfile_with_dead_pid_is_deleted_and_not_adopted(tmp_path):
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    pidfile = tmp_path / "w.pid"
+    pidfile.write_text(f"{dead.pid}:{time.time()}", encoding="ascii")
+    w = _wp(tmp_path)
+    assert w.adopt_existing() is False and w.had_pidfile is True
+    assert not pidfile.exists() and w.pid is None
+
+
+def test_legacy_or_garbage_pidfile_is_never_adopted(tmp_path):
+    (tmp_path / "w.pid").write_text(str(os.getpid()), encoding="ascii")  # old format: pid only
+    w = _wp(tmp_path)
+    assert w.adopt_existing() is False
+    assert not (tmp_path / "w.pid").exists()
+
+
+def test_live_pid_with_wrong_create_time_or_cmdline_is_not_adopted(tmp_path):
+    import psutil
+
+    me = psutil.Process(os.getpid())
+    # the pid is alive and the create_time matches, but this is pytest, not a runtime worker
+    write_pidfile(tmp_path / "w.pid", os.getpid())
+    w = _wp(tmp_path)
+    assert w.adopt_existing() is False and not (tmp_path / "w.pid").exists()
+    assert psutil.pid_exists(os.getpid())  # never bound to a job object or killed
+    # a worker-looking process whose recorded create_time differs (pid reuse)
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", "service015.runtime.worker"])
+    try:
+        (tmp_path / "w.pid").write_text(f"{child.pid}:{psutil.Process(child.pid).create_time() - 3600}", encoding="ascii")
+        assert not is_our_worker(child.pid, psutil.Process(child.pid).create_time() - 3600)
+        assert _wp(tmp_path).adopt_existing() is False
+        assert child.poll() is None  # untouched
+    finally:
+        child.kill()
+        child.wait()
+    assert me.is_running()
+
+
+def test_valid_pidfile_adopts_the_live_worker(tmp_path):
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", "service015.runtime.worker"])
+    try:
+        write_pidfile(tmp_path / "w.pid", child.pid)
+        pid, created = read_pidfile(tmp_path / "w.pid")
+        assert pid == child.pid and is_our_worker(pid, created)
+        w = _wp(tmp_path)
+        assert w.adopt_existing() is True and w.pid == child.pid and w.alive()
+        assert (tmp_path / "w.pid").exists()
+    finally:
+        child.kill()
+        child.wait()
+    assert not w.alive()
+
+
+# ------------------------------------------------------------------------------------------------ fix round 2: load gate
+
+
+def test_infinite_load_threshold_accepts_back_to_back_dispatches():
+    """SDK-level check of AgentServer._is_available (livekit-agents 1.8.3): two requests reserved before either job appears."""
+    from service015.runtime.worker import build_server
+
+    server = build_server(Settings(_env_file=None))
+    server._proc_pool = SimpleNamespace(processes=[])  # no running jobs yet
+    server._devmode = False
+    server._draining = False
+    server._worker_load = 1.0  # a saturated host
+    for reserved in (0, 1, 2, 5):
+        server._reserved_slots = reserved
+        assert server._is_available() is True
+    # contrast: the default prod threshold declines the second dispatch even on an idle host (why it was replaced)
+    default = build_server(Settings(_env_file=None))
+    default._proc_pool = SimpleNamespace(processes=[])
+    default._load_threshold = 0.7
+    default._devmode = False
+    default._draining = False
+    default._worker_load = 0.0
+    default._reserved_slots = 1
+    assert default._is_available() is False
+
+
+# ------------------------------------------------------------------------------------------------ fix round 2: capacity
+
+
+def test_launch_is_refused_with_409_at_the_active_identity_limit(conn, tmp_path):
+    identities_repo.instantiate(conn, "sales-representative", {"name": "James", "company": "Safi", "voice.profile_id": "vp-ava"})
+    stack = FakeVoiceStack()
+    lk = FakeLK()
+    sup = LiveKitSupervisor(
+        _settings(_db_path(conn), SERVICE015_MAX_ACTIVE_IDENTITIES=1), engine=stack.engine.client,
+        llm_transport=_llm_transport(), api_factory=lambda: lk, worker=FakeWorker(), worker_ready_timeout_s=2,
+    )
+    assert asyncio.run(sup.launch("ava-001"))["presence"] == "STARTING"
+    from service015.errors import Conflict
+
+    with pytest.raises(Conflict) as exc:
+        asyncio.run(sup.launch("james-001"))
+    assert exc.value.status == 409 and exc.value.code == "capacity_exceeded"
+    assert exc.value.details == {"active": 1, "limit": 1}
+    assert identities_repo.get_status(conn, "james-001").presence == "OFFLINE"
+    assert asyncio.run(sup.launch("ava-001"))["presence"] == "STARTING"  # idempotent relaunch is not counted twice
+    asyncio.run(sup.stop("ava-001"))
+    assert asyncio.run(sup.launch("james-001"))["presence"] == "STARTING"
+
+
+def test_startup_leaves_rows_alone_when_this_api_never_managed_a_worker(conn):
+    class NoPidfile(FakeWorker):
+        had_pidfile = False
+
+        def adopt_existing(self):
+            return False
+
+    identities_repo.set_status(conn, "ava-001", "STARTING", pid=5)
+    identities_repo.set_status(conn, "ava-001", "READY")
+    asyncio.run(LiveKitSupervisor(_settings(_db_path(conn)), worker=NoPidfile()).startup())
+    assert identities_repo.get_status(conn, "ava-001").presence == "READY"
+
+
+def test_recovery_is_scoped_to_the_component_that_succeeded(conn):
+    pres = _claimed(conn)
+    pres.fail(P.STT_FAILURE, "stt error: boom")
+    pres.recovered(P.TTS_UNAVAILABLE)  # a spoken greeting proves TTS only
+    pres.recovered(P.LLM_UNAVAILABLE)
+    assert identities_repo.get_status(conn, "ava-001").status_detail == "stt_failure"
+    pres.recovered(P.STT_FAILURE)  # a final transcript proves STT
+    assert identities_repo.get_status(conn, "ava-001").presence == "READY"

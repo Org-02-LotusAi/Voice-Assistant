@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     livekit_api_key: str = Field("devkey", validation_alias="LIVEKIT_API_KEY")
     livekit_api_secret: str = Field("secret", validation_alias="LIVEKIT_API_SECRET")
 
+    # Upper bound on Identities that are STARTING/READY/BUSY at once (each is a process with models resident).
+    max_active_identities: int = Field(4, ge=1, validation_alias="SERVICE015_MAX_ACTIVE_IDENTITIES")
     livekit_agent_name: str = Field("service015-identity", validation_alias="LIVEKIT_AGENT_NAME")
 
     service014_mode: Literal["disabled", "http", "livekit_sip"] = Field("disabled", validation_alias="SERVICE014_MODE")

@@ -4,9 +4,11 @@
   dies for any reason (crash, task kill) the OS kills the worker and all its job processes. A graceful stop sends CTRL_BREAK
   (the worker drains its jobs; job children ignore it, see runtime/worker.py) and falls back to `taskkill /T /F`.
 - POSIX: the worker starts its own session (`start_new_session`) and is stopped with `killpg` (SIGTERM, then SIGKILL).
-- A pidfile next to the database lets a restarted API adopt a worker that is still alive instead of spawning a duplicate.
-  Limitation: adoption trusts the pid (a recycled pid of an unrelated process would be adopted); the pidfile is removed on
-  every stop and the Job Object normally makes a stale pidfile impossible on Windows.
+- A pidfile next to the database (`<pid>:<create_time>`) lets a restarted API adopt a worker that is still alive instead of
+  spawning a duplicate. After a hard API exit the Job Object kills the worker but the pidfile stays behind, and pids get
+  recycled, so adoption requires psutil to confirm that the pid is alive, its create_time matches the recorded one and its
+  command line is the runtime worker. Anything else deletes the pidfile and is never touched (never bound, never killed).
+  psutil is a dependency of livekit-agents.
 """
 
 from __future__ import annotations
@@ -68,11 +70,37 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
-def read_pidfile(path: Path) -> int | None:
+WORKER_CMDLINE_MARKERS = ("service015.runtime.worker", "service015-runtime")
+CREATE_TIME_TOLERANCE_S = 1.0
+
+
+def read_pidfile(path: Path) -> tuple[int, float] | None:
+    """(pid, create_time) from `<pid>:<create_time>`; None for a missing or malformed file."""
     try:
-        return int(path.read_text(encoding="ascii").strip())
+        pid_s, ct_s = path.read_text(encoding="ascii").strip().split(":", 1)
+        return int(pid_s), float(ct_s)
     except (OSError, ValueError):
         return None
+
+
+def write_pidfile(path: Path, pid: int) -> None:
+    import psutil
+
+    path.write_text(f"{pid}:{psutil.Process(pid).create_time()}", encoding="ascii")
+
+
+def is_our_worker(pid: int, recorded_create_time: float) -> bool:
+    """True only if `pid` is alive, was created at `recorded_create_time` and runs the service015 runtime worker."""
+    import psutil
+
+    try:
+        proc = psutil.Process(pid)
+        if abs(proc.create_time() - recorded_create_time) > CREATE_TIME_TOLERANCE_S:
+            return False
+        cmdline = " ".join(proc.cmdline())
+        return proc.is_running() and any(m in cmdline for m in WORKER_CMDLINE_MARKERS)
+    except (psutil.Error, OSError):
+        return False
 
 
 # ---------------------------------------------------------------------------------------------------------------- job object
@@ -158,6 +186,7 @@ class WorkerProcess:
         self._adopted: int | None = None
         self._log_file: Any = None
         self.job_bound = False
+        self.had_pidfile = False  # a pidfile existed at adoption time: this API managed a worker before
 
     # -- state ----------------------------------------------------------------------------------------------------------
 
@@ -184,11 +213,15 @@ class WorkerProcess:
     # -- lifecycle ------------------------------------------------------------------------------------------------------
 
     def adopt_existing(self) -> bool:
-        """Adopt a live worker recorded in the pidfile (previous API run). Removes a stale pidfile."""
-        pid = read_pidfile(self._pid_path)
-        if pid is None:
+        """Adopt the live worker recorded in the pidfile (previous API run); delete a stale or foreign pidfile."""
+        rec = read_pidfile(self._pid_path)
+        self.had_pidfile = self._pid_path.exists()
+        if rec is None:
+            self._pid_path.unlink(missing_ok=True)
             return False
-        if not pid_alive(pid):
+        pid, created = rec
+        if not is_our_worker(pid, created):
+            log.info("pidfile %s is stale (pid %s is dead, recycled or not a runtime worker); ignoring it", self._pid_path, pid)
             self._pid_path.unlink(missing_ok=True)
             return False
         self._adopted = pid
@@ -210,7 +243,7 @@ class WorkerProcess:
         )
         self._adopted = None
         self.job_bound = bind_to_parent_lifetime(self._proc.pid)
-        self._pid_path.write_text(str(self._proc.pid), encoding="ascii")
+        write_pidfile(self._pid_path, self._proc.pid)
         log.info("spawned runtime worker pid=%s job_bound=%s log=%s", self._proc.pid, self.job_bound, self._log_path)
 
     def stop(self) -> None:

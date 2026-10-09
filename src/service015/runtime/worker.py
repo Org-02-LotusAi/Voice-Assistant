@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import multiprocessing
 import os
 import signal
@@ -132,6 +133,7 @@ class IdentityAgent(Agent):
     def __init__(self, *, instructions: str, recorder: LatencyRecorder) -> None:
         super().__init__(instructions=instructions)
         self._recorder = recorder
+        self.chunks_seen = 0  # LLM output chunks produced so far (evidence that the LLM path works)
 
     async def llm_node(
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
@@ -145,6 +147,8 @@ class IdentityAgent(Agent):
             else:
                 text = ""
             self._recorder.on_llm_chunk(gen, text)
+            if text:
+                self.chunks_seen += 1
             yield chunk
 
 
@@ -214,7 +218,13 @@ async def entrypoint(ctx: JobContext) -> None:
     def spawn(coro) -> None:
         t = asyncio.create_task(coro)
         tasks.add(t)
-        t.add_done_callback(tasks.discard)
+
+        def done(task: asyncio.Task) -> None:
+            tasks.discard(task)
+            if not task.cancelled() and task.exception() is not None:
+                log.error("background task failed for %s", identity_id, exc_info=task.exception())
+
+        t.add_done_callback(done)
 
     async def finish(reason: str) -> None:
         if state["ended"]:
@@ -283,6 +293,7 @@ async def entrypoint(ctx: JobContext) -> None:
             return
 
         agent = IdentityAgent(instructions=build_instructions(resolved), recorder=recorder)
+        llm_failed_at = [0]  # agent.chunks_seen when the LLM last failed
         session = build_session(settings, resolved, ctx.proc, recorder)
 
         def guarded(fn):
@@ -300,10 +311,18 @@ async def entrypoint(ctx: JobContext) -> None:
         def on_agent_state(ev: AgentStateChangedEvent) -> None:
             recorder.on_agent_state(ev.old_state, ev.new_state)
             if ev.old_state == "speaking" and ev.new_state != "speaking":
-                bg(pres.recovered)  # a spoken reply completed: any latched component error is over
+                # Speech that played proves the TTS path; it proves the LLM only if the LLM produced output since it failed.
+                bg(pres.recovered, P.TTS_UNAVAILABLE)
+                if agent.chunks_seen > llm_failed_at[0]:
+                    bg(pres.recovered, P.LLM_UNAVAILABLE)
 
         session.on("user_state_changed", guarded(on_user_state))
-        session.on("user_input_transcribed", guarded(lambda ev: recorder.on_user_transcript(ev.transcript, ev.is_final)))
+        def on_transcript(ev) -> None:
+            recorder.on_user_transcript(ev.transcript, ev.is_final)
+            if ev.is_final:
+                bg(pres.recovered, P.STT_FAILURE)  # a final transcript proves the STT path
+
+        session.on("user_input_transcribed", guarded(on_transcript))
         session.on("agent_state_changed", guarded(on_agent_state))
 
         def on_error(ev: ErrorEvent) -> None:
@@ -316,6 +335,8 @@ async def entrypoint(ctx: JobContext) -> None:
                 log.warning("%s: recoverable %s error (retrying): %s", identity_id, comp[1], msg)
                 bg(pres.note_error, f"{comp[1]} (recovered): {msg}")
                 return
+            if comp[0] == P.LLM_UNAVAILABLE:
+                llm_failed_at[0] = agent.chunks_seen
             fail_job(comp[0], f"{comp[1]} error: {msg}")
 
         def on_close(ev: CloseEvent) -> None:
@@ -329,10 +350,14 @@ async def entrypoint(ctx: JobContext) -> None:
 
         room = ctx.room
         own = room.local_participant.identity
+        started = asyncio.Event()
+        greeted = [False]
 
         async def greet() -> None:
+            await started.wait()  # a human may join while session.start is still running
             await asyncio.sleep(GREETING_DELAY_S)  # let the new participant finish subscribing to the agent's audio
-            if humans:
+            if humans and not greeted[0]:
+                greeted[0] = True  # once per occupancy (reset when the room empties): a reload greets again, nothing greets twice
                 session.say(resolved.conversation.greeting)  # TTS only; no LLM involved
 
         def on_join(p: rtc.RemoteParticipant) -> None:
@@ -347,6 +372,8 @@ async def entrypoint(ctx: JobContext) -> None:
         def on_leave(p: rtc.RemoteParticipant) -> None:
             if _is_human(p):
                 humans.discard(p.identity)
+                if not humans:
+                    greeted[0] = False
                 bg(pres.set_humans, frozenset(humans))
 
         room.on("participant_connected", guarded(on_join))
@@ -357,6 +384,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
         await session.start(agent, room=room, room_options=room_io.RoomOptions(close_on_disconnect=False))
         humans.update(p.identity for p in room.remote_participants.values() if p.identity != own and _is_human(p))
+        started.set()
         await writer.run(pres.set_humans, frozenset(humans))  # STARTING -> READY (BUSY when a human is already in the room)
         if humans:
             spawn(greet())
@@ -385,13 +413,6 @@ async def entrypoint(ctx: JobContext) -> None:
     spawn(beat())
 
 
-def _no_cpu_load_shedding() -> float:
-    """The SDK marks the worker "full" (no new dispatches) when host CPU load passes 0.7. The TTS engine and Moonshine load
-    saturate this host's CPU, which starved a relaunch dispatch (observed live: the job request never arrived). Capacity is
-    bounded by the operator launching Identities, not by CPU sampling."""
-    return 0.0
-
-
 def build_server(settings: Settings) -> AgentServer:
     os.environ["LIVEKIT_AGENT_NAME"] = settings.livekit_agent_name
     server = AgentServer(
@@ -401,7 +422,11 @@ def build_server(settings: Settings) -> AgentServer:
         # Windows defaults to threads; Moonshine/VAD state must be per-process, one job per process.
         job_executor_type=JobExecutorType.PROCESS,
         num_idle_processes=1,
-        load_fnc=_no_cpu_load_shedding,
+        # CPU-load shedding is off (SDK switch: an infinite threshold makes `_is_available` always True). The TTS engine and
+        # Moonshine load saturate this host, which starved a relaunch dispatch (no job request ever arrived). A finite
+        # threshold also declines a second back-to-back dispatch (idle estimate = threshold / idle processes). The
+        # bound on running Identities is SERVICE015_MAX_ACTIVE_IDENTITIES, enforced by the supervisor.
+        load_threshold=math.inf,
         port=0,  # ephemeral health port: never collides with another worker or the API
         setup_fnc=prewarm,
         initialize_process_timeout=120.0,  # Moonshine model load on first run

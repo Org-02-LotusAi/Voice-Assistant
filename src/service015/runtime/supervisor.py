@@ -30,8 +30,8 @@ from livekit import api
 from service015 import identities_repo
 from service015.config import Settings
 from service015.db import connect
-from service015.errors import DependencyUnavailable, DomainError
-from service015.participants import participant_status
+from service015.errors import Conflict, DependencyUnavailable, DomainError
+from service015.participants import participant_status, roster
 from service015.runtime.procs import WorkerProcess, allowed_env
 from service015.voice.engine import VoiceEngineClient
 
@@ -113,6 +113,25 @@ class LiveKitSupervisor:
     def _lk(self) -> api.LiveKitAPI:
         return self._api_factory()
 
+    def _check_capacity(self) -> None:
+        """409 `capacity_exceeded` once SERVICE015_MAX_ACTIVE_IDENTITIES identities are STARTING/READY/BUSY.
+
+        Every running Identity is a process with Moonshine + VAD resident and shares one CPU-bound TTS engine, so the bound is
+        a deterministic count (CPU-load shedding is disabled in the worker, see runtime/worker.py). Stale rows do not count.
+        """
+        conn = self._conn()
+        try:
+            rows = roster(conn)
+        finally:
+            conn.close()
+        active = sum(1 for st in rows if self._effective(st, None)["presence"] in ("STARTING", "READY", "BUSY"))
+        limit = self._s.max_active_identities
+        if active >= limit:
+            raise Conflict(
+                "capacity_exceeded", f"{active} identities are already running (limit {limit}); stop one first",
+                details={"active": active, "limit": limit},
+            )
+
     # -- preflight ------------------------------------------------------------------------------------------------------
 
     async def preflight(self, voice_profile_id: str) -> None:
@@ -186,6 +205,7 @@ class LiveKitSupervisor:
             current = self._status(identity_id)
             if current["presence"] in ("STARTING", "READY", "BUSY"):
                 return current  # idempotent: already running
+            self._check_capacity()
             profile = resolved.voice.profile_id
             if profile is None:
                 raise DomainError("voice_required", "this identity has no voice", 422, {"identity_id": identity_id})
@@ -271,6 +291,8 @@ class LiveKitSupervisor:
         adopted = await asyncio.to_thread(self._worker.adopt_existing)
         if adopted:
             return
+        if not getattr(self._worker, "had_pidfile", True):
+            return  # this API never managed a worker here: rows may belong to a worker started by hand, leave them
         conn = self._conn()
         try:
             n = reconcile_runtime_lost(conn)

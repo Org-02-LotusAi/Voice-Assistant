@@ -294,6 +294,13 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: |
+            `capacity_exceeded`: `SERVICE015_MAX_ACTIVE_IDENTITIES` (default 4) Identities are already STARTING, READY or
+            BUSY (`details.active`, `details.limit`). Stop one first.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
         "422": {$ref: "#/components/responses/Unprocessable"}
         "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
