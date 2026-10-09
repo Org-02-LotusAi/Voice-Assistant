@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,7 +17,9 @@ MAX_TEXT_LEN = 4000
 _LANGUAGE_RE = re.compile(r"^[a-z]{2,3}(-[A-Z]{2})?$")
 _PLACEHOLDER_RE = re.compile(r"\{(name|company|role)\}")
 # Self-facts are rendered into the instructions line by line; they must stay single-line.
-_SINGLE_LINE_KEYS = ("name", "company", "role", "language")
+MAX_NAME_LEN = 80
+MAX_FACT_LEN = 120  # company / role
+_NAME_EXTRA_CHARS = frozenset(" '-.")
 _BOOL_KEYS = ("conversation.barge_in",)
 
 
@@ -118,8 +121,51 @@ def _check_type(key: str, value: Any) -> None:
         raise ValidationFailed(
             "invalid_override", f"override 'language' {value!r} must look like 'en' or 'en-US'", details={"field": key}
         )
-    if key in _SINGLE_LINE_KEYS and ("\n" in value or "\r" in value):
+    if key == "name":
+        _check_name(value)
+    elif key in ("company", "role"):
+        _check_fact(key, value)
+    elif key == "language" and ("\n" in value or "\r" in value):
         raise ValidationFailed("invalid_override", f"override {key!r} must be a single line", details={"field": key})
+
+
+def _check_name(value: str) -> None:
+    ok = (
+        len(value) <= MAX_NAME_LEN
+        and any(ch.isalpha() for ch in value)
+        and all(ch.isalpha() or ch in _NAME_EXTRA_CHARS for ch in value)
+    )
+    if not ok:
+        raise ValidationFailed(
+            "invalid_override",
+            f"override 'name' must be at most {MAX_NAME_LEN} characters: letters, spaces, apostrophe, hyphen, period only",
+            details={"field": "name"},
+        )
+
+
+def _check_fact(key: str, value: str) -> None:
+    if len(value) > MAX_FACT_LEN or any(unicodedata.category(ch)[0] in "CZ" and ch != " " for ch in value):
+        raise ValidationFailed(
+            "invalid_override",
+            f"override {key!r} must be a single line of at most {MAX_FACT_LEN} characters with no control characters",
+            details={"field": key},
+        )
+
+
+def compute_hash(body: dict[str, Any]) -> str:
+    """sha256 of the canonical JSON of a resolved body (without `resolved_hash`)."""
+    return hashlib.sha256(canonical_json(body).encode("utf-8")).hexdigest()
+
+
+def _require_set_facts(key: str, text: str, facts: dict[str, str | None]) -> None:
+    """An overridden text may only use placeholders whose facts are set (no broken spoken sentences)."""
+    unset = sorted({m.group(1) for m in _PLACEHOLDER_RE.finditer(text) if facts[m.group(1)] is None})
+    if unset:
+        raise ValidationFailed(
+            "invalid_override",
+            f"override {key!r} uses placeholders {unset} whose facts are not set",
+            details={"field": key, "unset_placeholders": unset},
+        )
 
 
 def _substitute(text: str, facts: dict[str, str | None]) -> str:
@@ -152,6 +198,9 @@ def resolve(template: TemplateBody, overrides: dict[str, Any], identity_id: str)
     language = overrides.get("language", d.language)
     facts: dict[str, str | None] = {"name": name, "company": company, "role": role}
 
+    for key in ("greeting", "persona.instructions"):
+        if key in overrides:
+            _require_set_facts(key, overrides[key], facts)
     persona_instructions = overrides.get("persona.instructions", template.persona.instructions)
     greeting = overrides.get("greeting", template.conversation.greeting)
     body: dict[str, Any] = {
@@ -184,5 +233,4 @@ def resolve(template: TemplateBody, overrides: dict[str, Any], identity_id: str)
         "participant": {"participant_identity": identity_id, "default_room": identity_id},
         "overrides": dict(overrides),
     }
-    digest = hashlib.sha256(canonical_json(body).encode("utf-8")).hexdigest()
-    return ResolvedIdentity.model_validate({**body, "resolved_hash": digest})
+    return ResolvedIdentity.model_validate({**body, "resolved_hash": compute_hash(body)})

@@ -11,8 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from service015.errors import NotFound, ValidationFailed
-from service015.resolver import ResolvedIdentity, canonical_json, resolve
+from service015.errors import CorruptIdentity, NotFound, ValidationFailed
+from service015.resolver import ResolvedIdentity, canonical_json, compute_hash, resolve
 from service015.templates_repo import get_template
 
 PRESENCE_VALUES: tuple[str, ...] = ("READY", "STARTING", "BUSY", "ERROR", "OFFLINE")
@@ -55,7 +55,16 @@ def allocate_identity_id(conn: sqlite3.Connection, name: str) -> str:
 
 
 def _row_to_resolved(row: sqlite3.Row) -> ResolvedIdentity:
-    return ResolvedIdentity.model_validate_json(row["resolved_json"])
+    resolved = ResolvedIdentity.model_validate_json(row["resolved_json"])
+    body = resolved.to_json_obj()
+    body.pop("resolved_hash")
+    if compute_hash(body) != resolved.resolved_hash or resolved.resolved_hash != row["resolved_hash"]:
+        raise CorruptIdentity(
+            "corrupt_identity",
+            f"stored identity {row['identity_id']!r} does not match its resolved_hash",
+            details={"identity_id": row["identity_id"]},
+        )
+    return resolved
 
 
 def _store_json(resolved: ResolvedIdentity) -> str:
@@ -123,6 +132,8 @@ def patch_identity(conn: sqlite3.Connection, identity_id: str, overrides_patch: 
         row = _get_row(conn, identity_id)
         template = get_template(conn, row["template_id"], row["template_version"])
         merged = {**json.loads(row["overrides_json"]), **overrides_patch}
+        for key in [k for k, v in overrides_patch.items() if v is None]:
+            merged.pop(key)  # a null patch value clears that override (back to the template default)
         resolved = resolve(template, merged, identity_id)
         conn.execute(
             "UPDATE identities SET overrides_json = ?, resolved_json = ?, resolved_hash = ?, updated_at = ? "
@@ -165,20 +176,25 @@ def set_status(
             f"presence {presence!r} is not one of {list(PRESENCE_VALUES)}",
             details={"presence": presence, "allowed": list(PRESENCE_VALUES)},
         )
-    current = get_status(conn, identity_id)
-    now = _now()
-    if presence == "OFFLINE":
-        new_pid, launched, heartbeat = None, None, None
-    else:
-        new_pid = pid if pid is not None else current.pid
-        launched = now if presence == "STARTING" else current.launched_at
-        heartbeat = current.heartbeat_at
-    conn.execute(
-        "UPDATE runtime_status SET presence = ?, status_detail = ?, last_error = ?, pid = ?, launched_at = ?, "
-        "heartbeat_at = ? WHERE identity_id = ?",
-        (presence, detail, error, new_pid, launched, heartbeat, identity_id),
-    )
-    conn.commit()
+    try:
+        conn.execute("BEGIN IMMEDIATE")  # read-modify-write under the write lock: no lost heartbeat/pid updates
+        current = get_status(conn, identity_id)
+        now = _now()
+        if presence == "OFFLINE":
+            new_pid, launched, heartbeat = None, None, None
+        else:
+            new_pid = pid if pid is not None else current.pid
+            launched = now if presence == "STARTING" else current.launched_at
+            heartbeat = current.heartbeat_at
+        conn.execute(
+            "UPDATE runtime_status SET presence = ?, status_detail = ?, last_error = ?, pid = ?, launched_at = ?, "
+            "heartbeat_at = ? WHERE identity_id = ?",
+            (presence, detail, error, new_pid, launched, heartbeat, identity_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     return get_status(conn, identity_id)
 
 

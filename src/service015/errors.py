@@ -38,3 +38,9 @@ class CorruptTemplate(DomainError):
     """A stored template row no longer parses; indicates data corruption, not a client error."""
 
     default_status = 500
+
+
+class CorruptIdentity(DomainError):
+    """A stored identity row no longer matches its resolved_hash; indicates data corruption."""
+
+    default_status = 500
