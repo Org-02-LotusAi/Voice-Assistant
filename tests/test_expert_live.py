@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import H, make_settings
+from tests.conftest import H, make_settings
 from service015.api.app import create_app
 from service015.config import Settings
 

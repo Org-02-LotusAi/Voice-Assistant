@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from livekit import api
 from livekit.api.twirp_client import ServerError
 
-from conftest import H, FakeSupervisor, make_settings
+from tests.conftest import H, FakeSupervisor, make_settings
 from service015.api.app import create_app
 from service015.config import Settings
 from service015.errors import DomainError

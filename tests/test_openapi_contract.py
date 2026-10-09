@@ -11,7 +11,7 @@ from openapi_spec_validator import validate
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from conftest import H, FakeSupervisor, make_settings
+from tests.conftest import H, FakeSupervisor, make_settings
 from service015.api.app import create_app, package_version
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "openapi.yaml"

@@ -2,7 +2,7 @@ import copy
 
 from fastapi.testclient import TestClient
 
-from conftest import H, FakeSupervisor, make_settings
+from tests.conftest import H, FakeSupervisor, make_settings
 from service015.api.app import create_app
 
 AVA = {"name": "Ava", "company": "Safi", "role": "Account Specialist"}
