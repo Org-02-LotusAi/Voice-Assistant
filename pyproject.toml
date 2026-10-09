@@ -12,6 +12,11 @@ dependencies = [
     "httpx",
     "livekit-api==1.2.1",
     "python-multipart>=0.0.32",
+    "livekit-agents==1.8.3",
+    "livekit-plugins-openai==1.8.3",
+    "livekit-plugins-silero==1.8.3",
+    "moonshine-voice==0.1.5",
+    "numpy>=2.5.3",
 ]
 
 [project.scripts]

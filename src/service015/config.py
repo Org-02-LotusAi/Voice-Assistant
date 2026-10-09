@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # Preview synthesis on CPU runs at RTF ~6-9 (15-40 s for a short sentence); GPU production is much faster.
     voice_engine_timeout_s: float = Field(120.0, gt=0, validation_alias="VOICE_ENGINE_TIMEOUT_S")
 
+    moonshine_arch: Literal["tiny", "small", "medium"] = Field("small", validation_alias="MOONSHINE_ARCH")
+    moonshine_language: str = Field("en", validation_alias="MOONSHINE_LANGUAGE")
+
     @field_validator("api_keys", mode="before")
     @classmethod
     def _parse_api_keys(cls, value: object) -> object:
