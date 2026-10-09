@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -19,6 +20,9 @@ OVERRIDE_UNIVERSE: tuple[str, ...] = (
     "conversation.speaking_style",
     "conversation.barge_in",
 )
+
+_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+FACT_PLACEHOLDERS: tuple[str, ...] = ("name", "company", "role")
 
 TEMPLATE_ID_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
@@ -71,7 +75,22 @@ class _TemplateFields(_Strict):
         missing = sorted(set(self.required_instance_fields) - set(self.allowed_overrides))
         if missing:
             raise ValueError(f"required_instance_fields {missing} must also be listed in allowed_overrides")
+        self._check_placeholders()
         return self
+
+    def _check_placeholders(self) -> None:
+        """Every {name}/{company}/{role} spoken in text must be guaranteed to have a value."""
+        used: set[str] = set()
+        for text in (self.conversation.greeting, self.persona.instructions):
+            used.update(m for m in _PLACEHOLDER_RE.findall(text) if m in FACT_PLACEHOLDERS)
+        unguaranteed = sorted(
+            f for f in used if f not in self.required_instance_fields and getattr(self.default_self_facts, f, None) is None
+        )
+        if unguaranteed:
+            raise ValueError(
+                f"placeholders {unguaranteed} are used in greeting/persona.instructions but are neither in "
+                "required_instance_fields nor given a non-null default in default_self_facts"
+            )
 
 
 class TemplateCreate(_TemplateFields):

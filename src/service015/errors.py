@@ -32,3 +32,9 @@ class Conflict(DomainError):
 
 class DependencyUnavailable(DomainError):
     default_status = 503
+
+
+class CorruptTemplate(DomainError):
+    """A stored template row no longer parses; indicates data corruption, not a client error."""
+
+    default_status = 500
