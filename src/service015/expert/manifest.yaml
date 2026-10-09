@@ -1,0 +1,31 @@
+# Scoped Service Expert manifest (in-repo stand-in for Service 013's "OpenAPI Service Template" expert).
+# SOW 23. Repo / branch / SHA are NOT listed here: they are resolved with `git rev-parse` at ingest time.
+service: "015"
+name: SAFI Service 015 - AI Voice Identity Workbench
+scope: >-
+  Answers questions about Service 015 only: its SOW, OpenAPI contract, Template and Identity schemas,
+  LiveKit runtime, Voicebox/Chatterbox and Moonshine integration notes, acceptance tests, latency results,
+  and verified development experience. It does not answer from outside this knowledge.
+chunking:
+  size: 800
+  overlap: 150
+sources:
+  - {id: sow, path: docs/SOW.md, min_role: viewer, description: The Statement of Work text}
+  - {id: openapi, path: openapi.yaml, min_role: viewer, description: The Service 015 OpenAPI contract}
+  - {id: starter-templates, path: "src/service015/starter_templates/*.yaml", min_role: viewer, description: Template schema and the three starter Templates}
+  - {id: identity-schema, path: docs/PLAN.md, min_role: viewer, description: "Plan: Template contract, Resolved Identity (instance schema), runtime architecture"}
+  - {id: research, path: docs/RESEARCH.md, min_role: viewer, description: Verified Voicebox / Chatterbox / LiveKit / Moonshine integration notes}
+  - {id: dependencies, path: docs/DEPENDENCIES.md, min_role: viewer, optional: true, description: Dependency install and run notes}
+  - {id: readme, path: README.md, min_role: viewer, optional: true, description: Repository README}
+  - {id: latency-evidence, path: "evidence/latency*.json", min_role: viewer, optional: true, description: Latency measurement results}
+  - {id: phone-dogfood, path: docs/PHONE_DOGFOOD.md, min_role: viewer, description: Phone dogfood (Service 014) notes}
+  - {id: voice-authorization, path: docs/VOICE_AUTHORIZATION.md, min_role: admin, optional: true, description: Voice authorization provenance (admin only)}
+# RBAC context permissions (SOW 22/23). A caller sees a chunk only when its role rank >= the chunk's min_role.
+rbac:
+  viewer: public docs (every source with min_role viewer) and verified experience marked viewer
+  operator: everything viewer sees plus operator-level knowledge
+  admin: everything above plus voice authorization provenance
+# Raw voice samples are never ingested: files with these suffixes or under these directory names are refused.
+never_ingest:
+  suffixes: [.wav, .mp3, .flac, .ogg, .m4a, .opus, .webm, .aac]
+  directories: [assets, raw]

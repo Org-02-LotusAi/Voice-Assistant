@@ -84,3 +84,48 @@ class PhoneInfo(_Strict):
     mode: Literal["disabled", "http", "livekit_sip"]
     default_room: str
     inbound: InboundRoute | None
+
+
+class ExperienceCreate(_Strict):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=8000)
+    source: str = Field(min_length=1, max_length=500)
+    repo: str | None = Field(default=None, min_length=1, max_length=500)
+    branch: str | None = Field(default=None, min_length=1, max_length=200)
+    sha: str | None = Field(default=None, min_length=7, max_length=64)
+    min_role: Literal["viewer", "operator", "admin"] = "viewer"
+
+
+class ExpertKnowledgeItem(_Strict):
+    id: int
+    kind: Literal["document", "verified_experience"]
+    title: str
+    source: str
+    repo: str
+    branch: str
+    sha: str
+    min_role: Literal["viewer", "operator", "admin"]
+    created_at: str
+
+
+class ExpertSession(_Strict):
+    session_id: str
+
+
+class AskRequest(_Strict):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class Citation(_Strict):
+    id: int
+    kind: Literal["document", "verified_experience"]
+    title: str
+    source: str
+    repo: str
+    branch: str
+    sha: str
+
+
+class AskResponse(_Strict):
+    answer: str
+    citations: list[Citation]

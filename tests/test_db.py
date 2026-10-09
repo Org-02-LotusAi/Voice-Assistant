@@ -6,7 +6,8 @@ from pydantic import ValidationError
 from service015.config import Settings
 from service015.db import connect, migrate
 
-TABLES = {"templates", "template_versions", "identities", "runtime_status", "voice_authorizations"}
+TABLES = {"templates", "template_versions", "identities", "runtime_status", "voice_authorizations",
+          "expert_knowledge", "expert_sessions", "expert_messages"}
 
 
 def _tables(conn: sqlite3.Connection) -> list[str]:
@@ -24,13 +25,13 @@ def test_connect_sets_pragmas_and_creates_parent_dir(tmp_path):
 
 def test_migrate_is_idempotent(tmp_path):
     conn = connect(tmp_path / "t.db")
-    assert migrate(conn) == ["001_init.sql"]
+    assert migrate(conn) == ["001_init.sql", "003_expert.sql"]
     assert migrate(conn) == []
     names = _tables(conn)
     assert sorted(names) == sorted(TABLES | {"schema_migrations"})
     assert len(names) == len(set(names))
     rows = conn.execute("SELECT name, applied_at FROM schema_migrations").fetchall()
-    assert [r["name"] for r in rows] == ["001_init.sql"]
+    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql"]
     assert rows[0]["applied_at"]
 
 

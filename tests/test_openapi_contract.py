@@ -109,6 +109,7 @@ def test_error_body_is_spec_shaped_for_every_status(client):
 
 
 def _concrete(path):
+    path = re.sub(r"\{session_id\}", "no-such-session", path)
     return re.sub(r"\{identity_id\}", "ava-001", re.sub(r"\{template_id\}", "sales-representative", path))
 
 
@@ -117,6 +118,8 @@ BODIES = {
     ("/templates/{template_id}/instantiate", "post"): {"overrides": {"name": "Ava", "company": "Safi"}},
     ("/identities/{identity_id}", "patch"): {"overrides": {"role": "Lead"}},
     ("/identities/{identity_id}/phone/dial", "post"): {"to": "+919876543210"},
+    ("/expert/experience", "post"): {"title": "t", "body": "b", "source": "s", "repo": "r", "branch": "main", "sha": "abcdef1"},
+    ("/expert/sessions/{session_id}/ask", "post"): {"question": "What is Service 015?"},
 }
 
 

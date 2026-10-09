@@ -23,6 +23,7 @@ tags:
   - name: identities
   - name: meeting
   - name: phone
+  - name: expert
 
 paths:
   /health:
@@ -410,6 +411,103 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+
+  /expert/experience:
+    post:
+      operationId: addExpertExperience
+      tags: [expert]
+      summary: Ingest one VERIFIED EXPERIENCE fact with provenance
+      description: |
+        Stores a fact verified during development as `verified_experience` knowledge. It survives every
+        document re-ingest and is visible to every new Expert session (SOW 24). `repo`, `branch` and `sha`
+        must be given together, or all omitted to resolve them with `git rev-parse` in the server's working
+        directory (422 `provenance_unresolved` if that fails).
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExperienceCreate"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The stored knowledge item (metadata).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpertKnowledgeItem"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /expert/knowledge:
+    get:
+      operationId: listExpertKnowledge
+      tags: [expert]
+      summary: List knowledge metadata visible to the caller's role
+      description: Metadata only (never the text). Items whose `min_role` is above the caller's role are omitted.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Knowledge items in ingestion order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/ExpertKnowledgeItem"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /expert/sessions:
+    post:
+      operationId: createExpertSession
+      tags: [expert]
+      summary: Start a fresh Service Expert chat session
+      description: A new session has an empty history. Knowledge comes only from the store, never from other sessions.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The new session.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpertSession"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /expert/sessions/{session_id}/ask:
+    post:
+      operationId: askExpert
+      tags: [expert]
+      summary: Ask the scoped Service Expert a question
+      description: |
+        Retrieves the top role-visible knowledge (BM25, verified experience preferred) and answers from it with
+        the configured LLM, citing `[source@sha]`. Errors: 404 `session_not_found`; 403 `forbidden` when the
+        session was created by a higher role; 503 `llm_unavailable` when the LLM is not configured or
+        unreachable (no answer is ever fabricated).
+      x-required-role: viewer
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AskRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The grounded answer and the knowledge items it cited.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AskResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
 components:
   securitySchemes:
@@ -869,3 +967,70 @@ components:
           oneOf:
             - {$ref: "#/components/schemas/InboundRoute"}
             - {type: "null"}
+
+    ExperienceCreate:
+      type: object
+      additionalProperties: false
+      required: [title, body, source]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 200}
+        body: {type: string, minLength: 1, maxLength: 8000}
+        source: {type: string, minLength: 1, maxLength: 500, description: "Where the fact was verified (file, test, log)."}
+        repo: {type: string, minLength: 1, maxLength: 500}
+        branch: {type: string, minLength: 1, maxLength: 200}
+        sha: {type: string, minLength: 7, maxLength: 64}
+        min_role: {type: string, enum: [viewer, operator, admin], default: viewer}
+      examples:
+        - {title: Example warm-up fact, body: "Example: the first synthesis after a cold start takes much longer.", source: tests/example.log}
+
+    ExpertKnowledgeItem:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, source, repo, branch, sha, min_role, created_at]
+      properties:
+        id: {type: integer}
+        kind: {type: string, enum: [document, verified_experience]}
+        title: {type: string}
+        source: {type: string}
+        repo: {type: string}
+        branch: {type: string}
+        sha: {type: string}
+        min_role: {type: string, enum: [viewer, operator, admin]}
+        created_at: {type: string, format: date-time}
+
+    ExpertSession:
+      type: object
+      additionalProperties: false
+      required: [session_id]
+      properties:
+        session_id: {type: string}
+
+    AskRequest:
+      type: object
+      additionalProperties: false
+      required: [question]
+      properties:
+        question: {type: string, minLength: 1, maxLength: 2000}
+
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, source, repo, branch, sha]
+      properties:
+        id: {type: integer}
+        kind: {type: string, enum: [document, verified_experience]}
+        title: {type: string}
+        source: {type: string}
+        repo: {type: string}
+        branch: {type: string}
+        sha: {type: string}
+
+    AskResponse:
+      type: object
+      additionalProperties: false
+      required: [answer, citations]
+      properties:
+        answer: {type: string}
+        citations:
+          type: array
+          items: {$ref: "#/components/schemas/Citation"}
