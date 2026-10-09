@@ -13,6 +13,9 @@ dependencies = [
     "livekit-api==1.2.1",
 ]
 
+[project.scripts]
+service015-api = "service015.api.app:main"
+
 [dependency-groups]
 dev = [
     "pytest",

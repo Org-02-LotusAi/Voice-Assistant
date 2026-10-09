@@ -1,0 +1,679 @@
+openapi: 3.1.0
+info:
+  title: SAFI Service 015 - AI Voice Identity Workbench control plane
+  version: 0.1.0
+  description: |
+    REST contract used by the Workbench UI and by an external Meeting Manager platform.
+
+    Every operation except `GET /health` and `GET /openapi.yaml` requires
+    `Authorization: Bearer <key>`. Roles are hierarchical: admin includes operator includes viewer.
+    The minimum role for each operation is given in `x-required-role` (`none` = unauthenticated).
+
+    Every non-2xx JSON body is an `ErrorBody`.
+servers:
+  - url: http://localhost:8015
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: health
+  - name: templates
+  - name: identities
+  - name: meeting
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Liveness and dependency check
+      security: []
+      x-required-role: none
+      responses:
+        "200":
+          description: Service and its dependencies are healthy.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Health"}
+        "503":
+          description: A dependency is unavailable. Body is still a Health object with status `degraded`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Health"}
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenApiSpec
+      tags: [health]
+      summary: This contract, as YAML
+      security: []
+      x-required-role: none
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/yaml:
+              schema: {type: string}
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List templates (latest version of each)
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Template summaries ordered by template_id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/TemplateSummary"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createTemplate
+      tags: [templates]
+      summary: Create a template (v1) or a new version of an existing template
+      description: |
+        A new `template_id` creates version 1; an existing `template_id` creates the next version.
+        Earlier versions and the identities bound to them are never modified.
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TemplateCreate"}
+      responses:
+        "201":
+          description: The stored template version.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TemplateBody"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /templates/{template_id}:
+    get:
+      operationId: getTemplate
+      tags: [templates]
+      summary: Get one template version (latest unless `version` is given)
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/TemplateId"}
+        - name: version
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1}
+      responses:
+        "200":
+          description: The template version.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TemplateBody"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /templates/{template_id}/versions:
+    get:
+      operationId: listTemplateVersions
+      tags: [templates]
+      summary: List the version numbers of a template, ascending
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/TemplateId"}
+      responses:
+        "200":
+          description: Version numbers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {type: integer, minimum: 1}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /templates/{template_id}/instantiate:
+    post:
+      operationId: instantiateTemplate
+      tags: [templates]
+      summary: Create an Identity from a template version
+      description: |
+        Binds the new Identity to `template_version` (latest when omitted) permanently.
+        Failures: `override_not_allowed`, `missing_required_field`, `invalid_override` (all 422),
+        `template_not_found` (404).
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/TemplateId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InstantiateRequest"}
+      responses:
+        "201":
+          description: The new Identity, fully resolved.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResolvedIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /identities:
+    get:
+      operationId: listIdentities
+      tags: [identities]
+      summary: List identity summaries
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Identity summaries ordered by identity_id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/IdentitySummary"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /identities/{identity_id}:
+    get:
+      operationId: getIdentity
+      tags: [identities]
+      summary: Get the resolved Identity snapshot
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "200":
+          description: The resolved Identity.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResolvedIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      operationId: patchIdentity
+      tags: [identities]
+      summary: Change an Identity's overrides
+      description: |
+        Merges `overrides` into the stored overrides (a `null` value clears that override) and
+        re-validates against the template version the Identity is bound to (never the latest).
+        `identity_id`, `participant_identity` and `default_room` never change.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PatchIdentityRequest"}
+      responses:
+        "200":
+          description: The re-resolved Identity.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResolvedIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /identities/{identity_id}/self-context:
+    get:
+      operationId: getSelfContext
+      tags: [identities]
+      summary: Inspect the authoritative self-context and runtime instructions
+      description: Reproducible from the stored snapshot alone (SOW section 11).
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "200":
+          description: Self-context block, full instructions and the snapshot hash they derive from.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SelfContext"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /identities/{identity_id}/launch:
+    post:
+      operationId: launchIdentity
+      tags: [identities]
+      summary: Start the Identity's runtime participant
+      description: Returns 503 `dependency_unavailable` when no runtime is configured.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "200":
+          description: Participant status immediately after the launch request.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ParticipantStatus"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /identities/{identity_id}/stop:
+    post:
+      operationId: stopIdentity
+      tags: [identities]
+      summary: Stop the Identity's runtime participant
+      description: Returns 503 `dependency_unavailable` when no runtime is configured.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "200":
+          description: Participant status immediately after the stop request.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ParticipantStatus"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /identities/{identity_id}/status:
+    get:
+      operationId: getIdentityStatus
+      tags: [identities]
+      summary: Participant presence and capabilities
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "200":
+          description: Current participant status.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ParticipantStatus"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /meeting/participants:
+    get:
+      operationId: listMeetingParticipants
+      tags: [meeting]
+      summary: Participant roster for a Meeting Manager
+      description: |
+        Metadata only (SOW section 19): identity, room, presence and capabilities for every
+        identity. No STT, TTS, LLM or prompt internals.
+      x-required-role: viewer
+      responses:
+        "200":
+          description: One ParticipantStatus per identity, ordered by identity_id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/ParticipantStatus"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API key from SERVICE015_API_KEYS ("key:role" pairs).
+
+  parameters:
+    TemplateId:
+      name: template_id
+      in: path
+      required: true
+      schema: {type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 64}
+    IdentityId:
+      name: identity_id
+      in: path
+      required: true
+      schema: {type: string}
+
+  responses:
+    Unauthorized:
+      description: Missing or unknown API key (`unauthorized`).
+      headers:
+        WWW-Authenticate:
+          schema: {type: string}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    Forbidden:
+      description: The key's role is below the operation's `x-required-role` (`forbidden`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    NotFound:
+      description: Resource not found (`template_not_found`, `identity_not_found`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    Unprocessable:
+      description: |
+        Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
+        `invalid_override`.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    DependencyUnavailable:
+      description: A required backing service is not available (`dependency_unavailable`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+
+  schemas:
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, details]
+          properties:
+            code: {type: string, pattern: "^[a-z][a-z0-9_]*$"}
+            message: {type: string}
+            details: {type: object}
+
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, version, dependencies]
+      properties:
+        status: {type: string, enum: [ok, degraded]}
+        version: {type: string}
+        dependencies:
+          type: object
+          description: |
+            `database`: ok | error. `runtime`: ok when a runtime supervisor is configured,
+            otherwise not_configured (informational; does not degrade status).
+          additionalProperties: {type: string}
+          required: [database, runtime]
+          properties:
+            database: {type: string, enum: [ok, error]}
+            runtime: {type: string, enum: [ok, not_configured]}
+
+    OverrideKey:
+      type: string
+      enum:
+        - name
+        - company
+        - role
+        - language
+        - persona.instructions
+        - persona.objective
+        - persona.style
+        - greeting
+        - voice.profile_id
+        - conversation.speaking_style
+        - conversation.barge_in
+
+    Overrides:
+      type: object
+      description: Flat dotted keys exactly as named in a template's `allowed_overrides`. `conversation.barge_in` is boolean; all others are non-empty strings of at most 4000 characters.
+      propertyNames: {$ref: "#/components/schemas/OverrideKey"}
+      additionalProperties:
+        oneOf:
+          - {type: string}
+          - {type: boolean}
+
+    OverridesPatch:
+      type: object
+      description: Like Overrides, but a `null` value clears that override.
+      propertyNames: {$ref: "#/components/schemas/OverrideKey"}
+      additionalProperties:
+        oneOf:
+          - {type: string}
+          - {type: boolean}
+          - {type: "null"}
+
+    TemplateFields:
+      type: object
+      properties:
+        template_id: {type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 64}
+        name: {type: string, minLength: 1}
+        description: {type: string, minLength: 1}
+        default_self_facts:
+          type: object
+          additionalProperties: false
+          properties:
+            role: {type: [string, "null"]}
+            company: {type: [string, "null"]}
+            language: {type: string}
+        persona:
+          type: object
+          additionalProperties: false
+          required: [objective, style, instructions]
+          properties:
+            objective: {type: string, minLength: 1}
+            style: {type: string, minLength: 1}
+            instructions: {type: string, minLength: 1}
+        conversation:
+          type: object
+          additionalProperties: false
+          required: [greeting, speaking_style]
+          properties:
+            greeting: {type: string, minLength: 1}
+            barge_in: {type: boolean}
+            speaking_style: {type: string, minLength: 1}
+        voice:
+          type: object
+          additionalProperties: false
+          properties:
+            default_voice_profile_id: {type: [string, "null"]}
+            engine: {type: string}
+        required_instance_fields:
+          type: array
+          items: {$ref: "#/components/schemas/OverrideKey"}
+        allowed_overrides:
+          type: array
+          items: {$ref: "#/components/schemas/OverrideKey"}
+
+    TemplateCreate:
+      description: Template contract (SOW section 7) without server-assigned `version` and `created_at`. `required_instance_fields` must be a subset of `allowed_overrides`.
+      allOf:
+        - {$ref: "#/components/schemas/TemplateFields"}
+      required: [template_id, name, description, persona, conversation]
+      unevaluatedProperties: false
+
+    TemplateBody:
+      description: A stored, immutable template version.
+      allOf:
+        - {$ref: "#/components/schemas/TemplateFields"}
+        - type: object
+          properties:
+            version: {type: integer, minimum: 1}
+            created_at: {type: string, format: date-time}
+      required:
+        - template_id
+        - version
+        - name
+        - description
+        - default_self_facts
+        - persona
+        - conversation
+        - voice
+        - required_instance_fields
+        - allowed_overrides
+        - created_at
+      unevaluatedProperties: false
+
+    TemplateSummary:
+      type: object
+      additionalProperties: false
+      required: [template_id, latest_version, name, description]
+      properties:
+        template_id: {type: string}
+        latest_version: {type: integer, minimum: 1}
+        name: {type: string}
+        description: {type: string}
+
+    InstantiateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        overrides: {$ref: "#/components/schemas/Overrides"}
+        template_version:
+          type: [integer, "null"]
+          minimum: 1
+          description: Defaults to the latest version.
+
+    PatchIdentityRequest:
+      type: object
+      additionalProperties: false
+      required: [overrides]
+      properties:
+        overrides: {$ref: "#/components/schemas/OverridesPatch"}
+
+    ResolvedIdentity:
+      type: object
+      additionalProperties: false
+      description: Immutable-per-version instance snapshot. `resolved_hash` is the sha256 of the canonical JSON (sorted keys, no whitespace) of every other field.
+      required:
+        - identity_id
+        - template_id
+        - template_version
+        - self
+        - persona
+        - conversation
+        - voice
+        - participant
+        - overrides
+        - resolved_hash
+      properties:
+        identity_id: {type: string}
+        template_id: {type: string}
+        template_version: {type: integer, minimum: 1}
+        self:
+          type: object
+          additionalProperties: false
+          description: Authoritative self-facts. Persona text can never override these.
+          required: [identity_id, name, archetype, template_version, company, role, language]
+          properties:
+            identity_id: {type: string}
+            name: {type: string}
+            archetype: {type: string}
+            template_version: {type: integer, minimum: 1}
+            company: {type: [string, "null"]}
+            role: {type: [string, "null"]}
+            language: {type: string}
+        persona:
+          type: object
+          additionalProperties: false
+          required: [objective, style, instructions]
+          properties:
+            objective: {type: string}
+            style: {type: string}
+            instructions: {type: string}
+        conversation:
+          type: object
+          additionalProperties: false
+          required: [greeting, barge_in, speaking_style]
+          properties:
+            greeting: {type: string}
+            barge_in: {type: boolean}
+            speaking_style: {type: string}
+        voice:
+          type: object
+          additionalProperties: false
+          required: [profile_id, engine]
+          properties:
+            profile_id: {type: [string, "null"]}
+            engine: {type: string}
+        participant:
+          type: object
+          additionalProperties: false
+          required: [participant_identity, default_room]
+          properties:
+            participant_identity: {type: string}
+            default_room: {type: string}
+        overrides: {$ref: "#/components/schemas/Overrides"}
+        resolved_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+
+    IdentitySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - identity_id
+        - name
+        - template_id
+        - template_version
+        - company
+        - role
+        - language
+        - voice_profile_id
+        - participant_identity
+        - default_room
+        - resolved_hash
+      properties:
+        identity_id: {type: string}
+        name: {type: string}
+        template_id: {type: string}
+        template_version: {type: integer, minimum: 1}
+        company: {type: [string, "null"]}
+        role: {type: [string, "null"]}
+        language: {type: string}
+        voice_profile_id: {type: [string, "null"]}
+        participant_identity: {type: string}
+        default_room: {type: string}
+        resolved_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+
+    SelfContext:
+      type: object
+      additionalProperties: false
+      required: [self_context, instructions, resolved_hash]
+      properties:
+        self_context: {type: string, description: "The YAML `self:` block (SOW section 10)."}
+        instructions: {type: string, description: Full runtime system instructions built from the snapshot only.}
+        resolved_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+
+    Presence:
+      type: string
+      enum: [READY, STARTING, BUSY, ERROR, OFFLINE]
+
+    ParticipantStatus:
+      type: object
+      additionalProperties: false
+      description: Presence contract (SOW section 14). `RECONNECTING` appears only as an ERROR sub-state in `status_detail`.
+      required:
+        - identity_id
+        - participant_identity
+        - default_room
+        - presence
+        - status_detail
+        - last_error
+        - capabilities
+        - launched_at
+        - heartbeat_at
+      properties:
+        identity_id: {type: string}
+        participant_identity: {type: string}
+        default_room: {type: string}
+        presence: {$ref: "#/components/schemas/Presence"}
+        status_detail: {type: [string, "null"]}
+        last_error: {type: [string, "null"]}
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [audio_receive, audio_publish, barge_in, video_publish]
+          properties:
+            audio_receive: {type: boolean}
+            audio_publish: {type: boolean}
+            barge_in: {type: boolean, description: Mirrors the resolved conversation.barge_in.}
+            video_publish: {type: boolean}
+        launched_at: {type: [string, "null"], format: date-time}
+        heartbeat_at: {type: [string, "null"], format: date-time}
