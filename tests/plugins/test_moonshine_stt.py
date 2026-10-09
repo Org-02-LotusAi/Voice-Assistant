@@ -112,3 +112,184 @@ def test_worker_failure_surfaces_as_api_error():
     errors, engine_errors = asyncio.run(go())
     assert engine_errors and isinstance(engine_errors[0].error, APIError)
     assert "model gone" in str(engine_errors[0].error)
+
+
+# ---------- review fixes: close, Error events, lock/concurrency, flush, downmix, backlog, language ----------
+
+import numpy as np  # noqa: E402
+from moonshine_voice.transcriber import Error as MoonshineErrorEvent  # noqa: E402
+
+from service015.stt.moonshine import SAMPLE_RATE, _WorkQueue  # noqa: E402
+
+
+class FakeMStream:
+    def __init__(self, on_add=None):
+        self.listeners, self.closed, self.stopped, self.added = [], threading.Event(), 0, []
+        self._on_add = on_add
+
+    def add_listener(self, fn):
+        self.listeners.append(fn)
+
+    def start(self):
+        pass
+
+    def stop(self):
+        self.stopped += 1
+
+    def add_audio(self, data, sample_rate):
+        self.added.append(len(data))
+        if self._on_add:
+            self._on_add(self)
+
+    def close(self):
+        self.closed.set()
+
+
+class FakeTranscriber:
+    def __init__(self, on_add=None):
+        self.streams = []
+        self._on_add = on_add
+
+    def create_stream(self, **_):
+        s = FakeMStream(self._on_add)
+        self.streams.append(s)
+        return s
+
+
+import threading  # noqa: E402
+
+
+def _frame(n=320, channels=1):
+    return rtc.AudioFrame(b"\x10\x00" * n * channels, 16000, channels, n)
+
+
+def test_moonshine_error_event_surfaces_as_api_error_and_stream_is_closed():
+    from livekit.agents import APIError
+
+    tr = FakeTranscriber(on_add=lambda ms: [fn(MoonshineErrorEvent(error=RuntimeError("native boom"), stream_handle=1)) for fn in ms.listeners])
+
+    async def go():
+        engine = MoonshineSTT(tr)
+        errors = []
+        engine.on("error", errors.append)
+        stream = engine.stream()
+        stream.push_frame(_frame())
+        with pytest.raises(APIError, match="native boom"):
+            async for _ in stream:
+                pass
+        await stream.aclose()
+        return errors
+
+    errors = asyncio.run(go())
+    assert errors and "native boom" in str(errors[0].error)
+    assert tr.streams[0].closed.wait(5), "native stream must be closed after a failure"
+
+
+def test_native_stream_closed_on_normal_end_and_on_cancel():
+    tr = FakeTranscriber()
+
+    async def go():
+        a = MoonshineSTT(tr).stream()
+        a.push_frame(_frame())
+        a.end_input()
+        async for _ in a:
+            pass
+        await a.aclose()
+        b = MoonshineSTT(tr).stream()
+        b.push_frame(_frame())
+        await asyncio.sleep(0.2)
+        await b.aclose()  # cancelled mid-stream
+
+    asyncio.run(go())
+    assert len(tr.streams) == 2
+    assert all(s.closed.wait(5) for s in tr.streams)
+    assert tr.streams[0].stopped >= 1  # end_input = flush + stop: the tail is transcribed
+    assert tr.streams[1].stopped == 0  # cancel skips the final transcription
+
+
+def test_stereo_frames_are_downmixed_to_mono():
+    tr = FakeTranscriber()
+
+    async def go():
+        s = MoonshineSTT(tr).stream()
+        s.push_frame(_frame(320, channels=2))
+        s.end_input()
+        async for _ in s:
+            pass
+        await s.aclose()
+
+    asyncio.run(go())
+    assert tr.streams[0].added == [320]
+
+
+def test_language_mismatch_raises():
+    async def go():
+        with pytest.raises(ValueError, match="language"):
+            MoonshineSTT(FakeTranscriber(), language="en").stream(language="fr")
+        ok = MoonshineSTT(FakeTranscriber(), language="en").stream(language="en-US")
+        await ok.aclose()
+
+    asyncio.run(go())
+
+
+def test_work_queue_drops_oldest_audio_but_never_control_items():
+    q = _WorkQueue(max_samples=1000)
+    q.put_audio(np.full(600, 1, dtype=np.float32))
+    q.put_control("flush")
+    q.put_audio(np.full(600, 2, dtype=np.float32))  # 1200 > 1000: oldest audio dropped
+    first = q.get()
+    assert first == "flush"
+    rest = q.get()
+    assert isinstance(rest, np.ndarray) and rest[0] == 2
+    assert q.dropped_samples == 600
+
+
+def test_flush_without_trailing_silence_finalizes(transcriber):
+    async def go():
+        stream = MoonshineSTT(transcriber).stream()
+        events = []
+        got_final = asyncio.Event()
+
+        async def collect():
+            async for ev in stream:
+                events.append(ev)
+                if ev.type == stt.SpeechEventType.END_OF_SPEECH:
+                    got_final.set()
+
+        task = asyncio.create_task(collect())
+        for f in _frames(WAV, trailing_silence_s=0.0):
+            stream.push_frame(f)
+            await asyncio.sleep(0)
+        stream.flush()
+        await asyncio.wait_for(got_final.wait(), 30)  # arrives via flush(), before end_input()
+        stream.end_input()
+        await asyncio.wait_for(task, 30)
+        await stream.aclose()
+        return events
+
+    events = asyncio.run(go())
+    types = [e.type for e in events]
+    finals = [e for e in events if e.type == stt.SpeechEventType.FINAL_TRANSCRIPT]
+    assert finals and "name" in finals[0].alternatives[0].text.lower()
+    assert types.index(stt.SpeechEventType.FINAL_TRANSCRIPT) < types.index(stt.SpeechEventType.END_OF_SPEECH)
+
+
+def test_two_concurrent_streams_on_one_transcriber_both_finalize(transcriber):
+    async def one(engine):
+        stream = engine.stream()
+        task = asyncio.create_task(_collect(stream))
+        for f in _frames(WAV):
+            stream.push_frame(f)
+            await asyncio.sleep(0.005)
+        stream.end_input()
+        events = await asyncio.wait_for(task, 120)
+        await stream.aclose()
+        return events
+
+    async def go():
+        engine = MoonshineSTT(transcriber)
+        return await asyncio.gather(one(engine), one(engine))
+
+    for events in asyncio.run(go()):
+        finals = [e for e in events if e.type == stt.SpeechEventType.FINAL_TRANSCRIPT]
+        assert finals and "name" in " ".join(e.alternatives[0].text for e in finals).lower()

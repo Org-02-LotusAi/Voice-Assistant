@@ -1,15 +1,20 @@
 """LiveKit Agents TTS plugin that streams PCM from the voice engine sidecar (engine/, POST /synthesize/stream).
 
-The sidecar answers 200 + `audio/pcm` (s16le mono 24 kHz) and sends each chunk as soon as it is generated. Once the 200 is out an error
-cannot change the status, so a failed stream is detected as engine/README.md describes: an abnormal end of the HTTP read, and the
-`GET /requests/{X-Request-Id}` state. A truncated or failed stream always raises a framework API error; it never ends silently.
-Cancellation (barge-in) leaves the `async with` block, which closes the HTTP response immediately.
+The sidecar protocol (headers, truncation detection via GET /requests/{id}) lives in `service015.voice.engine`
+(`open_engine_stream`); this module only maps its neutral `EngineStreamError` to the framework's API errors, so a truncated
+or failed stream always raises and never ends silently. Cancellation (barge-in) leaves the `async with`, which closes the HTTP
+response immediately.
+
+`on_first_audio(t_monotonic)` (T3): fires at most once per `synthesize()` call, at the first PCM byte received from the engine
+(before the framework's emitter buffers it into 200 ms frames). The framework calls `synthesize()` once per sentence, so
+latching "first audio of the turn" is the caller's (runtime's) job.
+
+Retry policy: once any audio bytes were received the error is made non-retryable, so the framework never replays a sentence the
+listener has already (partly) heard. Retries happen only for failures before the first audio byte.
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import time
 from typing import Callable
@@ -18,16 +23,11 @@ import httpx
 from livekit.agents import APIConnectionError, APIConnectOptions, APIError, APIStatusError, APITimeoutError, tts
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS
 
+from service015.voice.engine import SAMPLE_RATE, EngineStreamError, open_engine_stream
+
 log = logging.getLogger("service015.voice")
 
-SAMPLE_RATE = 24000
 NUM_CHANNELS = 1
-# After the byte stream ends the request may still read "streaming" for a moment; wait this long for a terminal state.
-STATUS_SETTLE_S = 3.0
-STATUS_POLL_S = 0.1
-# Failure codes (engine/README.md) that a retry cannot fix.
-_PERMANENT_CODES = {"reference_too_short", "corrupt_reference", "profile_not_found"}
-
 FirstAudioCallback = Callable[[float], None]
 
 
@@ -67,7 +67,7 @@ class ChatterboxTTS(tts.TTS):
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(transport=self._transport)
+            self._client = httpx.AsyncClient(transport=self._transport, timeout=httpx.Timeout(10.0))
         return self._client
 
     def synthesize(
@@ -85,6 +85,7 @@ class ChatterboxChunkedStream(tts.ChunkedStream):
     def __init__(self, *, tts: ChatterboxTTS, input_text: str, conn_options: APIConnectOptions) -> None:
         super().__init__(tts=tts, input_text=input_text, conn_options=conn_options)
         self._engine: ChatterboxTTS = tts
+        self._first_audio_fired = False
 
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         eng = self._engine
@@ -92,111 +93,48 @@ class ChatterboxChunkedStream(tts.ChunkedStream):
             connect=self._conn_options.timeout, read=eng._read_timeout_s, write=self._conn_options.timeout,
             pool=self._conn_options.timeout,
         )
-        request_id = ""
-        total = 0
-        carry = b""
-        first = True
+        pushed = 0
         try:
             # leaving this block (normally, on error, or on CancelledError from a barge-in) closes the response
-            async with eng._http().stream(
-                "POST", eng._base + "/synthesize/stream",
-                json={"profile_id": eng._profile_id, "text": self._input_text}, timeout=timeout,
-            ) as resp:
-                request_id = resp.headers.get("x-request-id", "")
-                if resp.status_code != 200:
-                    body = await resp.aread()
-                    raise _status_error(resp.status_code, body, request_id)
-                sample_rate = resp.headers.get("x-sample-rate", str(SAMPLE_RATE))
-                if sample_rate != str(SAMPLE_RATE):
-                    raise APIError(
-                        f"voice engine sample rate {sample_rate} does not match the expected {SAMPLE_RATE}", retryable=False
-                    )
+            async with open_engine_stream(
+                eng._http(), eng._base, eng._profile_id, self._input_text, timeout=timeout,
+                on_first_byte=self._notify_first_audio,
+            ) as es:
                 output_emitter.initialize(
-                    request_id=request_id or "unknown", sample_rate=SAMPLE_RATE, num_channels=NUM_CHANNELS,
+                    request_id=es.request_id or "unknown", sample_rate=SAMPLE_RATE, num_channels=NUM_CHANNELS,
                     mime_type="audio/pcm",
                 )
-                async for chunk in resp.aiter_bytes():
-                    if not chunk:
-                        continue
-                    data, carry = _whole_samples(carry + chunk)
-                    if not data:
-                        continue
-                    if first:
-                        first = False
-                        self._notify_first_audio()
-                    total += len(data)
-                    output_emitter.push(data)
-        except httpx.TimeoutException as exc:
-            raise APITimeoutError(f"voice engine timed out: {type(exc).__name__}") from exc
-        except httpx.HTTPError as exc:
-            # connect failures, and a response that ends abnormally (RemoteProtocolError / ReadError) = truncated stream
-            raise APIConnectionError(f"voice engine stream failed: {type(exc).__name__}: {exc}") from exc
-
-        if carry:
-            raise APIError("voice engine stream ended mid-sample (truncated)", retryable=True)
-        await self._verify_complete(request_id, total)
-        output_emitter.flush()
+                async for chunk in es.chunks():
+                    pushed += len(chunk)
+                    output_emitter.push(chunk)
+                await es.verify()
+                output_emitter.flush()
+        except EngineStreamError as exc:
+            raise _api_error(exc, audio_received=pushed > 0) from exc
 
     def _notify_first_audio(self) -> None:
         cb = self._engine.on_first_audio
-        if cb is None:
+        if cb is None or self._first_audio_fired:
             return
+        self._first_audio_fired = True
         try:
             cb(time.monotonic())
         except Exception:
             # a telemetry hook must not kill speech, but it must not vanish either
             log.exception("on_first_audio callback raised")
 
-    async def _verify_complete(self, request_id: str, total_bytes: int) -> None:
-        if not request_id:
-            raise APIError("voice engine response carried no X-Request-Id; cannot verify the stream completed", retryable=False)
-        eng = self._engine
-        deadline = time.monotonic() + STATUS_SETTLE_S
-        while True:
-            try:
-                resp = await eng._http().get(
-                    f"{eng._base}/requests/{request_id}", timeout=httpx.Timeout(self._conn_options.timeout)
-                )
-            except httpx.TimeoutException as exc:
-                raise APITimeoutError("voice engine request-status check timed out") from exc
-            except httpx.HTTPError as exc:
-                raise APIConnectionError(f"voice engine request-status check failed: {type(exc).__name__}") from exc
-            if resp.status_code != 200:
-                raise _status_error(resp.status_code, resp.content, request_id)
-            info = resp.json()
-            state = info.get("state")
-            if state == "complete":
-                if total_bytes == 0:
-                    raise APIError("voice engine reported complete but sent no audio", retryable=True)
-                return
-            if state == "streaming" and time.monotonic() < deadline:
-                await asyncio.sleep(STATUS_POLL_S)
-                continue
-            code = info.get("code") or state
-            raise APIError(
-                f"voice engine stream did not complete: state={state} code={code} detail={info.get('detail')} "
-                f"chunks={info.get('chunks_done')}/{info.get('chunks_total')}",
-                body=info,
-                retryable=code not in _PERMANENT_CODES and state != "cancelled",
-            )
 
-
-def _whole_samples(buf: bytes) -> tuple[bytes, bytes]:
-    """Split off a trailing odd byte so every push is whole s16le samples."""
-    n = len(buf) - (len(buf) % 2)
-    return buf[:n], buf[n:]
-
-
-def _status_error(status: int, body: bytes, request_id: str) -> APIStatusError:
-    code = detail = ""
-    parsed: object = None
-    try:
-        parsed = json.loads(body)
-        if isinstance(parsed, dict):
-            code, detail = str(parsed.get("code", "")), str(parsed.get("detail", ""))
-    except ValueError:
-        pass
-    return APIStatusError(
-        f"voice engine returned {status} {code or 'error'}: {detail}".rstrip(": "),
-        status_code=status, request_id=request_id or None, body=parsed,
+def _api_error(exc: EngineStreamError, *, audio_received: bool) -> APIError:
+    retryable = exc.retryable and not audio_received
+    if exc.kind == "timeout":
+        return APITimeoutError(f"voice engine timed out: {exc.detail}", retryable=retryable)
+    if exc.kind == "connection":
+        return APIConnectionError(f"voice engine stream failed: {exc.detail}", retryable=retryable)
+    if exc.kind == "http_status":
+        return APIStatusError(
+            f"voice engine returned {exc.status} {exc.code}", status_code=exc.status or -1,
+            request_id=exc.request_id, body=exc.body.decode("utf-8", "replace") or None, retryable=retryable,
+        )
+    return APIError(
+        f"voice engine stream did not complete: {exc.code}: {exc.detail}", body=exc.details or None, retryable=retryable
     )

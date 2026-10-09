@@ -188,3 +188,53 @@ def test_cancellation_closes_http_stream_promptly():
     elapsed, engine = asyncio.run(go())
     assert elapsed < 1.0
     assert engine.gets == []  # a cancelled stream is not treated as a completion check
+
+
+def test_no_retry_after_audio_was_pushed_and_first_audio_fires_once():
+    """A failure after audio bytes arrived must not make the framework replay the sentence (duplicated speech)."""
+
+    async def go():
+        gate = asyncio.Event()
+        gate.set()
+        stream = GatedStream([ONE_SECOND], [gate], fail_with=httpx.RemoteProtocolError("peer closed"))
+        engine = FakeEngine(stream)
+        seen = []
+        cs = make_tts(engine, on_first_audio=seen.append).synthesize(
+            "Hello there.", conn_options=APIConnectOptions(max_retry=3, retry_interval=0.01, timeout=5.0)
+        )
+        with pytest.raises(APIConnectionError):
+            async for _ in cs:
+                pass
+        await cs.aclose()
+        return engine, seen
+
+    engine, seen = asyncio.run(go())
+    assert len(engine.posts) == 1, "must not retry after audio was received"
+    assert len(seen) == 1
+
+
+def test_retry_before_any_audio_still_happens_and_callback_fires_once():
+    async def go():
+        calls = {"n": 0}
+        gate = asyncio.Event()
+        gate.set()
+        good = FakeEngine(GatedStream([ONE_SECOND], [gate]))
+        inner = good.transport()
+
+        async def flaky(request):
+            if request.method == "POST":
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise httpx.ConnectError("refused")
+            return await inner.handle_async_request(request)
+
+        seen = []
+        t = ChatterboxTTS(base_url="http://engine.test", profile_id="vp", transport=httpx.MockTransport(flaky),
+                          on_first_audio=seen.append)
+        cs = t.synthesize("Hi.", conn_options=APIConnectOptions(max_retry=2, retry_interval=0.01, timeout=5.0))
+        frames = [ev async for ev in cs]
+        await cs.aclose()
+        return calls["n"], seen, frames
+
+    n, seen, frames = asyncio.run(go())
+    assert n == 2 and len(seen) == 1 and frames
