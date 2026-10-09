@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 import sqlite3
 from typing import Annotated, Any
 
@@ -11,7 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from service015.api.deps import get_conn, get_voice_engine, get_voicebox
 from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePreviewRequest, VoiceProfile
 from service015.auth import require_role
-from service015.errors import NotFound, ValidationFailed
+from service015.errors import DomainError, NotFound, ValidationFailed
 from service015.voice import authz
 from service015.voice.engine import VoiceEngineClient
 from service015.voice.voicebox import VoiceboxClient
@@ -21,11 +23,40 @@ router = APIRouter(tags=["voices"])
 
 DEFAULT_PREVIEW_TEXT = "Hello, this is a preview of my voice."
 MAX_SAMPLE_BYTES = 25 * 1024 * 1024
+MAX_BODY_BYTES = MAX_SAMPLE_BYTES + 256 * 1024  # sample plus the text form fields; enforced by middleware on Content-Length
+# application/octet-stream is what curl and many clients send for any file; the magic bytes decide for those.
+ALLOWED_TYPES = {
+    "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a",
+    "audio/m4a", "audio/aac", "audio/ogg", "audio/flac", "audio/x-flac", "audio/webm", "video/webm", "application/octet-stream",
+}
 ENGINE = "chatterbox-turbo"
 
 _Name = Annotated[str, Form(min_length=1, max_length=100, pattern=r"\S")]
 _Short = Annotated[str, Form(min_length=1, max_length=200, pattern=r"\S")]
 _Long = Annotated[str, Form(min_length=1, max_length=4000, pattern=r"\S")]
+
+
+def sniff_audio(head: bytes) -> str | None:
+    """File extension for a wav/mp3/m4a/ogg/flac/webm container judged by its magic bytes, else None."""
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "wav"
+    if head[:3] == b"ID3" or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return "mp3"
+    if head[4:8] == b"ftyp":
+        return "m4a"
+    if head[:4] == b"OggS":
+        return "ogg"
+    if head[:4] == b"fLaC":
+        return "flac"
+    if head[:4] == bytes.fromhex("1a45dfa3"):
+        return "webm"
+    return None
+
+
+def safe_filename(name: str | None, ext: str) -> str:
+    """Basename only, [A-Za-z0-9._-], at most 64 chars; falls back to reference.<ext>."""
+    base = re.sub(r"[^A-Za-z0-9._-]", "_", (name or "").replace("\\", "/").rsplit("/", 1)[-1]).lstrip(".")[:64]
+    return base or f"reference.{ext}"
 
 
 def _profile(p: dict[str, Any], authorized: bool) -> VoiceProfile:
@@ -68,8 +99,20 @@ async def create_voice(
     if not sample:
         raise ValidationFailed("empty_sample", "the reference audio file is empty")
     if len(sample) > MAX_SAMPLE_BYTES:
-        raise ValidationFailed(
-            "sample_too_large", f"the reference audio exceeds {MAX_SAMPLE_BYTES // (1024 * 1024)} MiB", details={"max_bytes": MAX_SAMPLE_BYTES}
+        raise DomainError(
+            "sample_too_large",
+            f"the reference audio exceeds {MAX_SAMPLE_BYTES // (1024 * 1024)} MiB",
+            status=413,
+            details={"max_bytes": MAX_SAMPLE_BYTES},
+        )
+    ctype = (file.content_type or "application/octet-stream").split(";")[0].strip().lower()
+    ext = sniff_audio(sample[:16])
+    if ctype not in ALLOWED_TYPES or ext is None:
+        raise DomainError(
+            "unsupported_media_type",
+            "the reference audio must be wav, mp3, m4a, ogg, flac or webm",
+            status=415,
+            details={"content_type": ctype},
         )
     # Voicebox first: if it fails nothing is recorded (a failed sample upload also removes the new profile).
     profile = await voicebox.create_cloned_profile(
@@ -77,14 +120,14 @@ async def create_voice(
         language=language,
         description=description,
         sample_bytes=sample,
-        filename=file.filename or "reference.wav",
+        filename=safe_filename(file.filename, ext),
         reference_text=reference_text,
     )
     try:
         authz.record_authorization(conn, profile["id"], authorized_by, subject_name, consent_statement, "created_via_api")
-    except Exception:
+    except BaseException:  # includes CancelledError (client disconnect) - compensate, then re-raise
         conn.rollback()
-        await voicebox.delete_profile(profile["id"])  # never leave an unauthorized cloned voice behind
+        await asyncio.shield(voicebox.delete_profile(profile["id"]))  # never leave an unauthorized cloned voice behind
         raise
     log.info("voice created profile=%s authorized_by=%s", profile["id"], authorized_by)
     return _profile(profile, True)

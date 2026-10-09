@@ -11,7 +11,7 @@ from openapi_spec_validator import validate
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from tests.conftest import H, FakeSupervisor, make_settings
+from tests.conftest import H, FakeSupervisor, make_app, make_settings, voiced_identity
 from tests.voice_fakes import make_wav
 from service015.api.app import create_app, package_version
 
@@ -180,8 +180,7 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
 
 
 def test_error_responses_conform(client):
-    client.post("/templates/sales-representative/instantiate",
-                json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+    voiced_identity(client)
     cases = [
         ("/identities/zzz-001", "get", {}, 404),
         ("/templates/nope", "get", {}, 404),
@@ -294,10 +293,9 @@ def test_valid_override_values_accepted_by_both(client):
 
 
 @pytest.fixture
-def fake_client(db_file):
-    with TestClient(create_app(make_settings(db_file), FakeSupervisor())) as c:
-        c.post("/templates/sales-representative/instantiate",
-               json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+def fake_client(db_file, voice_stack):
+    with TestClient(make_app(db_file, voice_stack, FakeSupervisor())) as c:
+        voiced_identity(c)
         yield c
 
 
@@ -315,11 +313,10 @@ def test_unauthorized_has_www_authenticate_header(client):
     assert r.status_code == 401 and r.headers["www-authenticate"] == "Bearer"
 
 
-def test_500_matches_error_body(db_file):
-    app = create_app(make_settings(db_file), FakeSupervisor(explode=True))
+def test_500_matches_error_body(db_file, voice_stack):
+    app = make_app(db_file, voice_stack, FakeSupervisor(explode=True))
     with TestClient(app, raise_server_exceptions=False) as c:
-        c.post("/templates/sales-representative/instantiate",
-               json={"overrides": {"name": "Ava", "company": "Safi"}}, headers=H["operator"])
+        voiced_identity(c)
         r = c.post("/identities/ava-001/launch", headers=H["operator"])
         assert r.status_code == 500 and r.json()["error"]["code"] == "internal_error"
         assert_conforms("/identities/{identity_id}/launch", "post", r)

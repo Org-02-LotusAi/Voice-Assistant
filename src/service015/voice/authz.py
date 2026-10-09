@@ -65,3 +65,20 @@ async def ensure_voice_usable(conn: sqlite3.Connection, voicebox: VoiceboxClient
             f"voice profile {profile_id!r} has no recorded cloning authorization",
             details={"voice_profile_id": profile_id},
         )
+
+
+async def ensure_identity_voice_ready(conn: sqlite3.Connection, voicebox: VoiceboxClient, resolved: Any) -> None:
+    """Launch-time preflight: the Identity must have a voice, and it must still exist and be authorized.
+
+    Instantiate/PATCH may leave `voice.profile_id` null (a draft Identity); launching may not, so the runtime
+    never falls back to a default voice. Raises 422 `voice_required` / `voice_profile_not_found` /
+    `voice_not_authorized`, or 503 `voicebox_unavailable`.
+    """
+    profile_id = resolved.voice.profile_id
+    if profile_id is None:
+        raise ValidationFailed(
+            "voice_required",
+            "this identity has no voice; attach an authorized voice (voice.profile_id) before launching",
+            details={"identity_id": resolved.identity_id},
+        )
+    await ensure_voice_usable(conn, voicebox, profile_id)

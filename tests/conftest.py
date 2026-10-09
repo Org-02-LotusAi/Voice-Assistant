@@ -20,6 +20,19 @@ def make_settings(db_path) -> Settings:
     )
 
 
+def make_app(db_file, stack, supervisor=None):
+    """App wired to the fake Voicebox/engine of `stack`."""
+    return create_app(make_settings(db_file), supervisor, voicebox=stack.voicebox.client, voice_engine=stack.engine.client)
+
+
+def voiced_identity(c, **extra):
+    """Authorize the fake voice 'vp-ava' and instantiate Ava (ava-001) with it; returns the response."""
+    auth = {"consent_statement": "Synthetic voice.", "subject_name": "Zira", "authorized_by": "ops", "source": "test"}
+    assert c.post("/voices/vp-ava/authorizations", json=auth, headers=H["admin"]).status_code == 201
+    return c.post("/templates/sales-representative/instantiate", headers=H["operator"],
+                  json={"overrides": {"name": "Ava", "company": "Safi", "voice.profile_id": "vp-ava", **extra}})
+
+
 @pytest.fixture
 def db_file(tmp_path):
     return tmp_path / "api.db"
@@ -32,8 +45,7 @@ def voice_stack():
 
 @pytest.fixture
 def client(db_file, voice_stack):
-    app = create_app(make_settings(db_file), voicebox=voice_stack.voicebox.client, voice_engine=voice_stack.engine.client)
-    with TestClient(app) as c:
+    with TestClient(make_app(db_file, voice_stack)) as c:
         yield c
 
 

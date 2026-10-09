@@ -74,14 +74,35 @@ class FakeEngine:
         self.status = "ok"
         self.fail_with: tuple[int, dict] | None = None
         self.previews: list[tuple[str, str]] = []
+        # stream scenario: complete | failed | truncated | cancelled | break | no_id | status_404
+        self.stream_mode = "complete"
+        self.stream_code = "synthesis_failed"
+        self._status: dict = {}
         self._voicebox = voicebox
         self.client = VoiceEngineClient("http://engine.test", 5.0, httpx.MockTransport(self._handle))
+
+    def _stream(self) -> httpx.Response:
+        mode = self.stream_mode
+        total = 3
+        done = {"complete": 3, "failed": 1, "truncated": 2, "cancelled": 1, "break": 1}.get(mode, 3)
+        state = {"failed": "failed", "cancelled": "cancelled", "break": "failed"}.get(mode, "complete")
+        self._status = {"request_id": "req-1", "profile_id": "vp-ava", "state": state, "chunks_total": total,
+                        "chunks_done": done, "code": self.stream_code if state == "failed" else None,
+                        "detail": "boom" if state == "failed" else None}
+        headers = {"content-type": "audio/pcm", "x-chunk-count": str(total)}
+        if mode != "no_id":
+            headers["x-request-id"] = "req-1"
+        return httpx.Response(200, headers=headers, stream=_Chunks([b"\x01\x00" * 100] * done, then_raise=(mode == "break")))
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         if self.down:
             raise httpx.ConnectError("refused", request=request)
         if request.url.path == "/health":
             return httpx.Response(200, json={"status": self.status})
+        if request.url.path.startswith("/requests/"):
+            if self.stream_mode == "status_404":
+                return httpx.Response(404, json={"code": "request_not_found", "detail": "expired"})
+            return httpx.Response(200, json=self._status)
         body = json.loads(request.content)
         if self.fail_with:
             return httpx.Response(self.fail_with[0], json=self.fail_with[1])
@@ -91,10 +112,21 @@ class FakeEngine:
             self.previews.append((body["profile_id"], body["text"]))
             return httpx.Response(200, content=make_wav(), headers={"content-type": "audio/wav"})
         if request.url.path == "/synthesize/stream":
-            return httpx.Response(200, content=b"\x01\x00" * 4800, headers={"content-type": "audio/pcm"})
+            return self._stream()
         if request.url.path == "/warm":
             return httpx.Response(200, json={"warm": True})
         return httpx.Response(404, json={"code": "no_route", "detail": "x"})
+
+
+class _Chunks(httpx.AsyncByteStream):
+    def __init__(self, chunks, then_raise=False):
+        self._chunks, self._raise = chunks, then_raise
+
+    async def __aiter__(self):
+        for c in self._chunks:
+            yield c
+        if self._raise:
+            raise httpx.RemoteProtocolError("peer closed connection without sending complete message body")
 
 
 class FakeVoiceStack:

@@ -14,7 +14,7 @@ from service015.auth import require_role
 from service015.resolver import ResolvedIdentity
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
 from service015.selfcontext import build_instructions, build_self_context
-from service015.voice.authz import ensure_voice_usable
+from service015.voice.authz import ensure_identity_voice_ready, ensure_voice_usable
 from service015.voice.voicebox import VoiceboxClient
 
 router = APIRouter(tags=["identities"])
@@ -73,9 +73,13 @@ def get_self_context(identity_id: str, conn: sqlite3.Connection = Depends(get_co
     "/identities/{identity_id}/launch", response_model=ParticipantStatus, dependencies=[Depends(require_role("operator"))]
 )
 async def launch(
-    identity_id: str, conn: sqlite3.Connection = Depends(get_conn), sup: RuntimeSupervisor = Depends(get_supervisor)
+    identity_id: str,
+    conn: sqlite3.Connection = Depends(get_conn),
+    sup: RuntimeSupervisor = Depends(get_supervisor),
+    voicebox: VoiceboxClient = Depends(get_voicebox),
 ) -> Any:
-    identities_repo.get_identity(conn, identity_id)  # 404 before touching the runtime
+    identity = identities_repo.get_identity(conn, identity_id)  # 404 before touching the runtime
+    await ensure_identity_voice_ready(conn, voicebox, identity)  # 422/503 before the supervisor is involved
     return await sup.launch(identity_id)
 
 

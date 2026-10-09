@@ -81,6 +81,20 @@ def create_app(
     app.state.version = package_version()
     app.state.openapi_yaml = openapi_yaml
 
+    @app.middleware("http")
+    async def _limit_voice_upload(request: Request, call_next):
+        # Starlette spools a multipart body before any handler runs, so the cap must be enforced on Content-Length here.
+        if request.method == "POST" and request.url.path == "/voices":
+            length = request.headers.get("content-length", "")
+            if not length.isdigit() or int(length) > voices.MAX_BODY_BYTES:
+                return error_response(
+                    413,
+                    "sample_too_large",
+                    "a Content-Length no larger than the reference-audio limit is required",
+                    {"max_bytes": voices.MAX_SAMPLE_BYTES},
+                )
+        return await call_next(request)
+
     @app.exception_handler(DomainError)
     async def _domain(request: Request, exc: DomainError) -> JSONResponse:
         return error_response(exc.status, exc.code, exc.message, exc.details, getattr(exc, "headers", None))

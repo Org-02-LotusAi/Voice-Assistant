@@ -7,6 +7,7 @@ Never logs or returns raw sample audio. Transport failures and Voicebox 5xx answ
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -72,7 +73,7 @@ class VoiceboxClient:
 
     async def get_profile(self, profile_id: str) -> dict[str, Any] | None:
         """The profile, or None when Voicebox does not know it (its sample list answers 200 [] for unknown ids)."""
-        if not profile_id or "/" in profile_id or profile_id in (".", ".."):
+        if not _PROFILE_ID.fullmatch(profile_id or ""):
             return None
         resp = await self._request("GET", f"/profiles/{profile_id}", ok_404=True)
         return None if resp.status_code == 404 else _json(resp)
@@ -118,6 +119,9 @@ class VoiceboxClient:
             await self._request("DELETE", f"/profiles/{profile_id}", ok_404=True)
         except DomainError:
             log.error("could not delete voicebox profile %s after a failed create; remove it manually", profile_id)
+
+
+_PROFILE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def _json(resp: httpx.Response) -> Any:

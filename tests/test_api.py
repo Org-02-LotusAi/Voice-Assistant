@@ -2,7 +2,7 @@ import copy
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import H, FakeSupervisor, make_settings
+from tests.conftest import H, FakeSupervisor, make_app, make_settings, voiced_identity
 from service015.api.app import create_app
 
 AVA = {"name": "Ava", "company": "Safi", "role": "Account Specialist"}
@@ -84,7 +84,7 @@ def test_barge_in_mirrored_in_status(client):
 
 
 def test_launch_stop_null_supervisor_503(client):
-    _instantiate(client)
+    voiced_identity(client)
     for op in ("launch", "stop"):
         r = client.post(f"/identities/ava-001/{op}", headers=H["operator"])
         assert r.status_code == 503
@@ -93,9 +93,9 @@ def test_launch_stop_null_supervisor_503(client):
     assert client.post("/identities/nope-001/launch", headers=H["operator"]).status_code == 404
 
 
-def test_injected_supervisor_used(db_file):
-    with TestClient(create_app(make_settings(db_file), FakeSupervisor())) as c:
-        _instantiate(c)
+def test_injected_supervisor_used(db_file, voice_stack):
+    with TestClient(make_app(db_file, voice_stack, FakeSupervisor())) as c:
+        voiced_identity(c)
         assert c.post("/identities/ava-001/launch", headers=H["operator"]).json()["presence"] == "STARTING"
         assert c.get("/health").json()["dependencies"]["runtime"] == "ok"
 

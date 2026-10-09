@@ -275,7 +275,12 @@ paths:
       operationId: launchIdentity
       tags: [identities]
       summary: Start the Identity's runtime participant
-      description: Returns 503 `dependency_unavailable` when no runtime is configured.
+      description: |
+        Voice preflight runs before the runtime is touched: the Identity must have a voice
+        (422 `voice_required` when `voice.profile_id` is null; there is never a fallback voice), and that voice must
+        still exist in Voicebox and have a cloning authorization (422 `voice_profile_not_found` /
+        `voice_not_authorized`). Voicebox down: 503 `voicebox_unavailable`. Returns 503 `dependency_unavailable`
+        when no runtime is configured.
       x-required-role: operator
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
@@ -289,6 +294,8 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
   /identities/{identity_id}/stop:
@@ -453,7 +460,12 @@ paths:
         Creates the Voicebox cloned profile (Chatterbox Turbo) from the uploaded reference audio, then records the
         `voice_authorizations` row (consent statement, subject, authorizing person). If Voicebox fails nothing is
         recorded; if recording fails the new profile is removed again. The raw audio is never stored by this
-        service, returned, or logged. Max sample size 25 MiB (422 `sample_too_large`; 422 `empty_sample`).
+        service, returned, or logged. The request must carry a Content-Length of at most 25 MiB plus form fields
+        (413 `sample_too_large`, also when the header is missing). The file must be wav, mp3, m4a, ogg, flac or
+        webm: its content type must be an audio type (or `application/octet-stream`) and its magic bytes must match
+        (415 `unsupported_media_type`). The stored filename is sanitized to a basename. Empty file: 422 `empty_sample`.
+        Only cloned profiles exist for this engine: Chatterbox Turbo has no presets in Voicebox, so preset voices
+        cannot be created, authorized or attached.
         Voicebox down: 503 `voicebox_unavailable`; Voicebox rejecting the sample: 502 `voicebox_rejected`.
       x-required-role: admin
       requestBody:
@@ -470,6 +482,16 @@ paths:
               schema: {$ref: "#/components/schemas/VoiceProfile"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "413":
+          description: Reference audio too large or Content-Length missing (`sample_too_large`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
+        "415":
+          description: Not a wav/mp3/m4a/ogg/flac/webm file (`unsupported_media_type`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
         "422": {$ref: "#/components/responses/Unprocessable"}
         "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
@@ -481,7 +503,7 @@ paths:
       summary: Record a cloning authorization for a profile created directly in Voicebox
       description: |
         The profile must exist in Voicebox (404 `voice_profile_not_found`) and be a cloned profile
-        (422 `voice_profile_not_cloned`). Multiple authorization rows per profile are allowed (append-only).
+        (422 `voice_profile_not_cloned`; preset voices cannot be used with Chatterbox Turbo). Multiple authorization rows per profile are allowed (append-only).
         Voicebox down: 503 `voicebox_unavailable`.
       x-required-role: admin
       parameters:
@@ -689,7 +711,7 @@ components:
         Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
         `invalid_override`, `voice_profile_not_found` / `voice_not_authorized` (the resolved `voice.profile_id` must
         exist in Voicebox and have a cloning authorization), `voice_profile_not_cloned`, `empty_sample`,
-        `sample_too_large`, `reference_too_short`.
+        `voice_required` (launch), `reference_too_short`.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}

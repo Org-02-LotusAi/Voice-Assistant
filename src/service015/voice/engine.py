@@ -51,6 +51,17 @@ def _map_error(status: int, body: bytes) -> DomainError:
     )
 
 
+def _from_engine_code(code: str, detail: str) -> DomainError:
+    """Map an engine failure code (HTTP error body or /requests status) to a DomainError carrying that code."""
+    if code == "profile_not_found":
+        return NotFound("voice_profile_not_found", "the voice engine does not know this voice profile")
+    if code == "voicebox_unavailable":
+        return DependencyUnavailable("voicebox_unavailable", "Voicebox is unavailable: reported by the voice engine")
+    if code in ("reference_too_short", "corrupt_reference", "invalid_request", "empty_text"):
+        return ValidationFailed(code, detail or "the voice engine rejected the request")
+    return VoiceEngineFailed(code, detail or "the voice engine failed")
+
+
 class VoiceEngineClient:
     def __init__(self, base_url: str, timeout_s: float = 120.0, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._base = base_url.rstrip("/")
@@ -86,7 +97,15 @@ class VoiceEngineClient:
         return (await self._post("/preview", {"profile_id": profile_id, "text": text})).content
 
     async def stream(self, profile_id: str, text: str) -> AsyncIterator[bytes]:
-        """Yield s16le mono 24 kHz PCM chunks as the sidecar produces them."""
+        """Yield s16le mono 24 kHz PCM chunks as the sidecar produces them.
+
+        The sidecar cannot change the HTTP status once streaming began, so after EOF (or a broken read) the
+        request status (`GET /requests/{id}`) is the authority: anything but `complete` with all chunks done
+        raises a coded error (`tts_failed`, or the engine's own code such as `reference_too_short`).
+        """
+        request_id: str | None = None
+        expected_chunks: int | None = None
+        read_error: str | None = None
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=self._timeout) as client:
                 async with client.stream(
@@ -94,9 +113,47 @@ class VoiceEngineClient:
                 ) as resp:
                     if resp.status_code != 200:
                         raise _map_error(resp.status_code, await resp.aread())
-                    async for chunk in resp.aiter_bytes():
-                        if chunk:
-                            yield chunk
+                    request_id = resp.headers.get("x-request-id")
+                    header = resp.headers.get("x-chunk-count", "")
+                    expected_chunks = int(header) if header.isdigit() else None
+                    try:
+                        async for chunk in resp.aiter_bytes():
+                            if chunk:
+                                yield chunk
+                    except httpx.HTTPError as exc:
+                        read_error = type(exc).__name__
+                        log.warning("voice engine stream broke mid-body: %s", read_error)
+                if request_id is None:
+                    raise VoiceEngineFailed(
+                        "tts_failed", "the voice engine sent no X-Request-Id, so the stream cannot be verified"
+                    )
+                await self._verify_complete(client, request_id, expected_chunks, read_error)
         except httpx.HTTPError as exc:
             log.warning("voice engine stream failed: %s", type(exc).__name__)
             raise engine_unavailable(type(exc).__name__) from None
+
+    async def _verify_complete(
+        self, client: httpx.AsyncClient, request_id: str, expected_chunks: int | None, read_error: str | None
+    ) -> None:
+        resp = await client.get(self._base + f"/requests/{request_id}")
+        if resp.status_code != 200:
+            log.warning("voice engine request status %s unavailable: HTTP %s", request_id, resp.status_code)
+            raise VoiceEngineFailed(
+                "tts_failed",
+                "could not verify that the synthesized stream was complete",
+                details={"request_id": request_id, "read_error": read_error, "status_lookup": resp.status_code},
+            )
+        st = resp.json()
+        state, code = st.get("state"), str(st.get("code") or "")
+        done, total = st.get("chunks_done"), st.get("chunks_total")
+        details = {"request_id": request_id, "state": state, "chunks_done": done, "chunks_total": total,
+                   "read_error": read_error}
+        if state == "complete" and read_error is None and done == total and (expected_chunks in (None, total)):
+            return
+        if state == "failed" and code:
+            err = _from_engine_code(code, str(st.get("detail") or ""))
+            err.details.update(details)
+            raise err
+        raise VoiceEngineFailed(
+            "tts_failed", f"the synthesized stream is incomplete (state={state})", details=details
+        )

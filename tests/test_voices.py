@@ -6,7 +6,7 @@ import wave
 import httpx
 import pytest
 
-from tests.conftest import H
+from tests.conftest import H, make_app, voiced_identity
 from tests.test_openapi_contract import assert_conforms
 from tests.voice_fakes import make_wav
 from service015.errors import DependencyUnavailable, NotFound, ValidationFailed
@@ -329,7 +329,7 @@ def test_engine_client_preview_warm_stream(voice_stack):
         return [c async for c in ec.stream("vp-ava", "Hi there.")]
 
     chunks = run(collect())
-    assert b"".join(chunks) == b"\x01\x00" * 4800
+    assert b"".join(chunks) == b"\x01\x00" * 100 * 3
 
 
 def test_engine_client_error_mapping(voice_stack):
@@ -406,3 +406,207 @@ def test_seed_script_fails_when_profile_missing(voice_stack, db_file, monkeypatc
     monkeypatch.setattr(mod, "VoiceboxClient", lambda url, timeout: voice_stack.voicebox.client)  # no James Calm
     assert run(mod.run(str(db_file), "http://x")) == 1
     assert "James Calm" in capsys.readouterr().err
+
+
+# ---------- stream truncation protocol (engine/README.md) ----------
+
+def collect_stream(ec):
+    async def go():
+        got = []
+        try:
+            async for c in ec.stream("vp-ava", "Hi there."):
+                got.append(c)
+        except Exception as exc:  # noqa: BLE001 - the test inspects what was raised
+            return got, exc
+        return got, None
+
+    return run(go())
+
+
+def test_stream_complete_has_no_error(voice_stack):
+    got, err = collect_stream(voice_stack.engine.client)
+    assert err is None and len(got) == 3
+
+
+@pytest.mark.parametrize("mode,code,state", [
+    ("failed", "synthesis_failed", "failed"),
+    ("truncated", "tts_failed", "complete"),   # status says complete but chunks_done < chunks_total
+    ("cancelled", "tts_failed", "cancelled"),
+    ("break", "synthesis_failed", "failed"),   # connection dropped mid-body; status carries the coded reason
+    ("no_id", "tts_failed", None),
+    ("status_404", "tts_failed", None),
+])
+def test_stream_abnormal_end_raises_coded_error(voice_stack, mode, code, state):
+    voice_stack.engine.stream_mode = mode
+    got, err = collect_stream(voice_stack.engine.client)
+    assert err is not None, "an incomplete stream must never end silently"
+    assert getattr(err, "code", None) == code, err
+    if state:
+        assert err.details["state"] == state
+    if mode not in ("no_id", "status_404"):  # those deliver all bytes but cannot be verified
+        assert len(got) < 3
+
+
+def test_stream_failed_with_engine_codes_maps_domain_errors(voice_stack):
+    voice_stack.engine.stream_mode = "failed"
+    for engine_code, exc_type, code in (("voicebox_unavailable", DependencyUnavailable, "voicebox_unavailable"),
+                                        ("reference_too_short", ValidationFailed, "reference_too_short"),
+                                        ("profile_not_found", NotFound, "voice_profile_not_found")):
+        voice_stack.engine.stream_code = engine_code
+        _, err = collect_stream(voice_stack.engine.client)
+        assert isinstance(err, exc_type) and err.code == code
+
+
+# ---------- launch preflight ----------
+
+def test_launch_requires_a_voice(db_file, voice_stack):
+    from fastapi.testclient import TestClient
+    from tests.conftest import FakeSupervisor
+
+    with TestClient(make_app(db_file, voice_stack, FakeSupervisor())) as c:
+        assert instantiate(c).status_code == 201  # draft identity without a voice is allowed
+        before = c.get("/identities/ava-001", headers=H["viewer"]).json()
+        r = c.post("/identities/ava-001/launch", headers=H["operator"])
+        assert r.status_code == 422 and error_code(r) == "voice_required"
+        assert_conforms("/identities/{identity_id}/launch", "post", r)
+        assert c.get("/identities/ava-001", headers=H["viewer"]).json() == before
+
+
+def test_launch_rechecks_voice_existence_authorization_and_voicebox(db_file, voice_stack):
+    from fastapi.testclient import TestClient
+    from tests.conftest import FakeSupervisor
+
+    class Spy(FakeSupervisor):
+        launched = 0
+
+        async def launch(self, identity_id):
+            Spy.launched += 1
+            return await super().launch(identity_id)
+
+    with TestClient(make_app(db_file, voice_stack, Spy())) as c:
+        assert voiced_identity(c).status_code == 201
+        before = c.get("/identities/ava-001", headers=H["viewer"]).json()
+        voice_stack.voicebox.down = True
+        r = c.post("/identities/ava-001/launch", headers=H["operator"])
+        assert r.status_code == 503 and error_code(r) == "voicebox_unavailable"
+        voice_stack.voicebox.down = False
+        saved = voice_stack.voicebox.profiles.pop("vp-ava")  # profile deleted in Voicebox after attach
+        r = c.post("/identities/ava-001/launch", headers=H["operator"])
+        assert r.status_code == 422 and error_code(r) == "voice_profile_not_found"
+        voice_stack.voicebox.profiles["vp-ava"] = saved
+        assert Spy.launched == 0, "supervisor must not be reached while the preflight fails"
+        assert c.post("/identities/ava-001/launch", headers=H["operator"]).status_code == 200
+        assert Spy.launched == 1
+        assert c.get("/identities/ava-001", headers=H["viewer"]).json() == before
+
+
+def test_launch_unauthorized_voice_is_422(db_file, voice_stack):
+    import sqlite3
+
+    from fastapi.testclient import TestClient
+    from tests.conftest import FakeSupervisor
+
+    with TestClient(make_app(db_file, voice_stack, FakeSupervisor())) as c:
+        assert voiced_identity(c).status_code == 201
+        before = c.get("/identities/ava-001", headers=H["viewer"]).json()
+        db = sqlite3.connect(db_file)
+        db.execute("DELETE FROM voice_authorizations")  # simulates a missing authorization row
+        db.commit()
+        db.close()
+        r = c.post("/identities/ava-001/launch", headers=H["operator"])
+        assert r.status_code == 422 and error_code(r) == "voice_not_authorized"
+        assert c.get("/identities/ava-001", headers=H["viewer"]).json() == before
+
+
+# ---------- upload hardening ----------
+
+def raw_post(client, sample, filename="ref.wav", ctype="audio/wav", role="admin"):
+    return client.post("/voices", data=create_form(), files={"file": (filename, sample, ctype)}, headers=H[role])
+
+
+def test_oversize_content_length_is_413_before_anything_else(client, voice_stack):
+    r = client.post("/voices", content=b"x", headers={**H["admin"], "content-type": "multipart/form-data; boundary=b",
+                                                      "content-length": str(26 * 1024 * 1024 + 512 * 1024)})
+    assert r.status_code == 413 and error_code(r) == "sample_too_large"
+    assert_conforms("/voices", "post", r)
+    assert voice_stack.voicebox.requests == []
+
+
+def test_oversize_file_is_413(client, monkeypatch):
+    from service015.api.routers import voices
+
+    monkeypatch.setattr(voices, "MAX_SAMPLE_BYTES", 1000)
+    r = raw_post(client, make_wav(1.0))
+    assert r.status_code == 413 and error_code(r) == "sample_too_large"
+
+
+def test_missing_content_length_is_413(client):
+    def body():
+        yield b"--b--\r\n"
+
+    r = client.post("/voices", content=body(), headers={**H["admin"], "content-type": "multipart/form-data; boundary=b"})
+    assert r.status_code == 413 and error_code(r) == "sample_too_large"
+
+
+def test_bad_media_type_or_magic_bytes_are_415(client, voice_stack):
+    r = raw_post(client, make_wav(1.0), ctype="text/plain")
+    assert r.status_code == 415 and error_code(r) == "unsupported_media_type"
+    assert_conforms("/voices", "post", r)
+    r = raw_post(client, b"MZ\x90\x00 this is an executable, not audio", ctype="audio/wav")
+    assert r.status_code == 415
+    assert not any(m == "POST" and p == "/profiles" for m, p in voice_stack.voicebox.requests)
+
+
+@pytest.mark.parametrize("head,ext", [(b"RIFF\x00\x00\x00\x00WAVEfmt ", "wav"), (b"ID3\x04\x00", "mp3"), (b"\xff\xfb\x90\x00", "mp3"),
+                                      (b"\x00\x00\x00\x18ftypM4A ", "m4a"), (b"OggS\x00\x02", "ogg"), (b"fLaC\x00", "flac"),
+                                      (bytes.fromhex("1a45dfa3") + b"\x01", "webm")])
+def test_sniff_audio_accepts_supported_containers(head, ext):
+    from service015.api.routers.voices import sniff_audio
+
+    assert sniff_audio(head.ljust(16, b"\x00")) == ext
+
+
+def test_filename_is_sanitized_to_a_safe_basename():
+    from service015.api.routers.voices import safe_filename
+
+    assert safe_filename("../../etc/pass wd.wav", "wav") == "pass_wd.wav"
+    assert safe_filename("C:\\Users\\x\\voice;rm -rf.wav", "wav") == "voice_rm_-rf.wav"
+    assert safe_filename("...", "wav") == "reference.wav" and safe_filename(None, "mp3") == "reference.mp3"
+    assert len(safe_filename("a" * 300 + ".wav", "wav")) <= 64
+
+
+def test_auth_insert_failure_deletes_the_voicebox_profile(client, voice_stack, monkeypatch):
+    from service015.errors import DomainError
+    from service015.voice import authz
+
+    def boom(*a, **k):
+        raise DomainError("db_down", "cannot write", status=500)
+
+    monkeypatch.setattr(authz, "record_authorization", boom)
+    r = post_voice(client)
+    assert r.status_code == 500
+    deletes = [p for m, p in voice_stack.voicebox.requests if m == "DELETE"]
+    assert len(deletes) == 1 and deletes[0].startswith("/profiles/vp-new-")
+    assert not any(k.startswith("vp-new-") for k in voice_stack.voicebox.profiles)
+
+
+def test_cancellation_between_create_and_insert_still_compensates(client, voice_stack, monkeypatch):
+    from service015.voice import authz
+
+    def cancelled(*a, **k):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(authz, "record_authorization", cancelled)
+    try:
+        post_voice(client)
+    except BaseException:  # noqa: BLE001 - the cancel may surface through the test transport
+        pass
+    assert any(m == "DELETE" for m, _ in voice_stack.voicebox.requests)
+
+
+def test_get_profile_id_guard_is_strict(voice_stack):
+    vb = voice_stack.voicebox
+    n = len(vb.requests)
+    for bad in ("a b", "a?b", "a#b", "a%2fb", "..%2f", "a.b", "x" * 65, "ab\n"):
+        assert run(vb.client.get_profile(bad)) is None
+    assert len(vb.requests) == n
