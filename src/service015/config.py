@@ -44,11 +44,15 @@ class Settings(BaseSettings):
 
     llm_base_url: str = Field("https://api.groq.com/openai/v1", validation_alias="LLM_BASE_URL")
     llm_api_key: str = Field("", validation_alias="LLM_API_KEY")
-    llm_model: str = Field("llama-3.3-70b-versatile", validation_alias="LLM_MODEL")
+    llm_model: str = Field("qwen/qwen3.8-27b", validation_alias="LLM_MODEL")
+    # Sent as `reasoning_effort` on chat requests; empty = do not send the field (models that reject it).
+    llm_reasoning_effort: str = Field("none", validation_alias="LLM_REASONING_EFFORT")
 
     livekit_url: str = Field("ws://localhost:7880", validation_alias="LIVEKIT_URL")
     livekit_api_key: str = Field("devkey", validation_alias="LIVEKIT_API_KEY")
     livekit_api_secret: str = Field("secret", validation_alias="LIVEKIT_API_SECRET")
+
+    livekit_agent_name: str = Field("service015-identity", validation_alias="LIVEKIT_AGENT_NAME")
 
     service014_mode: Literal["disabled", "http", "livekit_sip"] = Field("disabled", validation_alias="SERVICE014_MODE")
     service014_url: str = Field("", validation_alias="SERVICE014_URL")

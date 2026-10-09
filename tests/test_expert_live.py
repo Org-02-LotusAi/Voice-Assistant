@@ -16,7 +16,8 @@ def test_fresh_session_uses_new_verified_fact(db_file):
     # Synthetic fact (not a real finding): only the store can supply the value 'ZQX-4417 / 11 seconds'.
     fact = "Integration-test fact: the Quasar pre-roll buffer constant ZQX-4417 must be set to 11 seconds."
     settings = make_settings(db_file).model_copy(
-        update={"llm_api_key": LIVE.llm_api_key, "llm_base_url": LIVE.llm_base_url, "llm_model": LIVE.llm_model}
+        update={"llm_api_key": LIVE.llm_api_key, "llm_base_url": LIVE.llm_base_url, "llm_model": LIVE.llm_model,
+                "llm_reasoning_effort": LIVE.llm_reasoning_effort}
     )
     with TestClient(create_app(settings)) as c:
         r = c.post(

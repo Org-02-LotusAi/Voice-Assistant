@@ -338,6 +338,64 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
 
+  /identities/{identity_id}/join-token:
+    post:
+      operationId: createJoinToken
+      tags: [identities]
+      summary: Mint a LiveKit join token for a human to enter the Identity's Default Room
+      description: |
+        The token grants a participant `human-<random8>` (never the Identity's own participant identity) publish and
+        subscribe in the Identity's `default_room`. It is valid for one hour and works whether or not the Identity is
+        currently launched.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/JoinTokenRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Connection details for a LiveKit client.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/JoinToken"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /identities/{identity_id}/latency:
+    get:
+      operationId: getIdentityLatency
+      tags: [identities]
+      summary: Per-turn latency percentiles (milliseconds)
+      description: |
+        Nearest-rank P50/P95/max over recorded turns. T0 user stops speaking, T1 final transcript, T2 first LLM chunk,
+        T3 first TTS audio, T4 agent starts speaking, T5 first audio heard by the human (filled by the e2e harness).
+        Intervals are raw measurements and may be negative (the transcript can finalize before end-of-speech).
+        An interval with no data reports `count` 0 and null statistics.
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+        - name: session_id
+          in: query
+          required: false
+          schema: {type: string}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Latency report.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LatencyReport"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
   /meeting/participants:
     get:
       operationId: listMeetingParticipants
@@ -728,7 +786,9 @@ components:
     DependencyUnavailable:
       description: |
         A required backing service is not available (`dependency_unavailable`, `voicebox_unavailable`,
-        `voice_engine_unavailable`, `telephony_not_configured`). Nothing is persisted.
+        `voice_engine_unavailable`, `telephony_not_configured`, `runtime_unavailable`). Launch preflight failures are
+        `dependency_unavailable` with `details.dependency` = `livekit` | `llm` | `voice_engine` | `voicebox`, and leave
+        the Identity untouched. Nothing is persisted.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -1120,6 +1180,45 @@ components:
         self_context: {type: string, description: "The YAML `self:` block (SOW section 10)."}
         instructions: {type: string, description: Full runtime system instructions built from the snapshot only.}
         resolved_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+
+    JoinTokenRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        participant_name: {type: [string, "null"], minLength: 1, maxLength: 80, description: Display name of the human.}
+
+    JoinToken:
+      type: object
+      additionalProperties: false
+      required: [livekit_url, room, token, participant_identity]
+      properties:
+        livekit_url: {type: string}
+        room: {type: string}
+        token: {type: string}
+        participant_identity: {type: string, pattern: "^human-[0-9a-f]{8}$"}
+
+    IntervalStats:
+      type: object
+      additionalProperties: false
+      required: [count, p50, p95, max]
+      properties:
+        count: {type: integer, minimum: 0}
+        p50: {type: [number, "null"]}
+        p95: {type: [number, "null"]}
+        max: {type: [number, "null"]}
+
+    LatencyReport:
+      type: object
+      additionalProperties: false
+      required: [turns, t0_t4, t0_t1, t1_t2, t2_t3, t3_t4, t4_t5]
+      properties:
+        turns: {type: integer, minimum: 0}
+        t0_t4: {$ref: "#/components/schemas/IntervalStats"}
+        t0_t1: {$ref: "#/components/schemas/IntervalStats"}
+        t1_t2: {$ref: "#/components/schemas/IntervalStats"}
+        t2_t3: {$ref: "#/components/schemas/IntervalStats"}
+        t3_t4: {$ref: "#/components/schemas/IntervalStats"}
+        t4_t5: {$ref: "#/components/schemas/IntervalStats"}
 
     Presence:
       type: string

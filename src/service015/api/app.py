@@ -19,6 +19,7 @@ from service015.config import Settings, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
 from service015.expert.llm import Llm, OpenAICompatLlm
+from service015.runtime.supervisor import LiveKitSupervisor
 from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSupervisor
 from service015.telephony.service014 import Service014Client
 from service015.templates_repo import seed_starter_templates
@@ -60,7 +61,12 @@ def create_app(
             seed_starter_templates(conn)
         finally:
             conn.close()
-        yield
+        try:
+            yield
+        finally:
+            close = getattr(app.state.supervisor, "aclose", None)
+            if close is not None:
+                await close()  # stops the runtime worker (and its job processes) this API spawned
 
     app = FastAPI(
         title="SAFI Service 015",
@@ -71,7 +77,12 @@ def create_app(
         redoc_url=None,
     )
     app.state.settings = settings
-    app.state.supervisor = supervisor if supervisor is not None else NullSupervisor(settings.db_path)
+    if supervisor is None:
+        # LiveKit is "configured" when its URL and credentials were provided (env / .env), not merely defaulted.
+        lk_fields = {"livekit_url", "livekit_api_key", "livekit_api_secret"}
+        configured = lk_fields <= settings.model_fields_set and all(getattr(settings, f) for f in lk_fields)
+        supervisor = LiveKitSupervisor(settings) if configured else NullSupervisor(settings.db_path)
+    app.state.supervisor = supervisor
     app.state.telephony = telephony if telephony is not None else Service014Client.from_settings(settings)
     app.state.expert_llm = expert_llm if expert_llm is not None else OpenAICompatLlm.from_settings(settings)
     app.state.voicebox = voicebox if voicebox is not None else VoiceboxClient(settings.voicebox_url, settings.voicebox_timeout_s)

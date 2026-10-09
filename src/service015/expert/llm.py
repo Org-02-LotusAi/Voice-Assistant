@@ -29,26 +29,31 @@ class OpenAICompatLlm:
         model: str,
         transport: httpx.BaseTransport | None = None,
         timeout: float = 60.0,
+        reasoning_effort: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self._transport = transport
         self._timeout = timeout
+        self.reasoning_effort = reasoning_effort
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "OpenAICompatLlm":
-        return cls(settings.llm_base_url, settings.llm_api_key, settings.llm_model)
+        return cls(settings.llm_base_url, settings.llm_api_key, settings.llm_model, reasoning_effort=settings.llm_reasoning_effort)
 
     def chat(self, messages: list[dict[str, str]]) -> str:
         if not self.api_key:
             raise LlmUnavailable("LLM_API_KEY is not configured")
+        body: dict = {"model": self.model, "messages": messages, "temperature": 0.1}
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
         try:
             with httpx.Client(transport=self._transport, timeout=self._timeout) as client:
                 resp = client.post(
                     f"{self.base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {self.api_key}"},
-                    json={"model": self.model, "messages": messages, "temperature": 0.1},
+                    json=body,
                 )
         except httpx.HTTPError as exc:
             raise LlmUnavailable(f"LLM endpoint unreachable: {type(exc).__name__}") from exc

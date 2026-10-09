@@ -7,7 +7,7 @@ from service015.config import Settings
 from service015.db import connect, migrate
 
 TABLES = {"templates", "template_versions", "identities", "runtime_status", "voice_authorizations",
-          "expert_knowledge", "expert_sessions", "expert_messages"}
+          "expert_knowledge", "expert_sessions", "expert_messages", "runtime_sessions", "turn_metrics"}
 
 
 def _tables(conn: sqlite3.Connection) -> list[str]:
@@ -25,13 +25,13 @@ def test_connect_sets_pragmas_and_creates_parent_dir(tmp_path):
 
 def test_migrate_is_idempotent(tmp_path):
     conn = connect(tmp_path / "t.db")
-    assert migrate(conn) == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql"]
+    assert migrate(conn) == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql"]
     assert migrate(conn) == []
     names = _tables(conn)
     assert sorted(names) == sorted(TABLES | {"schema_migrations"})
     assert len(names) == len(set(names))
     rows = conn.execute("SELECT name, applied_at FROM schema_migrations").fetchall()
-    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql"]
+    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql"]
     assert rows[0]["applied_at"]
 
 
@@ -100,7 +100,8 @@ def test_settings_defaults(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)
     assert s.port == 8015
-    assert s.llm_model == "llama-3.3-70b-versatile"
+    assert s.llm_model == "qwen/qwen3.8-27b"
+    assert s.llm_reasoning_effort == "none"
     assert s.livekit_url == "ws://localhost:7880"
     assert s.voicebox_url == "http://127.0.0.1:17493"
     assert s.api_keys == {}

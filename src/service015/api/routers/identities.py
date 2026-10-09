@@ -5,13 +5,26 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends
+import datetime
+import secrets
+
+from fastapi import APIRouter, Depends, Query, Request
+from livekit import api as lkapi
 
 from service015 import identities_repo
 from service015.api.deps import get_conn, get_supervisor, get_voicebox
-from service015.api.schemas import IdentitySummary, ParticipantStatus, PatchIdentityRequest, SelfContext
+from service015.api.schemas import (
+    IdentitySummary,
+    JoinToken,
+    JoinTokenRequest,
+    LatencyReport,
+    ParticipantStatus,
+    PatchIdentityRequest,
+    SelfContext,
+)
 from service015.auth import require_role
 from service015.resolver import ResolvedIdentity
+from service015.runtime import latency
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
 from service015.selfcontext import build_instructions, build_self_context
 from service015.voice.authz import ensure_identity_voice_ready, ensure_voice_usable
@@ -101,3 +114,44 @@ async def status(
 ) -> Any:
     identities_repo.get_identity(conn, identity_id)
     return await sup.status(identity_id)
+
+
+JOIN_TOKEN_TTL = datetime.timedelta(hours=1)
+
+
+@router.post(
+    "/identities/{identity_id}/join-token", response_model=JoinToken, dependencies=[Depends(require_role("operator"))]
+)
+def join_token(
+    identity_id: str,
+    request: Request,
+    body: JoinTokenRequest | None = None,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> Any:
+    """A human join token for the Identity's Default Room (identity `human-<random8>`, never the agent's identity)."""
+    resolved = identities_repo.get_identity(conn, identity_id)
+    settings = request.app.state.settings
+    participant_identity = "human-" + secrets.token_hex(4)
+    room = resolved.participant.default_room
+    name = body.participant_name if body is not None and body.participant_name else participant_identity
+    token = (
+        lkapi.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
+        .with_identity(participant_identity)
+        .with_name(name)
+        .with_ttl(JOIN_TOKEN_TTL)
+        .with_grants(
+            lkapi.VideoGrants(room_join=True, room=room, can_publish=True, can_subscribe=True, can_publish_data=True)
+        )
+        .to_jwt()
+    )
+    return JoinToken(livekit_url=settings.livekit_url, room=room, token=token, participant_identity=participant_identity)
+
+
+@router.get(
+    "/identities/{identity_id}/latency", response_model=LatencyReport, dependencies=[Depends(require_role("viewer"))]
+)
+def get_latency(
+    identity_id: str, session_id: str | None = Query(default=None), conn: sqlite3.Connection = Depends(get_conn)
+) -> Any:
+    identities_repo.get_identity(conn, identity_id)
+    return latency.report(conn, identity_id, session_id)

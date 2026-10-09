@@ -164,3 +164,33 @@ class VoiceAuthorization(_Strict):
 
 class VoicePreviewRequest(_Strict):
     text: str | None = Field(default=None, min_length=1, max_length=500, pattern=r"\S")
+
+
+class JoinTokenRequest(_Strict):
+    participant_name: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class JoinToken(_Strict):
+    livekit_url: str
+    room: str
+    token: str
+    participant_identity: str
+
+
+class IntervalStats(_Strict):
+    count: int
+    p50: float | None
+    p95: float | None
+    max: float | None
+
+
+class LatencyReport(_Strict):
+    """Milliseconds; nearest-rank percentiles over recorded turns (see runtime/latency.py)."""
+
+    turns: int
+    t0_t4: IntervalStats
+    t0_t1: IntervalStats
+    t1_t2: IntervalStats
+    t2_t3: IntervalStats
+    t3_t4: IntervalStats
+    t4_t5: IntervalStats

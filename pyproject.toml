@@ -22,6 +22,7 @@ dependencies = [
 [project.scripts]
 service015-api = "service015.api.app:main"
 service015-expert = "service015.expert.cli:main"
+service015-runtime = "service015.runtime.worker:main"
 
 [dependency-groups]
 dev = [
