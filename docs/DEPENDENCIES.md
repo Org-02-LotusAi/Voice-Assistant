@@ -39,3 +39,22 @@ Sentence: "Hello, this is Ava. It is a pleasure to speak with you today, and I a
 | In-process Nano (110M, GPT2_small), run 1 / run 2 | RTF 3.30 / 3.32 (17.6 s / 18.2 s, ~5.4 s audio) |
 
 Conditionals (`prepare_conditionals`) cost 6.6 s (Turbo) / 4.8 s (Nano) once per voice. Nano weights (`ResembleAI/chatterbox-nano`, 2.8 GB on disk incl. shared s3gen) exist and load (113 s cold from disk). Measurements were taken while the machine was shared with another worker, so absolute numbers are pessimistic, but the ratio is stable: Nano is ~3x faster than full Turbo and still ~3.3x slower than real time on this CPU. Conclusion: CPU-only Turbo cannot be conversational; the live-latency path needs a GPU (EC2) or accepts multi-second sentence latency on dev. To use Nano the engine sidecar (Task 6) must import chatterbox from GitHub master, not Voicebox's PyPI copy.
+
+## Voice engine sidecar (Task 6)
+`engine/chatterbox_server.py`, port 17494, run by `scripts/run_engine.ps1|.sh` with Voicebox's venv (see `engine/README.md`). Verified 2026-10-09, same laptop, CPU, 12 threads, shared with other workers (so numbers are noisy and pessimistic).
+
+- **Chatterbox source**: the engine prefers GitHub master `resemble-ai/chatterbox@5de7a54aa4e5e2baadb0182dde554908b48b85c2`, cloned to `deps/chatterbox-src` (git-ignored, auto-cloned by the run scripts), for BOTH variants; it exposes `from_pretrained(device, nano=False)`. Voicebox itself keeps using its PyPI copy untouched. `turbo-nano` with a package lacking `nano` -> `/health` `status: error`, process exits 1 after `VOICE_ENGINE_FAIL_EXIT_S` (10 s). Verified fail-loud path with an invalid variant (health "error", exit code 1).
+- Model load (weights cached): Turbo 34-55 s, Nano 21 s. The checkpoints ship built-in `conds.pt`, so the startup warm-up generate ("Hello there.") works without a profile. Resident RAM is heavy: free memory dropped to about 1.4 GB with Nano + Voicebox + Docker running; keep >= 6 GB free for Turbo.
+- `/warm` for Ava Warm (reference 12.9 s): fetch 0.1-0.8 s, `prepare_conditionals` 3.8-4.3 s (Turbo) / 8.3 s (Nano, contended), tiny generate 10-20 s. Subsequent warm calls are instant (cached).
+- Unknown profile detection: Voicebox `GET /profiles/{id}/samples` answers `200 []` for unknown ids, so the engine checks `GET /profiles/{id}` (404) first.
+
+| Variant | Test | First chunk | Wall | Audio | RTF (wall/audio) |
+|---|---|---|---|---|---|
+| turbo | "Hello, this is Ava. It is a pleasure to speak with you." (2 chunks, pytest) | 19.6 s | 37.5 s | 4.24 s | 8.8 |
+| turbo | "Hello, this is Ava. It is a pleasure ... glad to help." (2 chunks, solo) | 13.8 / 13.6 s | 34.0 / 34.8 s | 5.72 / 5.40 s | 5.95 / 6.45 |
+| turbo-nano | same 2-chunk pytest text | 21.2 s (contended) | 33.5 s | 3.52 s | 9.5 |
+| turbo-nano | long sentence, solo, run 1 / 2 | 8.9 / 6.2 s | 19.8 / 15.9 s | 5.12 / 5.04 s | 3.87 / 3.16 |
+
+First-chunk latency is the time to the first PCM bytes after the request (profile already warm). On this CPU neither variant is realtime (Turbo ~6-9x slower than realtime, Nano ~3-4x); expect an order of magnitude better on a CUDA GPU, which is the production target. Streaming still helps: with sentence chunking the first audio arrives after roughly one clause instead of the whole utterance.
+
+**Barge-in**: before each chunk the stream handler checks `request.is_disconnected()`; verified in the log (`chunks=1/4` after the client dropped after the first chunk). An in-flight `generate` cannot be aborted (the thread runs to completion), so a follow-up request waits for that one chunk (measured 15-31 s on CPU for a ~15 s chunk; one sentence on GPU).
