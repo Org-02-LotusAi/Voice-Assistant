@@ -11,6 +11,16 @@ CREATE TABLE template_versions (
     PRIMARY KEY (template_id, version)
 );
 
+CREATE TRIGGER template_versions_no_update BEFORE UPDATE ON template_versions
+BEGIN
+    SELECT RAISE(ABORT, 'template_versions rows are immutable');
+END;
+
+CREATE TRIGGER template_versions_no_delete BEFORE DELETE ON template_versions
+BEGIN
+    SELECT RAISE(ABORT, 'template_versions rows are immutable');
+END;
+
 CREATE TABLE identities (
     identity_id          TEXT PRIMARY KEY,
     template_id          TEXT NOT NULL,

@@ -103,3 +103,49 @@ def test_settings_defaults(monkeypatch):
     assert s.livekit_url == "ws://localhost:7880"
     assert s.voicebox_url == "http://127.0.0.1:17493"
     assert s.api_keys == {}
+
+
+def test_settings_errors_do_not_echo_key_material():
+    with pytest.raises(ValidationError) as exc:
+        Settings(_env_file=None, SERVICE015_API_KEYS="SECRETKEY123:superuser")
+    assert "SECRETKEY123" not in str(exc.value)
+    assert "superuser" in str(exc.value)  # the offending role is named, not the key
+
+
+def test_template_versions_are_immutable(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    _seed_template_version(conn)
+    with pytest.raises(sqlite3.IntegrityError, match="template_versions rows are immutable"):
+        conn.execute("UPDATE template_versions SET body_json = '{\"x\":1}' WHERE template_id = 't'")
+    with pytest.raises(sqlite3.IntegrityError, match="template_versions rows are immutable"):
+        conn.execute("DELETE FROM template_versions WHERE template_id = 't'")
+    assert conn.execute("SELECT body_json FROM template_versions").fetchone()[0] == "{}"
+
+
+def test_migrate_applies_files_in_filename_order(tmp_path):
+    mdir = tmp_path / "m"
+    mdir.mkdir()
+    (mdir / "002_b.sql").write_text("CREATE TABLE b (x INTEGER); INSERT INTO a VALUES (1);", encoding="utf-8")
+    (mdir / "001_a.sql").write_text("CREATE TABLE a (x INTEGER);", encoding="utf-8")
+    conn = connect(tmp_path / "t.db")
+    assert migrate(conn, mdir) == ["001_a.sql", "002_b.sql"]  # 002 depends on 001's table
+    assert migrate(conn, mdir) == []
+    assert [r["name"] for r in conn.execute("SELECT name FROM schema_migrations ORDER BY applied_at, name")] == [
+        "001_a.sql",
+        "002_b.sql",
+    ]
+
+
+def test_failing_migration_rolls_back_and_is_not_recorded(tmp_path):
+    mdir = tmp_path / "m"
+    mdir.mkdir()
+    (mdir / "001_ok.sql").write_text("CREATE TABLE ok (x INTEGER);", encoding="utf-8")
+    (mdir / "002_bad.sql").write_text("CREATE TABLE half (x INTEGER); INSERT INTO nope VALUES (1);", encoding="utf-8")
+    conn = connect(tmp_path / "t.db")
+    with pytest.raises(sqlite3.OperationalError):
+        migrate(conn, mdir)
+    assert "half" not in _tables(conn)
+    assert "ok" in _tables(conn)
+    assert [r["name"] for r in conn.execute("SELECT name FROM schema_migrations")] == ["001_ok.sql"]
+    assert not conn.in_transaction
