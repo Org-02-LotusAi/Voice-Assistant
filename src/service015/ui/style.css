@@ -39,3 +39,5 @@ th:first-child, td:first-child { text-align:left; }
 .log p { margin:4px 0; }
 .log .who { color:var(--muted); font-size:.8rem; }
 a { color:var(--accent); }
+.spaced { margin-top:12px; }
+.spaced-sm { margin-top:8px; }

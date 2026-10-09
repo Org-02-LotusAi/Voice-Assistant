@@ -12,6 +12,7 @@
   <p><a href="/">Back to Workbench</a></p>
 
   <div id="error" class="error hidden" role="alert"></div>
+  <div id="presenceError" class="error hidden" role="alert"></div>
   <div id="secureWarn" class="error hidden" role="alert">Microphone access needs a secure context. Open this page via http://localhost or serve it over HTTPS.</div>
 
   <section>
@@ -22,6 +23,7 @@
     <p>Connection: <strong id="conn">disconnected</strong></p>
     <p>Identity presence: <span id="presence" class="pill">...</span> <span id="presenceDetail" class="notice"></span></p>
     <div id="audioSink"></div>
+    <div id="audioHint" class="row hidden"><span class="notice">Audio is blocked by the browser.</span><button id="enableAudio" type="button">Enable audio</button></div>
   </section>
 
   <section>

@@ -40,7 +40,7 @@
         <label for="f-role">Role</label>
         <input id="f-role" data-key="role" type="text" maxlength="120">
         <label for="f-language">Language</label>
-        <input id="f-language" data-key="language" type="text" placeholder="en-US">
+        <select id="f-language" data-key="language"></select>
 
         <label for="f-voice">Voice</label>
         <div class="row">
@@ -59,7 +59,7 @@
         <textarea id="f-style" data-key="conversation.speaking_style"></textarea>
         <label for="f-barge"><input id="f-barge" data-key="conversation.barge_in" type="checkbox"> Barge-in (caller can interrupt)</label>
 
-        <div class="row" style="margin-top:12px">
+        <div class="row spaced">
           <button id="create" type="button" class="primary">CREATE IDENTITY</button>
           <button id="save" type="button" disabled>SAVE</button>
           <button id="launch" type="button" disabled>LAUNCH</button>
@@ -87,7 +87,7 @@
       </div>
       <label for="question">Question</label>
       <textarea id="question" maxlength="2000"></textarea>
-      <div class="row" style="margin-top:8px"><button id="ask" type="button" class="primary">Ask</button></div>
+      <div class="row spaced-sm"><button id="ask" type="button" class="primary">Ask</button></div>
       <div id="expertError" class="error hidden" role="alert"></div>
       <div id="expertLog" class="log hidden"></div>
     </section>

@@ -33,7 +33,28 @@ def test_talk_pins_livekit_client_with_integrity(db_file, voice_stack):
     with _client(db_file, voice_stack) as c:
         tag = re.search(r"<script[^>]*livekit-client[^>]*>", c.get("/talk.html").text).group(0)
     assert re.search(r"livekit-client@\d+\.\d+\.\d+/dist/livekit-client\.umd\.js", tag)
-    assert 'integrity="sha384-' in tag
+    assert 'integrity="sha384-G/xxtkVytOx/ia9Q8MXxM+V0ohsaY1fZAgVP3iSGTPz4wJ0s3+ulJNKXh/gnzEDZ"' in tag
+    assert 'crossorigin="anonymous"' in tag
+
+
+def test_ui_responses_carry_csp_but_api_responses_do_not(db_file, voice_stack):
+    with _client(db_file, voice_stack) as c:
+        for path in ("/", "/talk.html", "/ui/app.js"):
+            csp = c.get(path).headers["content-security-policy"]
+            assert "script-src 'self' https://cdn.jsdelivr.net" in csp
+            assert "media-src 'self' blob:" in csp
+            assert "connect-src 'self' ws: wss: ws://localhost:7880 http://localhost:7880" in csp
+        assert "content-security-policy" not in c.get("/health").headers
+
+
+def test_pages_have_no_inline_script_or_style(db_file, voice_stack):
+    # The CSP forbids inline script/style; keep the markup compatible with it.
+    with _client(db_file, voice_stack) as c:
+        for page in ("/", "/talk.html"):
+            html = c.get(page).text
+            assert not re.search(r"<script(?![^>]*src=)[^>]*>", html), page
+            assert " style=" not in html and "<style" not in html, page
+            assert not re.search(r"\son[a-z]+=", html), page
 
 
 def test_ui_is_not_a_directory_listing_and_api_still_needs_auth(db_file, voice_stack):

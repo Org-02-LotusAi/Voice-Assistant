@@ -16,6 +16,23 @@
 
   function setConn(text) { $("conn").textContent = text; }
 
+  // Presence-poll errors have their own status line so they never mask (or are masked by) LiveKit errors.
+  function showPresenceError(e) {
+    const box = $("presenceError");
+    if (!e) { box.classList.add("hidden"); box.textContent = ""; return; }
+    box.textContent = describe(e);
+    box.classList.remove("hidden");
+  }
+
+  function resetCallUi(text) {
+    room = null;
+    setConn(text);
+    $("connect").disabled = false;
+    $("hangup").disabled = true;
+    $("audioHint").classList.add("hidden");
+    $("audioSink").textContent = "";
+  }
+
   async function refreshPresence() {
     if (!identityId || !getKey()) return;
     try {
@@ -23,7 +40,8 @@
       const p = $("presence");
       p.textContent = st.presence; p.className = "pill " + st.presence;
       $("presenceDetail").textContent = st.last_error || st.status_detail || "";
-    } catch (e) { showError(e); }
+      showPresenceError(null);
+    } catch (e) { showPresenceError(e); }
   }
 
   function addTranscript(segmentId, who, text, final) {
@@ -64,35 +82,46 @@
     if (!identityId) { showError(new Error("Missing ?identity=<id> in the URL.")); return; }
     if (!window.LivekitClient) { showError(new Error("livekit-client failed to load from cdn.jsdelivr.net.")); return; }
     if (!window.isSecureContext || !navigator.mediaDevices) { $("secureWarn").classList.remove("hidden"); return; }
-    $("connect").disabled = true; setConn("requesting token...");
+    $("connect").disabled = true; setConn("requesting microphone...");
     try {
+      // Ask for the mic first: if it is denied we never mint a token or join the room.
+      let probe;
+      try { probe = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch (e) {
+        throw new Error("Microphone unavailable (" + (e && e.name ? e.name + ": " : "") + (e && e.message ? e.message : e) +
+          "). Allow microphone access for this site in the browser and try again.");
+      }
+      probe.getTracks().forEach((t) => t.stop());
+      setConn("requesting token...");
       const jt = await api("POST", "/identities/" + encodeURIComponent(identityId) + "/join-token", {});
       const { Room, RoomEvent, Track } = window.LivekitClient;
-      room = new Room({ adaptiveStream: true, dynacast: true });
-      room.on(RoomEvent.TrackSubscribed, (track) => {
+      const r = new Room({ adaptiveStream: true, dynacast: true });
+      room = r;
+      r.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio) return;
         const a = track.attach();   // <audio> element
         a.autoplay = true;
         $("audioSink").append(a);
       });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((n) => n.remove()); });
-      room.on(RoomEvent.ConnectionStateChanged, (s) => setConn(s));
-      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (!room.canPlaybackAudio) setConn("connected - click Connect area to enable audio");
+      r.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach((n) => n.remove()); });
+      r.on(RoomEvent.ConnectionStateChanged, (s) => setConn(s));
+      r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        $("audioHint").classList.toggle("hidden", r.canPlaybackAudio);
       });
-      room.on(RoomEvent.Disconnected, () => { setConn("disconnected"); });
-      hookTranscription(room);
+      r.on(RoomEvent.Disconnected, () => { if (room === r) resetCallUi("disconnected"); });
+      hookTranscription(r);
       setConn("connecting...");
-      await room.connect(jt.livekit_url, jt.token);
-      await room.startAudio();
-      await room.localParticipant.setMicrophoneEnabled(true);
+      await r.connect(jt.livekit_url, jt.token);
+      try { await r.startAudio(); } catch (e) { $("audioHint").classList.remove("hidden"); }
+      await r.localParticipant.setMicrophoneEnabled(true);
       $("hangup").disabled = false;
       refreshPresence();
     } catch (e) {
       showError(e);
-      if (room) { try { await room.disconnect(); } catch (_) { /* already failing; the original error is shown */ } room = null; }
-      setConn("disconnected");
-      $("connect").disabled = false;
+      const failed = room;
+      room = null;
+      if (failed) { try { await failed.disconnect(); } catch (_) { /* already failing; the original error is shown */ } }
+      resetCallUi("disconnected");
     }
   }
 
@@ -116,15 +145,20 @@
 
   async function hangup() {
     $("hangup").disabled = true;
-    try { if (room) await room.disconnect(); } catch (e) { showError(e); }
-    room = null; setConn("disconnected");
-    $("connect").disabled = false;
+    const r = room;
+    room = null;   // the Disconnected handler ignores this room from here on
+    try { if (r) await r.disconnect(); } catch (e) { showError(e); }
+    resetCallUi("disconnected");
     await showLatency();
   }
 
   $("who").textContent = identityId || "(no identity)";
   $("connect").onclick = connect;
   $("hangup").onclick = hangup;
+  $("enableAudio").onclick = async () => {
+    if (!room) return;
+    try { await room.startAudio(); $("audioHint").classList.add("hidden"); } catch (e) { showError(e); }
+  };
   if (!window.isSecureContext) $("secureWarn").classList.remove("hidden");
   pollWhileVisible(refreshPresence, 5000);
   refreshPresence();

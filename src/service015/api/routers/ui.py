@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from importlib import resources
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, Response
 
 router = APIRouter(include_in_schema=False)
@@ -21,11 +22,39 @@ _FILES: dict[str, tuple[str, str]] = {
 }
 
 
+def content_security_policy(livekit_url: str) -> str:
+    """CSP for the UI pages only. connect-src lists the configured LiveKit host in both its ws(s) and http(s) forms
+    (livekit-client probes http(s)://host/rtc/validate); `ws:` / `wss:` stay allowed for any LiveKit deployment."""
+    parts = urlsplit(livekit_url)
+    hosts = []
+    if parts.netloc:
+        secure = parts.scheme in ("wss", "https")
+        hosts = [f"{'wss' if secure else 'ws'}://{parts.netloc}", f"{'https' if secure else 'http'}://{parts.netloc}"]
+    return "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' https://cdn.jsdelivr.net",
+            "style-src 'self'",
+            "img-src 'self' data:",
+            "connect-src " + " ".join(["'self'", "ws:", "wss:", *hosts]),
+            "media-src 'self' blob:",
+            "worker-src 'self' blob:",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "frame-ancestors 'none'",
+        ]
+    )
+
+
 def _make_handler(filename: str, media_type: str):
     path = resources.files("service015").joinpath("ui", filename)
 
-    async def handler() -> Response:
-        return FileResponse(str(path), media_type=media_type, headers={"Cache-Control": "no-cache"})
+    async def handler(request: Request) -> Response:
+        headers = {
+            "Cache-Control": "no-cache",
+            "Content-Security-Policy": content_security_policy(request.app.state.settings.livekit_url),
+        }
+        return FileResponse(str(path), media_type=media_type, headers=headers)
 
     return handler
 

@@ -6,6 +6,17 @@
   const FIELDS = Array.from(document.querySelectorAll("[data-key]"));
   const byKey = Object.fromEntries(FIELDS.map((f) => [f.dataset.key, f]));
   const REQUIRED_NOTE = " (required)";
+  const LANGUAGES = ["en-US", "en-GB", "en-IN", "hi-IN"];
+
+  // Language is a dropdown of the supported list plus whatever value the template/identity already carries.
+  function setLanguage(value) {
+    const sel = byKey["language"];
+    sel.textContent = "";
+    const all = LANGUAGES.slice();
+    if (value && !all.includes(value)) all.push(value);
+    for (const l of all) sel.append(el("option", { value: l, textContent: l }));
+    sel.value = value || LANGUAGES[0];
+  }
 
   const state = {
     template: null,      // TemplateBody currently governing the form
@@ -55,7 +66,8 @@
   function fill(values) {
     for (const [k, f] of Object.entries(byKey)) {
       const v = values[k];
-      if (f.type === "checkbox") f.checked = !!v;
+      if (k === "language") setLanguage(v);
+      else if (f.type === "checkbox") f.checked = !!v;
       else f.value = v === undefined ? "" : v;
     }
   }
@@ -161,8 +173,11 @@
     setMode();
   }
 
+  let refreshing = false, refreshQueued = false;
   async function refreshIdentities() {
     if (!getKey()) return;
+    if (refreshing) { refreshQueued = true; return; }   // at most one in flight; one trailing rerun
+    refreshing = true;
     try {
       const list = await api("GET", "/identities");
       const results = await Promise.allSettled(list.map((i) => api("GET", "/identities/" + encodeURIComponent(i.identity_id) + "/status")));
@@ -171,14 +186,18 @@
       renderIdentities(list);
       showError("globalError", null);
     } catch (e) { showError("globalError", e); }
+    finally {
+      refreshing = false;
+      if (refreshQueued) { refreshQueued = false; refreshIdentities(); }
+    }
   }
 
   async function selectIdentity(id) {
     showError("formError", null); $("formMsg").textContent = "";
     try {
       const r = await api("GET", "/identities/" + encodeURIComponent(id));
+      await loadTemplate(r.template_id, r.template_version);   // state.identity is set only once its template is loaded
       state.identity = r;
-      await loadTemplate(r.template_id, r.template_version);
       $("template").value = r.template_id;
       renderVoices(r.voice.profile_id);
       fill(identityValues(r));
