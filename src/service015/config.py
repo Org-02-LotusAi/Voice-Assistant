@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     livekit_api_key: str = Field("devkey", validation_alias="LIVEKIT_API_KEY")
     livekit_api_secret: str = Field("secret", validation_alias="LIVEKIT_API_SECRET")
 
+    service014_mode: Literal["disabled", "http", "livekit_sip"] = Field("disabled", validation_alias="SERVICE014_MODE")
+    service014_url: str = Field("", validation_alias="SERVICE014_URL")
+    service014_api_key: str = Field("", validation_alias="SERVICE014_API_KEY", repr=False)
+    service014_sip_trunk_id: str = Field("", validation_alias="SERVICE014_SIP_TRUNK_ID")
+
     voicebox_url: str = Field("http://127.0.0.1:17493", validation_alias="VOICEBOX_URL")
 
     @field_validator("api_keys", mode="before")

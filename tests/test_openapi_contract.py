@@ -116,6 +116,7 @@ BODIES = {
     ("/templates", "post"): None,  # filled from an existing template below
     ("/templates/{template_id}/instantiate", "post"): {"overrides": {"name": "Ava", "company": "Safi"}},
     ("/identities/{identity_id}", "patch"): {"overrides": {"role": "Lead"}},
+    ("/identities/{identity_id}/phone/dial", "post"): {"to": "+919876543210"},
 }
 
 

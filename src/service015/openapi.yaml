@@ -22,6 +22,7 @@ tags:
   - name: templates
   - name: identities
   - name: meeting
+  - name: phone
 
 paths:
   /health:
@@ -339,6 +340,76 @@ paths:
                 items: {$ref: "#/components/schemas/ParticipantStatus"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+
+  /identities/{identity_id}/phone/dial:
+    post:
+      operationId: dialIdentityPhone
+      tags: [phone]
+      summary: Dial a phone number into the Identity's Default LiveKit Room
+      description: |
+        Service 015 does not implement SIP/PSTN. The call is placed through Service 014
+        (`SERVICE014_MODE`): `livekit_sip` uses LiveKit `CreateSIPParticipant` on the shared
+        LiveKit deployment (participant identity `phone-<last4>`, waits until answered);
+        `http` POSTs `{room, to}` to `{SERVICE014_URL}/calls` with a bearer `SERVICE014_API_KEY`.
+        **The `http` contract is an ASSUMPTION** (the real Service 014 HTTP API is not yet known) and
+        is isolated in one class. `disabled` (the default) answers 503 `telephony_not_configured`.
+
+        Errors: 404 unknown identity; 409 `identity_not_ready` unless presence is READY or BUSY;
+        422 `invalid_request` when `to` is not E.164; 502 `telephony_failed` / `telephony_bad_response`
+        when Service 014 or the SIP layer fails; 503 `telephony_not_configured`. The phone number is
+        never logged in full.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DialRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "202":
+          description: The call was placed (`status` is `answered` for livekit_sip; for http it is whatever Service 014 reports, default `dialing`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PhoneCall"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: Identity presence is not READY or BUSY (`identity_not_ready`; `details.presence`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502":
+          description: Service 014 or the SIP layer failed (`telephony_failed`, `telephony_bad_response`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /identities/{identity_id}/phone:
+    get:
+      operationId: getIdentityPhone
+      tags: [phone]
+      summary: Telephony mode, Default Room and inbound route for the Identity
+      description: |
+        `inbound` is non-null only in `livekit_sip` mode, where inbound calls are routed by a
+        LiveKit `SIPDispatchRuleDirect(room_name=default_room)`; Service 015 does not create the rule.
+      x-required-role: viewer
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Phone configuration.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PhoneInfo"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
 
 components:
   securitySchemes:
@@ -762,3 +833,39 @@ components:
             video_publish: {type: boolean}
         launched_at: {type: [string, "null"], format: date-time}
         heartbeat_at: {type: [string, "null"], format: date-time}
+
+    DialRequest:
+      type: object
+      additionalProperties: false
+      required: [to]
+      properties:
+        to: {type: string, pattern: "^\\+[1-9][0-9]{1,14}$", description: Destination in E.164 format., examples: ["+919876543210"]}
+
+    PhoneCall:
+      type: object
+      additionalProperties: false
+      required: [call_id, room, status]
+      properties:
+        call_id: {type: string}
+        room: {type: string, description: The Identity's Default LiveKit Room.}
+        status: {type: string}
+
+    InboundRoute:
+      type: object
+      additionalProperties: false
+      required: [kind, room_name]
+      properties:
+        kind: {type: string, enum: [SIPDispatchRuleDirect]}
+        room_name: {type: string}
+
+    PhoneInfo:
+      type: object
+      additionalProperties: false
+      required: [mode, default_room, inbound]
+      properties:
+        mode: {type: string, enum: [disabled, http, livekit_sip]}
+        default_room: {type: string}
+        inbound:
+          oneOf:
+            - {$ref: "#/components/schemas/InboundRoute"}
+            - {type: "null"}

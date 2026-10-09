@@ -14,11 +14,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from service015.api.routers import health, identities, meeting, templates
+from service015.api.routers import health, identities, meeting, phone, templates
 from service015.config import Settings, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
 from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSupervisor
+from service015.telephony.service014 import Service014Client
 from service015.templates_repo import seed_starter_templates
 
 log = logging.getLogger("service015.api")
@@ -35,7 +36,9 @@ def error_response(
     return JSONResponse(body, status_code=status, headers=headers)
 
 
-def create_app(settings: Settings, supervisor: RuntimeSupervisor | None = None) -> FastAPI:
+def create_app(
+    settings: Settings, supervisor: RuntimeSupervisor | None = None, telephony: Service014Client | None = None
+) -> FastAPI:
     # Packaged copy of the repo-root openapi.yaml (a test keeps them byte-identical); raises if missing.
     openapi_yaml = resources.files("service015").joinpath("openapi.yaml").read_bytes()
     if not settings.api_keys:
@@ -61,6 +64,7 @@ def create_app(settings: Settings, supervisor: RuntimeSupervisor | None = None) 
     )
     app.state.settings = settings
     app.state.supervisor = supervisor if supervisor is not None else NullSupervisor(settings.db_path)
+    app.state.telephony = telephony if telephony is not None else Service014Client.from_settings(settings)
     app.state.version = package_version()
     app.state.openapi_yaml = openapi_yaml
 
@@ -83,7 +87,7 @@ def create_app(settings: Settings, supervisor: RuntimeSupervisor | None = None) 
         log.exception("unhandled error on %s %s", request.method, request.url.path)
         return error_response(500, "internal_error", "internal server error")
 
-    app.state.routers = (health.router, templates.router, identities.router, meeting.router)
+    app.state.routers = (health.router, templates.router, identities.router, meeting.router, phone.router)
     for router in app.state.routers:
         app.include_router(router)
     return app

@@ -63,3 +63,24 @@ class ParticipantStatus(_Strict):
     capabilities: Capabilities
     launched_at: str | None
     heartbeat_at: str | None
+
+
+class DialRequest(_Strict):
+    to: str = Field(pattern=r"^\+[1-9][0-9]{1,14}$")
+
+
+class PhoneCall(_Strict):
+    call_id: str
+    room: str
+    status: str
+
+
+class InboundRoute(_Strict):
+    kind: str
+    room_name: str
+
+
+class PhoneInfo(_Strict):
+    mode: Literal["disabled", "http", "livekit_sip"]
+    default_room: str
+    inbound: InboundRoute | None
