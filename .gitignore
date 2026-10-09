@@ -1,0 +1,11 @@
+.env
+data/
+deps/
+.venv/
+__pycache__/
+*.pyc
+.superpowers/
+*.db
+*.db-*
+evidence/raw/
+.pytest_cache/
