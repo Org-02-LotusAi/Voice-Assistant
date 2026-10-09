@@ -161,12 +161,6 @@ def test_launch_speak_turn_stop_relaunch(tmp_path):
         out: dict = {}
         human = Human(s, "ava-001")  # rtc.Room must be created inside the running loop
         try:
-            # the human is already in the room when Ava launches, so the greeting reaches them
-            lk = api.LiveKitAPI(s.livekit_url, s.livekit_api_key, s.livekit_api_secret)
-            await lk.room.create_room(api.CreateRoomRequest(name="ava-001", empty_timeout=600))
-            await lk.aclose()
-            await human.join()
-
             t_launch = time.monotonic()
             st = await sup.launch("ava-001")
             assert st["presence"] == "STARTING" and st["participant_identity"] == st["default_room"] == "ava-001"
@@ -183,12 +177,15 @@ def test_launch_speak_turn_stop_relaunch(tmp_path):
             assert "ava-001" in parts, parts.keys()
             assert parts["ava-001"].name == "Ava"
             assert parts["ava-001"].kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
-            assert identities_repo.get_status(conn, "ava-001").presence == "BUSY"  # a human is in the room
+            assert identities_repo.get_status(conn, "ava-001").presence == "READY"  # nobody in the room yet
+            await asyncio.sleep(8)  # the greeting must wait for a listener (asserted below by hearing it only after join)
 
-            # the greeting is spoken through TTS (no LLM involved)
-            t_greet = time.monotonic()
+            # the greeting is spoken (TTS only, no LLM) when the first human joins
+            t_join = time.monotonic()
+            await human.join()
+            await _wait(lambda: identities_repo.get_status(conn, "ava-001").presence == "BUSY", 20, "BUSY after join")
             try:
-                await _wait(lambda: human.speaking_seconds_since(t_launch) > 1.0, 150, "greeting audio")
+                await _wait(lambda: human.speaking_seconds_since(t_join) > 1.0, 150, "greeting audio")
             except AssertionError:
                 parts = await _participants(s, "ava-001")
                 tracks = [(t.type, t.source, t.muted) for t in parts["ava-001"].tracks] if "ava-001" in parts else None
@@ -197,7 +194,7 @@ def test_launch_speak_turn_stop_relaunch(tmp_path):
                     f"no greeting audio: frames={len(human.energy)} peak_rms={peak} agent_tracks={tracks} "
                     f"human_remote={list(human.room.remote_participants)} subscribed={human.subscribed}"
                 ) from None
-            out["greeting_audio_after_s"] = time.monotonic() - t_launch
+            out["greeting_audio_after_join_s"] = time.monotonic() - t_join
             # wait for the greeting to finish before asking (otherwise it is a barge-in)
             await _wait(lambda: (human.last_energy_at() or 0) < time.monotonic() - 4, 240, "greeting to finish")
 
@@ -244,6 +241,13 @@ def test_launch_speak_turn_stop_relaunch(tmp_path):
             parts = await _participants(s, "ava-001")
             assert "ava-001" in parts and parts["ava-001"].kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
             assert len(conn.execute("SELECT * FROM runtime_sessions").fetchall()) == 2
+
+            # stop the WHOLE worker (API shutdown path): jobs drain, rows go OFFLINE, sessions get ended_at
+            await sup.aclose()
+            assert identities_repo.get_status(conn, "ava-001").presence == "OFFLINE"
+            ended = conn.execute("SELECT ended_at, end_reason FROM runtime_sessions ORDER BY started_at").fetchall()
+            assert all(r["ended_at"] for r in ended), [dict(r) for r in ended]
+            out["session_end_reasons"] = [r["end_reason"] for r in ended]
             return out
         finally:
             try:

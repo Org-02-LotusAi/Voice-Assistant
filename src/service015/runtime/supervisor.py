@@ -6,9 +6,10 @@ metadata={"identity_id"}). The job (runtime/worker.py) then owns the status row 
 Preflight failures raise 503 `dependency_unavailable` (`details.dependency` = livekit | llm | voice_engine | voicebox) BEFORE
 any state is touched, so a failed launch leaves the Identity exactly as it was.
 
-Staleness (status() reports, it never writes): READY/BUSY with a heartbeat older than 15 s -> ERROR `heartbeat_lost`;
-any of STARTING/READY/BUSY while the worker this supervisor spawned has exited -> ERROR `worker_exited`;
-STARTING for longer than 120 s -> ERROR `start_timeout`. launch() treats such an Identity as relaunchable (it cleans up first).
+Staleness (reported, never written): heartbeat/start-timeout rules live in `participants.apply_staleness` so every reader
+agrees; this supervisor adds `worker_exited` (STARTING/READY/BUSY while the worker it owns is gone). launch() treats such an
+Identity as relaunchable. Process lifecycle (Job Object, pidfile adoption, tree kill) is in `runtime/procs.py`;
+`startup()` adopts a live worker or, when none is alive, marks every orphaned row OFFLINE `runtime_lost`.
 """
 
 from __future__ import annotations
@@ -17,8 +18,6 @@ import asyncio
 import json
 import logging
 import os
-import signal
-import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -33,15 +32,12 @@ from service015.config import Settings
 from service015.db import connect
 from service015.errors import DependencyUnavailable, DomainError
 from service015.participants import participant_status
+from service015.runtime.procs import WorkerProcess, allowed_env
 from service015.voice.engine import VoiceEngineClient
 
 log = logging.getLogger("service015.supervisor")
 
-HEARTBEAT_STALE_S = 15.0
-STARTING_STALE_S = 120.0
 WORKER_READY_TIMEOUT_S = 60.0
-WORKER_STOP_TIMEOUT_S = 15.0
-WORKER_READY_MARKER = "registered worker"
 LIVEKIT_PROBE_TIMEOUT_S = 5.0
 LLM_PROBE_TIMEOUT_S = 10.0
 ROOM_TIMEOUT_S = 24 * 3600  # keep the Default Room alive while only the agent is in it
@@ -55,97 +51,6 @@ def dependency_error(dependency: str, message: str, **extra: Any) -> DependencyU
 
 def runtime_unavailable(message: str, **extra: Any) -> DependencyUnavailable:
     return DependencyUnavailable("runtime_unavailable", message, details=extra)
-
-
-def _parse_ts(value: str | None) -> float | None:
-    if not value:
-        return None
-    return datetime.fromisoformat(value).timestamp()
-
-
-class WorkerProcess:
-    """The `service015-runtime` subprocess this supervisor spawned (module form: python -m service015.runtime.worker)."""
-
-    def __init__(self, settings: Settings, log_path: Path) -> None:
-        self._settings = settings
-        self._log_path = log_path
-        self._proc: subprocess.Popen | None = None
-        self._log_file: Any = None
-
-    def alive(self) -> bool:
-        return self._proc is not None and self._proc.poll() is None
-
-    @property
-    def pid(self) -> int | None:
-        return self._proc.pid if self._proc is not None else None
-
-    def _env(self) -> dict[str, str]:
-        s = self._settings
-        env = dict(os.environ)
-        env.update(
-            SERVICE015_DB_PATH=str(Path(s.db_path).resolve()),
-            LIVEKIT_URL=s.livekit_url,
-            LIVEKIT_API_KEY=s.livekit_api_key,
-            LIVEKIT_API_SECRET=s.livekit_api_secret,
-            LIVEKIT_AGENT_NAME=s.livekit_agent_name,
-            LLM_BASE_URL=s.llm_base_url,
-            LLM_API_KEY=s.llm_api_key,
-            LLM_MODEL=s.llm_model,
-            LLM_REASONING_EFFORT=s.llm_reasoning_effort,
-            VOICE_ENGINE_URL=s.voice_engine_url,
-            VOICE_ENGINE_TIMEOUT_S=str(s.voice_engine_timeout_s),
-            MOONSHINE_ARCH=s.moonshine_arch,
-            MOONSHINE_LANGUAGE=s.moonshine_language,
-            PYTHONUNBUFFERED="1",
-        )
-        return env
-
-    def spawn(self) -> None:
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
-        self._log_file = open(self._log_path, "wb")  # truncated per spawn: the ready marker must come from THIS process
-        flags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-        self._proc = subprocess.Popen(
-            [sys.executable, "-m", "service015.runtime.worker"],
-            env=self._env(),
-            stdout=self._log_file,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            creationflags=flags,
-        )
-        log.info("spawned runtime worker pid=%s log=%s", self._proc.pid, self._log_path)
-
-    def log_text(self) -> str:
-        try:
-            return self._log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return ""
-
-    def registered(self) -> bool:
-        return WORKER_READY_MARKER in self.log_text()
-
-    def stop(self) -> None:
-        """Ask the worker to drain (CTRL_BREAK / SIGTERM); kill its whole process tree if it does not exit in time."""
-        proc = self._proc
-        try:
-            if proc is not None and proc.poll() is None:
-                try:
-                    proc.send_signal(signal.CTRL_BREAK_EVENT if sys.platform == "win32" else signal.SIGTERM)
-                    proc.wait(timeout=WORKER_STOP_TIMEOUT_S)
-                except (subprocess.TimeoutExpired, OSError):
-                    self._kill_tree(proc)
-        finally:
-            if self._log_file is not None:
-                self._log_file.close()
-                self._log_file = None
-            self._proc = None
-
-    @staticmethod
-    def _kill_tree(proc: subprocess.Popen) -> None:
-        if sys.platform == "win32":
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
-        else:
-            proc.kill()
-        proc.wait(timeout=10)
 
 
 class LiveKitSupervisor:
@@ -171,8 +76,10 @@ class LiveKitSupervisor:
         self._api_factory = api_factory or (
             lambda: api.LiveKitAPI(settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret)
         )
-        log_path = Path(settings.db_path).resolve().parent / "runtime-worker.log"
-        self._worker = worker if worker is not None else WorkerProcess(settings, log_path)
+        data_dir = Path(settings.db_path).resolve().parent
+        self._worker = worker if worker is not None else WorkerProcess(
+            worker_env(settings), data_dir / "runtime-worker.log", data_dir / "runtime-worker.pid"
+        )
         self._ready_timeout = worker_ready_timeout_s
         self._worker_lock = asyncio.Lock()
         self._locks: dict[str, asyncio.Lock] = {}
@@ -195,25 +102,10 @@ class LiveKitSupervisor:
         return self._effective(st, pid)
 
     def _effective(self, st: dict[str, Any], pid: int | None) -> dict[str, Any]:
-        """Apply the staleness rules to a stored status (returned as a copy; nothing is written)."""
-        presence = st["presence"]
-        if presence not in ("STARTING", "READY", "BUSY"):
-            return st
-        now = time.time()
-        reason: tuple[str, str] | None = None
-        if self._worker_spawned() and not self._worker.alive():
-            reason = ("worker_exited", "the runtime worker process is gone")
-        elif presence in ("READY", "BUSY"):
-            hb = _parse_ts(st["heartbeat_at"])
-            if hb is None or now - hb > HEARTBEAT_STALE_S:
-                reason = ("heartbeat_lost", f"no heartbeat for more than {int(HEARTBEAT_STALE_S)} s")
-        else:
-            launched = _parse_ts(st["launched_at"])
-            if launched is not None and now - launched > STARTING_STALE_S:
-                reason = ("start_timeout", f"still STARTING after {int(STARTING_STALE_S)} s")
-        if reason is None:
-            return st
-        return {**st, "presence": "ERROR", "status_detail": reason[0], "last_error": reason[1]}
+        """`participant_status` already applied the shared staleness rules; add `worker_exited` for the worker we own."""
+        if st["presence"] in ("STARTING", "READY", "BUSY") and self._worker_spawned() and not self._worker.alive():
+            return {**st, "presence": "ERROR", "status_detail": "worker_exited", "last_error": "the runtime worker process is gone"}
+        return st
 
     def _worker_spawned(self) -> bool:
         return getattr(self._worker, "pid", None) is not None
@@ -374,10 +266,67 @@ class LiveKitSupervisor:
     async def status(self, identity_id: str) -> dict[str, Any]:
         return self._status(identity_id)
 
+    async def startup(self) -> None:
+        """API start: adopt a live worker from the pidfile; otherwise every STARTING/READY/BUSY row is orphaned -> OFFLINE."""
+        adopted = await asyncio.to_thread(self._worker.adopt_existing)
+        if adopted:
+            return
+        conn = self._conn()
+        try:
+            n = reconcile_runtime_lost(conn)
+        finally:
+            conn.close()
+        if n:
+            log.warning("startup reconcile: %d identity row(s) marked OFFLINE runtime_lost", n)
+
     async def aclose(self) -> None:
-        """API shutdown: stop the worker (and with it every job process) that this supervisor spawned."""
+        """API shutdown: drain and stop the worker (its jobs run their finish hooks), then close out anything left."""
+        owned = self._worker.pid is not None
         await asyncio.to_thread(self._worker.stop)
+        if owned:  # a worker started by hand is not ours to declare dead
+            conn = self._conn()
+            try:
+                reconcile_runtime_lost(conn)
+            finally:
+                conn.close()
 
 
 def _metadata(identity_id: str) -> str:
     return json.dumps({"identity_id": identity_id}, separators=(",", ":"))
+
+
+def worker_env(settings: Settings) -> dict[str, str]:
+    """Environment for the worker and its jobs: an allow-list of the parent env plus explicit settings (no API keys)."""
+    env = allowed_env(dict(os.environ))
+    env.update(
+        SERVICE015_DB_PATH=str(Path(settings.db_path).resolve()),
+        LIVEKIT_URL=settings.livekit_url,
+        LIVEKIT_API_KEY=settings.livekit_api_key,
+        LIVEKIT_API_SECRET=settings.livekit_api_secret,
+        LIVEKIT_AGENT_NAME=settings.livekit_agent_name,
+        LLM_BASE_URL=settings.llm_base_url,
+        LLM_API_KEY=settings.llm_api_key,
+        LLM_MODEL=settings.llm_model,
+        LLM_REASONING_EFFORT=settings.llm_reasoning_effort,
+        VOICE_ENGINE_URL=settings.voice_engine_url,
+        VOICE_ENGINE_TIMEOUT_S=str(settings.voice_engine_timeout_s),
+        VOICEBOX_URL=settings.voicebox_url,
+        MOONSHINE_ARCH=settings.moonshine_arch,
+        MOONSHINE_LANGUAGE=settings.moonshine_language,
+        PYTHONUNBUFFERED="1",
+    )
+    return env
+
+
+def reconcile_runtime_lost(conn) -> int:
+    """No worker is alive: STARTING/READY/BUSY rows become OFFLINE `runtime_lost`, open runtime_sessions are ended.
+
+    Returns the number of identity rows changed. ERROR rows are left as they are (they already name a fault).
+    """
+    rows = conn.execute("SELECT identity_id FROM runtime_status WHERE presence IN ('STARTING','READY','BUSY')").fetchall()
+    for r in rows:
+        identities_repo.set_status(conn, r["identity_id"], "OFFLINE", "runtime_lost")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute("UPDATE runtime_sessions SET ended_at = ?, end_reason = 'runtime_lost' WHERE ended_at IS NULL", (now,))
+    conn.commit()
+    return len(rows)

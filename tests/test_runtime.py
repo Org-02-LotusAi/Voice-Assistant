@@ -71,7 +71,7 @@ def _turn(rec: LatencyRecorder, clk: Clock, gaps: dict[str, float], user="what i
     clk.advance(gaps["t0_t1"])
     rec.on_user_transcript(user, True)  # T1
     clk.advance(gaps["t1_t2"])
-    rec.on_llm_chunk(agent)  # T2
+    rec.on_llm_chunk(rec.begin_generation(), agent)  # T2
     clk.advance(gaps["t2_t3"])
     rec.on_tts_first_audio(clk())  # T3
     clk.advance(gaps["t3_t4"])
@@ -118,10 +118,11 @@ def test_recorder_latches_t3_per_turn_and_ignores_greeting(conn):
     rec.on_user_transcript("hello", True)
     rec.on_tts_first_audio(clk())  # before T2: must not latch
     clk.advance(0.5)
-    rec.on_llm_chunk("Hi")  # T2
+    gen = rec.begin_generation()
+    rec.on_llm_chunk(gen, "Hi")  # T2
     first_t2 = clk()
     clk.advance(0.5)
-    rec.on_llm_chunk(" there.")  # must not move T2
+    rec.on_llm_chunk(gen, " there.")  # must not move T2
     clk.advance(0.5)
     rec.on_tts_first_audio(clk())  # T3 (sentence 1)
     t3 = clk()
@@ -250,6 +251,9 @@ class FakeWorker:
         self.stopped += 1
         self._alive = False
         self.pid = None
+
+    def adopt_existing(self) -> bool:
+        return False
 
     def log_text(self) -> str:
         return "fake worker log"
@@ -438,6 +442,42 @@ def test_stale_ready_identity_can_be_relaunched(conn, stack):
     st = asyncio.run(sup.launch("ava-001"))
     assert st["presence"] == "STARTING"
     assert identities_repo.get_status(conn, "ava-001").pid is None  # stale owner dropped
+
+
+def test_discarded_preemptive_generation_does_not_leak_into_the_turn(conn):
+    clk = Clock()
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    rec = LatencyRecorder(lambda: connect(path), "ava-001", "s1", clk)
+    rec.on_user_state("listening", "speaking")
+    clk.advance(0.2)
+    first = rec.begin_generation()  # speculative run started before end of turn ...
+    rec.on_llm_chunk(first, "I think you")
+    clk.advance(0.3)
+    rec.on_user_state("speaking", "listening")  # T0
+    second = rec.begin_generation()  # ... replaced by the generation that is actually spoken
+    clk.advance(0.4)
+    rec.on_llm_chunk(second, "My name is Ava.")
+    t2 = clk()
+    rec.on_tts_first_audio(clk())
+    rec.on_agent_state("thinking", "speaking")
+    rec.close()
+    row = conn.execute("SELECT * FROM turn_metrics").fetchone()
+    assert row["agent_text"] == "My name is Ava."
+    assert row["t2"] == t2
+
+
+def test_recorder_writes_through_the_injected_submit(conn):
+    clk = Clock()
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    queued = []
+    rec = LatencyRecorder(lambda: connect(path), "ava-001", "s1", clk, submit=queued.append)
+    _turn(rec, clk, {"t0_t1": 0.1, "t1_t2": 0.1, "t2_t3": 0.1, "t3_t4": 0.1})
+    assert conn.execute("SELECT COUNT(*) FROM turn_metrics").fetchone()[0] == 0  # nothing written on the caller's thread
+    assert queued, "writes must be handed to the submit callable"
+    rec.close()
+    for fn in queued:
+        fn()
+    assert conn.execute("SELECT COUNT(*) FROM turn_metrics").fetchone()[0] == 1
 
 
 def test_ensure_worker_times_out_to_runtime_unavailable(conn, stack):

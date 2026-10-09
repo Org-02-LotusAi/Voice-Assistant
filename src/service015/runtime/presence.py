@@ -10,10 +10,12 @@ OFFLINE Identity or clobber a relaunch.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sqlite3
-from typing import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import Any, Callable
 
 from service015 import identities_repo
 
@@ -25,10 +27,47 @@ STT_FAILURE = "stt_failure"
 TTS_UNAVAILABLE = "tts_unavailable"
 VOICE_REQUIRED = "voice_required"
 RECONNECTING = "RECONNECTING"
+LIVEKIT_DISCONNECTED = "livekit_disconnected"
+RUNTIME_LOST = "runtime_lost"
+# Shutdown reason the SDK passes to shutdown callbacks when the room connection is permanently gone.
+ROOM_DISCONNECTED_REASON = "room disconnected"
 
 
 class Superseded(Exception):
     """The status row is no longer owned by this job (stopped or replaced)."""
+
+
+class JobWriter:
+    """Single writer thread for every SQLite write a job makes, so the realtime event loop never waits on disk.
+
+    `submit` is fire-and-forget and keeps submission order; a `Superseded` raised by a queued write calls `on_superseded`
+    on the loop (the job shuts itself down), any other failure is logged loudly. `run` awaits a write's result.
+    """
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, on_superseded: Callable[[], None], name: str = "job") -> None:
+        self._loop = loop
+        self._on_superseded = on_superseded
+        self._ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"db-writer-{name}")
+
+    def submit(self, fn: Callable[..., Any], *args: Any) -> Future:
+        fut = self._ex.submit(fn, *args)
+        fut.add_done_callback(self._done)
+        return fut
+
+    def _done(self, fut: Future) -> None:
+        exc = fut.exception()
+        if exc is None:
+            return
+        if isinstance(exc, Superseded):
+            self._loop.call_soon_threadsafe(self._on_superseded)
+        else:
+            log.error("background database write failed", exc_info=exc)
+
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        return await asyncio.wrap_future(self._ex.submit(fn, *args))
+
+    def close(self) -> None:
+        self._ex.shutdown(wait=True)
 
 
 class PresenceController:
@@ -40,6 +79,7 @@ class PresenceController:
         self._error: tuple[str, str] | None = None
         self._reconnecting = False
         self._claimed = False
+        self._terminal = False
 
     @property
     def pid(self) -> int:
@@ -74,15 +114,39 @@ class PresenceController:
         self._reconnecting = value
         self.refresh()
 
-    def fail(self, detail: str, message: str) -> None:
-        """Latch a component error (ERROR + status_detail) until `recovered()`."""
+    def fail(self, detail: str, message: str, terminal: bool = False) -> None:
+        """Latch a component error (ERROR + status_detail) until `recovered()`.
+
+        `terminal` marks a failure after which the job cannot work (startup failure): when the job then ends, the ERROR row
+        is left in place instead of being turned into OFFLINE.
+        """
         self._error = (detail, message)
+        self._terminal = self._terminal or terminal
+        self.refresh()
+
+    def set_humans(self, identities: "frozenset[str] | set[str]") -> None:
+        self._humans = set(identities)
         self.refresh()
 
     def recovered(self, detail: str | None = None) -> None:
+        """Clear the latched component error (all of them when `detail` is None), then refresh presence."""
         if self._error is not None and (detail is None or self._error[0] == detail):
             self._error = None
             self.refresh()
+
+    def note_error(self, message: str) -> None:
+        """Record a recoverable error in `last_error` without changing presence."""
+        self._check_owner()
+        st = identities_repo.get_status(self._conn, self._identity_id)
+        identities_repo.set_status(self._conn, self._identity_id, st.presence, st.status_detail, message)
+
+    def add_human(self, identity: str) -> None:
+        """Count a human already in the room at session start (no presence write; `refresh()` follows)."""
+        self._humans.add(identity)
+
+    @property
+    def has_humans(self) -> bool:
+        return bool(self._humans)
 
     @property
     def error_detail(self) -> str | None:
@@ -119,6 +183,26 @@ class PresenceController:
             return False
         identities_repo.set_status(self._conn, self._identity_id, "OFFLINE")
         return True
+
+    def end(self, reason: str) -> str | None:
+        """Job end. OFFLINE is reserved for a deliberate stop; losing the LiveKit room is a fault.
+
+        Returns the presence written ("OFFLINE" or "ERROR"), or None when this job no longer owns the row (the operator
+        already stopped it, or a newer job took over), in which case nothing is written.
+        """
+        try:
+            self._check_owner()
+        except Superseded:
+            return None
+        if reason == ROOM_DISCONNECTED_REASON:
+            identities_repo.set_status(
+                self._conn, self._identity_id, "ERROR", LIVEKIT_DISCONNECTED, "the LiveKit room connection was lost; relaunch to rejoin"
+            )
+            return "ERROR"
+        if self._terminal:
+            return "ERROR"  # a startup failure stays visible; only an explicit stop/relaunch clears it
+        identities_repo.set_status(self._conn, self._identity_id, "OFFLINE")
+        return "OFFLINE"
 
 
 def humans_in(room_participants: dict, own_identity: str, human_kinds: Callable[[object], bool]) -> set[str]:
