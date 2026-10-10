@@ -22,14 +22,25 @@ GPU is used only by the `engine` container (Chatterbox Turbo TTS). The LLM is re
 
 ## 2. Instance sizing
 
+**Recommended minimum for 1 to a few concurrent users:** one `g4dn.xlarge` (T4 16 GB, 4 vCPU, 16 GB RAM), 60 GB gp3,
+Ubuntu 22.04 Deep Learning AMI, everything on that one box (LiveKit, Voicebox, engine, API) and Groq for the LLM.
+
+- **Quota:** new accounts usually have 0 vCPUs for "Running On-Demand G and VT instances". Request an increase to at least 4 vCPUs before launching (can take hours to days).
+- **Region:** `ap-south-1` (Mumbai) if the users and Exotel are in India (Groq then adds about 0.2-0.3 s round trip); `us-east-1` otherwise.
+- **Cost control:** stop the instance when idle (models stay on EBS). Use Spot for testing only.
+- **Avoid:** CPU-only instances (TTS is 6-9x slower than real time) and `g4ad` (AMD GPU, no CUDA). Move to `g5`/`g6` only if the T4 misses the latency target.
+- **Concurrency:** the TTS engine serializes synthesis (one worker thread), so simultaneous speakers queue.
+- **Latency:** T4 latency is *expected*, not measured. No GPU run has happened yet; section 6 is how to measure it.
+
 | Instance | GPU | VRAM | Notes |
 |---|---|---|---|
-| `g4dn.xlarge` | 1x T4 | 16 GB | 4 vCPU, 16 GB RAM. Cheapest option; fine for 1-2 concurrent Identities. Chatterbox Turbo (about 3.9 GB of weights) fits with room to spare. |
-| `g5.xlarge` | 1x A10G | 24 GB | 4 vCPU, 16 GB RAM. Faster; preferred for the latency evidence run. |
+| `g4dn.xlarge` | 1x T4 | 16 GB | Recommended minimum. Chatterbox Turbo (about 3.9 GB of weights) fits with room to spare. |
+| `g5.xlarge` | 1x A10G | 24 GB | Faster; fallback if the T4 misses latency. |
 
-Both: 100 GB gp3 root volume (images about 15 GB with the CUDA layer, model cache about 6 GB, logs, DB). RAM matters as much
-as VRAM: each launched Identity holds Moonshine and Silero in memory (about 1-2 GB), and `SERVICE015_MAX_ACTIVE_IDENTITIES`
-(default 4) caps the number. On 16 GB RAM keep it at 2-3 until measured. These figures are estimates, not measurements.
+RAM matters as much as VRAM: each launched Identity holds Moonshine and Silero in memory (about 1-2 GB), and
+`SERVICE015_MAX_ACTIVE_IDENTITIES` (default 4) caps the number. On 16 GB RAM keep it at 2-3 until measured. Disk: 60 GB gp3
+is enough for the images (about 15 GB with the CUDA layer), model cache (about 6 GB), DB and logs; use more if you keep many
+image builds. These figures are estimates, not measurements.
 
 ## 3. Host preparation (unverified)
 
