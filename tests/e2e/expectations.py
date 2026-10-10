@@ -7,7 +7,9 @@ on whole words (so "available" never matches "ava"). Multi-word values (roles) r
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 # value (lower-case) -> accepted spellings in a transcript. Anything not listed must appear verbatim (case-insensitive).
 ALIASES: dict[str, tuple[str, ...]] = {
@@ -64,6 +66,20 @@ def mentions(text: str, value: str) -> bool:
 def mentions_strict(text: str, value: str) -> bool:
     """Verbatim whole-word match with NO aliases; kept next to the alias result in the evidence so the loosening stays visible."""
     return bool(_word_re(normalize(value)).search(normalize(text))) if " " not in value.strip() else normalize(value) in normalize(text)
+
+
+PROBE_PATH = Path(__file__).resolve().parents[2] / "evidence" / "probe" / "audio_path_probe.json"
+
+
+def documented_stt_mishearings(path: Path = PROBE_PATH) -> set[str]:
+    """Self-facts (normalized) that the audio-path probe (evidence/probe/audio_path_probe.json: Chatterbox TTS -> Moonshine STT)
+    records as mis-transcribed at least once, e.g. the invented brand "Safi" -> Saffy / Safiq / Saffee. Empty when the probe file
+    does not exist (then nothing is excused and the audio check is a plain FAIL). It never widens `mentions`; it only decides
+    whether a failed transcript check may be reported as PASS-AUDIO-CAVEAT instead of FAIL."""
+    if not path.exists():
+        return set()
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    return {normalize(r["fact"]) for r in rows if not r["fact_heard"]}
 
 
 def keyword_hits(text: str, stems: tuple[str, ...]) -> list[str]:

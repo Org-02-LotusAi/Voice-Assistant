@@ -55,3 +55,18 @@ def test_strict_match_has_no_aliases():
     assert mentions_strict("I work for Safi.", "Safi")
     assert not mentions_strict("I work for Saffy.", "Safi")
     assert mentions("I work for Saffy.", "Safi")  # the documented alias still passes the aliased check
+
+
+def test_documented_stt_mishearings_come_from_the_probe_evidence(tmp_path):
+    import json
+
+    from tests.e2e.expectations import PROBE_PATH, documented_stt_mishearings
+
+    real = documented_stt_mishearings()
+    assert "safi" in real  # the invented brand the probe records as mis-heard (Safiq / Saffee)
+    assert "ava" not in real  # heard correctly in every probe run: a miss on "Ava" is a real FAIL, not a caveat
+    assert PROBE_PATH.exists()
+    probe = tmp_path / "p.json"
+    probe.write_text(json.dumps([{"fact": "Zed", "fact_heard": False}, {"fact": "Ava", "fact_heard": True}]), encoding="utf-8")
+    assert documented_stt_mishearings(probe) == {"zed"}
+    assert documented_stt_mishearings(tmp_path / "missing.json") == set()  # nothing excused without evidence

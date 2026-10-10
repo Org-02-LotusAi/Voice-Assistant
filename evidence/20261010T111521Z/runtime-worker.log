@@ -1,0 +1,151 @@
+2026-10-10 16:45:33,680 livekit.agents INFO starting worker
+2026-10-10 16:45:33,680 livekit.agents INFO plugin registered
+2026-10-10 16:45:33,681 livekit.agents INFO plugin registered
+2026-10-10 16:45:33,684 livekit.agents INFO HTTP server listening on :65302
+2026-10-10 16:45:33,730 livekit.agents INFO initializing process
+2026-10-10 16:45:42,262 livekit.agents INFO process initialized
+C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\jwt\api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 6 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+2026-10-10 16:45:42,336 livekit.agents INFO registered worker
+2026-10-10 16:45:42,767 livekit.agents INFO received job request
+2026-10-10 16:45:42,890 livekit.agents INFO initializing process
+2026-10-10 16:45:42,935 livekit INFO livekit_api::signal_client::signal_stream:53:livekit_api::signal_client::signal_stream - connecting to ws://localhost:7880/rtc/v1
+2026-10-10 16:45:43,220 httpx INFO HTTP Request: POST http://127.0.0.1:17494/warm "HTTP/1.1 200 OK"
+2026-10-10 16:45:43,285 service015.runtime INFO ava-001: agent state initializing -> listening
+2026-10-10 16:45:43,655 httpx INFO HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
+2026-10-10 16:45:45,551 livekit.agents INFO RoomIO linked to participant
+2026-10-10 16:45:46,363 service015.runtime INFO ava-001: speech created id=speech_8597b09c2e6b source=say user_initiated=True
+2026-10-10 16:45:46,420 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:45:53,614 livekit.agents INFO process initialized
+2026-10-10 16:46:00,639 service015.runtime INFO ava-001: user state listening -> away
+2026-10-10 16:46:01,710 service015.runtime INFO ava-001: agent state listening -> speaking
+2026-10-10 16:46:01,764 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/399456af933446688f70e09b29caaf6e "HTTP/1.1 200 OK"
+2026-10-10 16:46:01,895 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:46:13,534 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/690da68eb94d4ae4999a7d30e8833618 "HTTP/1.1 200 OK"
+2026-10-10 16:46:15,183 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 16:46:15,185 service015.runtime INFO ava-001: speech done id=speech_8597b09c2e6b interrupted=False
+2026-10-10 16:46:25,354 service015.runtime INFO ava-001: user state away -> speaking
+2026-10-10 16:46:26,194 service015.runtime INFO ava-001: transcript interim: 'Please,'
+2026-10-10 16:46:26,842 service015.runtime INFO ava-001: transcript interim: 'Please explain in.'
+2026-10-10 16:46:27,438 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail about.'
+2026-10-10 16:46:28,108 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail how your story works.'
+2026-10-10 16:46:28,670 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail how your service works.'
+2026-10-10 16:46:29,770 service015.runtime INFO ava-001: transcript interim: "Please explain in detail how your service works, from what I've seen in the past."
+2026-10-10 16:46:30,588 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail how your service works, from the first call out'
+2026-10-10 16:46:31,760 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail how your service works, from the first call all the way through to the next call.'
+2026-10-10 16:46:32,642 service015.runtime INFO ava-001: transcript interim: 'Please explain in detail how your service works, from the first call all the way through to the final report.'
+2026-10-10 16:46:32,648 service015.runtime INFO ava-001: transcript FINAL: 'Please explain in detail how your service works, from the first call all the way through to the final report.'
+2026-10-10 16:46:32,649 service015.runtime INFO ava-001: speech created id=speech_52921acdb4a7 source=generate_reply user_initiated=True
+2026-10-10 16:46:32,656 service015.runtime INFO llm_node start (measured=True, items=4)
+2026-10-10 16:46:32,785 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 16:46:32,952 service015.runtime INFO llm_node first chunk after 0.30s
+2026-10-10 16:46:33,035 service015.runtime INFO llm_node end after 0.38s (49 chunks)
+2026-10-10 16:46:33,054 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 16:46:33,061 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 16:46:33,095 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:46:33,331 service015.runtime INFO ava-001: transcript interim: 'And take your time.'
+2026-10-10 16:46:33,696 service015.runtime INFO ava-001: transcript FINAL: 'And take your time.'
+2026-10-10 16:46:33,697 service015.runtime INFO ava-001: agent state thinking -> listening
+2026-10-10 16:46:33,699 livekit.agents WARNING transcript arrives after turn has been committed. consider raising `min_delay` in the endpointing options to accommodate a slow stt. subsequent occurrences will log at debug level.
+2026-10-10 16:46:33,740 service015.runtime INFO ava-001: speech done id=speech_52921acdb4a7 interrupted=True
+2026-10-10 16:46:33,741 service015.runtime INFO ava-001: speech created id=speech_5bf3aae5c9b4 source=generate_reply user_initiated=True
+2026-10-10 16:46:33,747 service015.runtime INFO llm_node start (measured=True, items=5)
+2026-10-10 16:46:33,761 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 16:46:33,926 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 16:46:33,995 service015.runtime INFO llm_node first chunk after 0.25s
+2026-10-10 16:46:34,101 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:46:34,113 service015.runtime INFO llm_node end after 0.36s (46 chunks)
+2026-10-10 16:46:59,963 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 16:47:23,308 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/b14c698704f34b20977da334c46c094b "HTTP/1.1 200 OK"
+2026-10-10 16:47:23,648 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:47:24,354 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 16:47:24,604 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 16:47:25,195 service015.runtime INFO ava-001: transcript interim: 'Sir,,'
+2026-10-10 16:47:26,407 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 16:47:26,744 service015.runtime INFO ava-001: transcript interim: 'Sorry.'
+2026-10-10 16:47:26,748 service015.runtime INFO ava-001: transcript FINAL: 'Sorry.'
+2026-10-10 16:47:26,766 service015.runtime INFO ava-001: transcript interim: 'Yeah.'
+2026-10-10 16:47:26,837 service015.runtime INFO ava-001: speech done id=speech_5bf3aae5c9b4 interrupted=True
+2026-10-10 16:47:26,838 service015.runtime INFO ava-001: speech created id=speech_223296e668c5 source=generate_reply user_initiated=True
+2026-10-10 16:47:26,847 service015.runtime INFO llm_node start (measured=True, items=7)
+2026-10-10 16:47:26,859 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 16:47:27,254 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 16:47:27,257 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 16:47:27,328 service015.runtime INFO llm_node first chunk after 0.48s
+2026-10-10 16:47:27,397 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:47:27,470 service015.runtime INFO llm_node end after 0.62s (38 chunks)
+2026-10-10 16:47:27,543 service015.runtime INFO ava-001: agent state thinking -> listening
+2026-10-10 16:47:28,083 service015.runtime INFO ava-001: transcript interim: 'Stop there!'
+2026-10-10 16:47:28,085 service015.runtime INFO ava-001: transcript FINAL: 'Stop there!'
+2026-10-10 16:47:28,109 service015.runtime INFO ava-001: speech done id=speech_223296e668c5 interrupted=True
+2026-10-10 16:47:28,758 service015.runtime INFO ava-001: transcript interim: 'Can you just'
+2026-10-10 16:47:29,603 service015.runtime INFO ava-001: transcript interim: 'Can you just tell me the fact?'
+2026-10-10 16:47:29,907 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 16:47:30,456 service015.runtime INFO ava-001: transcript interim: 'Can you just tell me the price?'
+2026-10-10 16:47:30,459 service015.runtime INFO ava-001: transcript FINAL: 'Can you just tell me the price?'
+2026-10-10 16:47:30,460 service015.runtime INFO ava-001: speech created id=speech_7ddb194429af source=generate_reply user_initiated=True
+2026-10-10 16:47:30,468 service015.runtime INFO llm_node start (measured=True, items=8)
+2026-10-10 16:47:30,707 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 16:47:30,782 service015.runtime INFO llm_node first chunk after 0.31s
+2026-10-10 16:47:30,937 service015.runtime INFO llm_node end after 0.47s (47 chunks)
+2026-10-10 16:47:31,828 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 16:47:31,870 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:47:59,013 livekit.agents WARNING event loop blocked for 199ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 16:48:11,313 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 16:48:29,867 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/00061d695eb84fb8a27ad035e3a29078 "HTTP/1.1 200 OK"
+2026-10-10 16:48:30,082 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:49:06,139 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/c9fdb0197ce94d07a23d44a7a59149f2 "HTTP/1.1 200 OK"
+2026-10-10 16:49:06,337 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 16:49:17,533 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/10787a5f842640458736661a86bb5d1a "HTTP/1.1 200 OK"
+2026-10-10 16:49:18,976 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 16:49:18,979 service015.runtime INFO ava-001: speech done id=speech_7ddb194429af interrupted=False
+2026-10-10 16:49:27,802 service015.runtime WARNING ava-001: room disconnected: 4
+2026-10-10 16:49:27,820 livekit.agents WARNING failed to send session event
+Traceback (most recent call last):
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 160, in send_message
+    writer = await self._room.local_participant.stream_bytes(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\participant.py", line 915, in stream_bytes
+    await writer._send_header()
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\data_stream.py", line 608, in _send_header
+    cb = await self._wait_for_callback(req, "byte_stream_open", "byte_stream_open")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\data_stream.py", line 453, in _wait_for_callback
+    raise StreamError(getattr(cb, callback_field).error.description)
+livekit.rtc.data_stream.StreamError: unable to send packet
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 477, in _write_loop
+    await self._transport.send_message(msg)
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 168, in send_message
+    raise RuntimeError(f"failed to send binary stream message: {e}") from e
+RuntimeError: failed to send binary stream message: unable to send packet
+Traceback (most recent call last):
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 160, in send_message
+    writer = await self._room.local_participant.stream_bytes(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\participant.py", line 915, in stream_bytes
+    await writer._send_header()
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\data_stream.py", line 608, in _send_header
+    cb = await self._wait_for_callback(req, "byte_stream_open", "byte_stream_open")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\data_stream.py", line 453, in _wait_for_callback
+    raise StreamError(getattr(cb, callback_field).error.description)
+livekit.rtc.data_stream.StreamError: unable to send packet
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 477, in _write_loop
+    await self._transport.send_message(msg)
+  File "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\remote_session.py", line 168, in send_message
+    raise RuntimeError(f"failed to send binary stream message: {e}") from e
+RuntimeError: failed to send binary stream message: unable to send packet
+2026-10-10 16:49:27,821 livekit INFO livekit::room:1788:livekit::room - Disconnected from room "ava-001" with reason: ParticipantRemoved
+2026-10-10 16:49:27,968 service015.runtime INFO stop requested; closing worker
+2026-10-10 16:49:27,968 livekit.agents INFO shutting down worker
+2026-10-10 16:49:28,569 service015.runtime INFO ava-001: ava-001 is no longer owned by pid 52212; shutting down
+2026-10-10 16:49:29,813 service015.runtime WARNING ava-001: session closed: CloseReason.USER_INITIATED
+2026-10-10 16:49:29,825 livekit.agents INFO process exiting

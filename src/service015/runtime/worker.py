@@ -18,6 +18,7 @@ import multiprocessing
 import os
 import signal
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncIterable
@@ -67,6 +68,7 @@ if multiprocessing.current_process().name == "job_proc" and hasattr(signal, "SIG
     signal.signal(signal.SIGBREAK, signal.SIG_IGN)
 
 HEARTBEAT_S = 5.0
+MAX_EMPTY_LLM_ATTEMPTS = 3  # total LLM requests per generation when the provider returns an empty completion
 GREETING_DELAY_S = 0.8
 HUMAN_KINDS = (rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD, rtc.ParticipantKind.PARTICIPANT_KIND_SIP)
 
@@ -139,17 +141,47 @@ class IdentityAgent(Agent):
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str | Any]:
         gen = self._recorder.begin_generation()
-        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
-            if isinstance(chunk, str):
-                text = chunk
-            elif isinstance(chunk, llm.ChatChunk) and chunk.delta is not None:
-                text = chunk.delta.content or ""
-            else:
-                text = ""
-            self._recorder.on_llm_chunk(gen, text)
-            if text:
-                self.chunks_seen += 1
-            yield chunk
+        t_start = time.monotonic()
+        # An LLM completion that carries no text and no tool call would end the speech silently and lose the user's turn (the
+        # provider occasionally answers 200 OK with an empty stream). Nothing has been yielded in that case, so the request is
+        # simply repeated; the reply is still LLM-generated, never invented here.
+        for attempt in range(1, MAX_EMPTY_LLM_ATTEMPTS + 1):
+            log.info("llm_node start (measured=%s, items=%d, attempt=%d)", gen is not None, len(chat_ctx.items), attempt)
+            n_chunks, produced, raw = 0, False, []
+            try:
+                async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
+                    n_chunks += 1
+                    if n_chunks == 1:
+                        log.info("llm_node first chunk after %.2fs", time.monotonic() - t_start)
+                    text = _chunk_text(chunk)
+                    if text or _chunk_has_tool_call(chunk):
+                        produced = True
+                    elif len(raw) < 5:
+                        raw.append(repr(chunk)[:300])
+                    self._recorder.on_llm_chunk(gen, text)
+                    if text:
+                        self.chunks_seen += 1
+                    yield chunk
+            except asyncio.CancelledError:
+                log.info("llm_node CANCELLED after %.2fs (%d chunks)", time.monotonic() - t_start, n_chunks)
+                raise
+            log.info("llm_node end after %.2fs (%d chunks, produced=%s)", time.monotonic() - t_start, n_chunks, produced)
+            if produced:
+                return
+            log.warning("llm_node produced no text and no tool call (attempt %d/%d); chunks: %s", attempt, MAX_EMPTY_LLM_ATTEMPTS, raw)
+        log.error("llm_node: %d consecutive empty LLM completions; this user turn gets no reply", MAX_EMPTY_LLM_ATTEMPTS)
+
+
+def _chunk_text(chunk: Any) -> str:
+    if isinstance(chunk, str):
+        return chunk
+    if isinstance(chunk, llm.ChatChunk) and chunk.delta is not None:
+        return chunk.delta.content or ""
+    return ""
+
+
+def _chunk_has_tool_call(chunk: Any) -> bool:
+    return isinstance(chunk, llm.ChatChunk) and chunk.delta is not None and bool(chunk.delta.tool_calls)
 
 
 def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess, recorder: LatencyRecorder) -> AgentSession:
@@ -306,9 +338,11 @@ async def entrypoint(ctx: JobContext) -> None:
             return wrapper
 
         def on_user_state(ev: UserStateChangedEvent) -> None:
+            log.info("%s: user state %s -> %s", identity_id, ev.old_state, ev.new_state)
             recorder.on_user_state(ev.old_state, ev.new_state)
 
         def on_agent_state(ev: AgentStateChangedEvent) -> None:
+            log.info("%s: agent state %s -> %s", identity_id, ev.old_state, ev.new_state)
             recorder.on_agent_state(ev.old_state, ev.new_state)
             if ev.old_state == "speaking" and ev.new_state != "speaking":
                 # Speech that played proves the TTS path; it proves the LLM only if the LLM produced output since it failed.
@@ -318,12 +352,30 @@ async def entrypoint(ctx: JobContext) -> None:
 
         session.on("user_state_changed", guarded(on_user_state))
         def on_transcript(ev) -> None:
+            log.info("%s: transcript %s: %r", identity_id, "FINAL" if ev.is_final else "interim", ev.transcript)
             recorder.on_user_transcript(ev.transcript, ev.is_final)
             if ev.is_final:
                 bg(pres.recovered, P.STT_FAILURE)  # a final transcript proves the STT path
 
         session.on("user_input_transcribed", guarded(on_transcript))
         session.on("agent_state_changed", guarded(on_agent_state))
+
+        def on_speech_created(ev) -> None:
+            h = ev.speech_handle
+            log.info("%s: speech created id=%s source=%s user_initiated=%s", identity_id, h.id, ev.source, ev.user_initiated)
+            h.add_done_callback(
+                lambda hh: log.info("%s: speech done id=%s interrupted=%s", identity_id, hh.id, hh.interrupted)
+            )
+
+        session.on("speech_created", guarded(on_speech_created))
+        session.on(
+            "agent_false_interruption",
+            guarded(lambda ev: log.info("%s: false interruption resumed=%s", identity_id, ev.resumed)),
+        )
+        session.on(
+            "user_transcription_timeout",
+            guarded(lambda ev: log.info("%s: user_transcription_timeout %r", identity_id, ev)),
+        )
 
         def on_error(ev: ErrorEvent) -> None:
             comp = classify_error(ev.error, ev.source)

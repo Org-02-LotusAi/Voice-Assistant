@@ -1,0 +1,300 @@
+2026-10-10 17:21:09,643 livekit.agents INFO starting worker
+2026-10-10 17:21:09,643 livekit.agents INFO plugin registered
+2026-10-10 17:21:09,643 livekit.agents INFO plugin registered
+2026-10-10 17:21:09,647 livekit.agents INFO HTTP server listening on :63374
+2026-10-10 17:21:09,688 livekit.agents INFO initializing process
+2026-10-10 17:21:19,028 livekit.agents INFO process initialized
+C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\jwt\api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 6 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+2026-10-10 17:21:19,103 livekit.agents INFO registered worker
+2026-10-10 17:21:19,516 livekit.agents INFO received job request
+2026-10-10 17:21:19,646 livekit.agents INFO initializing process
+2026-10-10 17:21:19,693 livekit INFO livekit_api::signal_client::signal_stream:53:livekit_api::signal_client::signal_stream - connecting to ws://localhost:7880/rtc/v1
+2026-10-10 17:21:19,971 httpx INFO HTTP Request: POST http://127.0.0.1:17494/warm "HTTP/1.1 200 OK"
+2026-10-10 17:21:20,028 service015.runtime INFO ava-001: agent state initializing -> listening
+2026-10-10 17:21:20,392 httpx INFO HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
+2026-10-10 17:21:22,298 livekit.agents INFO RoomIO linked to participant
+2026-10-10 17:21:23,082 service015.runtime INFO ava-001: speech created id=speech_ee259cb4d593 source=say user_initiated=True
+2026-10-10 17:21:23,144 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:21:30,536 livekit.agents INFO process initialized
+2026-10-10 17:21:37,381 service015.runtime INFO ava-001: user state listening -> away
+2026-10-10 17:21:39,208 service015.runtime INFO ava-001: agent state listening -> speaking
+2026-10-10 17:21:39,251 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/1f7e32a30b5943de8907710b9d28799b "HTTP/1.1 200 OK"
+2026-10-10 17:21:39,390 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:21:51,632 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/35dd17f9c00c494a817387c5f0b45cbd "HTTP/1.1 200 OK"
+2026-10-10 17:21:53,374 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:21:53,376 service015.runtime INFO ava-001: speech done id=speech_ee259cb4d593 interrupted=False
+2026-10-10 17:22:03,357 service015.runtime INFO ava-001: user state away -> speaking
+2026-10-10 17:22:04,176 service015.runtime INFO ava-001: transcript interim: 'Hi.'
+2026-10-10 17:22:05,062 service015.runtime INFO ava-001: transcript interim: 'Hi, I would love to see'
+2026-10-10 17:22:05,964 service015.runtime INFO ava-001: transcript interim: "Hi, I would like to know what you're"
+2026-10-10 17:22:06,631 service015.runtime INFO ava-001: transcript interim: 'Hi, I would like to know what your company is.'
+2026-10-10 17:22:07,061 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:22:07,288 service015.runtime INFO ava-001: transcript interim: 'Hi, I would like to know what your company actually does.'
+2026-10-10 17:22:07,705 service015.runtime INFO ava-001: transcript FINAL: 'Hi, I would like to know what your company actually does.'
+2026-10-10 17:22:07,705 service015.runtime INFO ava-001: speech created id=speech_914bd6b7da3d source=generate_reply user_initiated=True
+2026-10-10 17:22:07,719 service015.runtime INFO llm_node start (measured=True, items=4, attempt=1)
+2026-10-10 17:22:07,755 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:22:07,849 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:22:07,962 service015.runtime INFO llm_node first chunk after 0.25s
+2026-10-10 17:22:08,002 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:22:08,052 service015.runtime INFO llm_node end after 0.34s (37 chunks, produced=True)
+2026-10-10 17:22:21,880 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:22:46,847 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/4e175678b8e84e1cab954308b9dc1166 "HTTP/1.1 200 OK"
+2026-10-10 17:22:47,098 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:23:17,978 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/4284645c54404a1a8ae3685ea07a1067 "HTTP/1.1 200 OK"
+2026-10-10 17:23:20,584 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:23:20,586 service015.runtime INFO ava-001: speech done id=speech_914bd6b7da3d interrupted=False
+2026-10-10 17:23:28,507 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:23:29,389 service015.runtime INFO ava-001: transcript interim: 'Who are you?'
+2026-10-10 17:23:30,119 service015.runtime INFO ava-001: transcript interim: 'Who are your typical kids?'
+2026-10-10 17:23:30,561 service015.runtime INFO ava-001: transcript interim: 'Who are your typical customers?'
+2026-10-10 17:23:30,612 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:23:31,009 service015.runtime INFO ava-001: transcript FINAL: 'Who are your typical customers?'
+2026-10-10 17:23:31,010 service015.runtime INFO ava-001: speech created id=speech_1f0b214cb391 source=generate_reply user_initiated=True
+2026-10-10 17:23:31,020 service015.runtime INFO llm_node start (measured=True, items=6, attempt=1)
+2026-10-10 17:23:31,194 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:23:31,263 service015.runtime INFO llm_node first chunk after 0.24s
+2026-10-10 17:23:31,325 service015.runtime INFO llm_node end after 0.30s (32 chunks, produced=True)
+2026-10-10 17:23:32,532 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:23:32,558 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:23:49,224 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:24:14,044 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/3c719565176344f1a8cc5a41a1dd560a "HTTP/1.1 200 OK"
+2026-10-10 17:24:14,294 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:24:29,063 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/2b4b573a80624158a22401fe50793f60 "HTTP/1.1 200 OK"
+2026-10-10 17:24:31,352 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:24:31,353 service015.runtime INFO ava-001: speech done id=speech_1f0b214cb391 interrupted=False
+2026-10-10 17:24:38,108 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:24:38,799 service015.runtime INFO ava-001: transcript interim: 'Hello.'
+2026-10-10 17:24:39,566 service015.runtime INFO ava-001: transcript interim: 'How long does it?'
+2026-10-10 17:24:40,277 service015.runtime INFO ava-001: transcript interim: 'How long does it take to get a dog?'
+2026-10-10 17:24:40,662 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:24:40,746 service015.runtime INFO ava-001: transcript interim: 'How long does it take to get started?'
+2026-10-10 17:24:40,754 service015.runtime INFO ava-001: transcript FINAL: 'How long does it take to get started?'
+2026-10-10 17:24:40,754 service015.runtime INFO ava-001: speech created id=speech_bac13056a055 source=generate_reply user_initiated=True
+2026-10-10 17:24:40,761 service015.runtime INFO llm_node start (measured=True, items=8, attempt=1)
+2026-10-10 17:24:40,780 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:24:40,924 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:24:40,995 service015.runtime INFO llm_node first chunk after 0.23s
+2026-10-10 17:24:41,047 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:24:41,078 service015.runtime INFO llm_node end after 0.31s (40 chunks, produced=True)
+2026-10-10 17:24:59,162 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:25:18,862 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/34a0e21b44904c4c9d4011757e230070 "HTTP/1.1 200 OK"
+2026-10-10 17:25:19,053 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:25:55,026 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/a07120ed83b34f298f6878ed6bc3b746 "HTTP/1.1 200 OK"
+2026-10-10 17:25:59,004 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:25:59,006 service015.runtime INFO ava-001: speech done id=speech_bac13056a055 interrupted=False
+2026-10-10 17:26:08,509 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:26:09,067 service015.runtime INFO ava-001: transcript interim: 'you'
+2026-10-10 17:26:09,950 service015.runtime INFO ava-001: transcript interim: 'Do you and I do?'
+2026-10-10 17:26:10,465 service015.runtime INFO ava-001: transcript interim: 'Do you integrate with the'
+2026-10-10 17:26:10,964 service015.runtime INFO ava-001: transcript interim: 'Do you integrate with the tools we have?'
+2026-10-10 17:26:11,578 service015.runtime INFO ava-001: transcript interim: 'Do you integrate with the tools we already need?'
+2026-10-10 17:26:11,660 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:26:12,143 service015.runtime INFO ava-001: transcript interim: 'Do you integrate with the tools we already use?'
+2026-10-10 17:26:12,146 service015.runtime INFO ava-001: transcript FINAL: 'Do you integrate with the tools we already use?'
+2026-10-10 17:26:12,146 service015.runtime INFO ava-001: speech created id=speech_665582d096ec source=generate_reply user_initiated=True
+2026-10-10 17:26:12,157 service015.runtime INFO llm_node start (measured=True, items=10, attempt=1)
+2026-10-10 17:26:12,229 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:26:12,454 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:26:12,529 service015.runtime INFO llm_node first chunk after 0.38s
+2026-10-10 17:26:12,580 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:26:12,616 service015.runtime INFO llm_node end after 0.47s (43 chunks, produced=True)
+2026-10-10 17:26:30,463 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:26:52,891 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/def1677652ce4b878c15403d7eb40549 "HTTP/1.1 200 OK"
+2026-10-10 17:26:53,159 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:27:09,826 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/8f9ff35466e249f185e6deeced575fbb "HTTP/1.1 200 OK"
+2026-10-10 17:27:09,992 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:27:41,817 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/0b644b1645d146ca97caa77fabd471e5 "HTTP/1.1 200 OK"
+2026-10-10 17:27:44,135 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:27:44,136 service015.runtime INFO ava-001: speech done id=speech_665582d096ec interrupted=False
+2026-10-10 17:27:54,159 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:27:54,695 service015.runtime INFO ava-001: transcript interim: 'you'
+2026-10-10 17:27:55,393 service015.runtime INFO ava-001: transcript interim: 'What does honor?'
+2026-10-10 17:27:56,104 service015.runtime INFO ava-001: transcript interim: 'What does on morning look?'
+2026-10-10 17:27:56,723 service015.runtime INFO ava-001: transcript interim: 'What does on morning look like for a?'
+2026-10-10 17:27:57,112 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:27:57,512 service015.runtime INFO ava-001: transcript interim: 'What does onboarding look like for a small team?'
+2026-10-10 17:27:57,875 service015.runtime INFO ava-001: transcript FINAL: 'What does onboarding look like for a small team?'
+2026-10-10 17:27:57,876 service015.runtime INFO ava-001: speech created id=speech_c7767fc40265 source=generate_reply user_initiated=True
+2026-10-10 17:27:57,884 service015.runtime INFO llm_node start (measured=True, items=12, attempt=1)
+2026-10-10 17:27:58,035 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:27:58,114 service015.runtime INFO llm_node first chunk after 0.23s
+2026-10-10 17:27:58,250 service015.runtime INFO llm_node end after 0.36s (63 chunks, produced=True)
+2026-10-10 17:27:59,065 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:27:59,098 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:28:09,467 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:28:43,490 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/83a545b842484531ae556486c67055ad "HTTP/1.1 200 OK"
+2026-10-10 17:28:43,892 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:29:24,092 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/b590aced17884c3ab8353d5129d7214b "HTTP/1.1 200 OK"
+2026-10-10 17:29:24,392 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:29:55,454 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/5b0791998cb74acf8a2ade75f170b289 "HTTP/1.1 200 OK"
+2026-10-10 17:29:58,259 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:29:58,261 service015.runtime INFO ava-001: speech done id=speech_c7767fc40265 interrupted=False
+2026-10-10 17:30:12,259 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:30:13,266 service015.runtime INFO ava-001: transcript interim: 'How do you?'
+2026-10-10 17:30:13,877 service015.runtime INFO ava-001: transcript interim: 'How do you handle us?'
+2026-10-10 17:30:14,412 service015.runtime INFO ava-001: transcript interim: 'How do you handle security?'
+2026-10-10 17:30:15,128 service015.runtime INFO ava-001: transcript interim: 'How do you handle security in private?'
+2026-10-10 17:30:15,143 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:30:15,712 service015.runtime INFO ava-001: transcript interim: 'How do you handle security and privacy?'
+2026-10-10 17:30:15,716 service015.runtime INFO ava-001: transcript FINAL: 'How do you handle security and privacy?'
+2026-10-10 17:30:15,718 service015.runtime INFO ava-001: speech created id=speech_3339579f0c04 source=generate_reply user_initiated=True
+2026-10-10 17:30:15,726 service015.runtime INFO llm_node start (measured=True, items=14, attempt=1)
+2026-10-10 17:30:15,812 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:30:15,961 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:30:16,047 service015.runtime INFO llm_node first chunk after 0.31s
+2026-10-10 17:30:16,097 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:30:16,125 service015.runtime INFO llm_node end after 0.39s (39 chunks, produced=True)
+2026-10-10 17:30:32,524 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:30:57,455 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/d2da453844e541368747eb4865a5dde9 "HTTP/1.1 200 OK"
+2026-10-10 17:30:57,778 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:31:38,920 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/5c2cc9df5d0646dcae4476adc5e88de3 "HTTP/1.1 200 OK"
+2026-10-10 17:31:39,097 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:31:49,628 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/1136fbaf03df4d3fbd4ff3221bbb516b "HTTP/1.1 200 OK"
+2026-10-10 17:31:50,932 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:31:50,934 service015.runtime INFO ava-001: speech done id=speech_3339579f0c04 interrupted=False
+2026-10-10 17:32:00,457 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:32:00,923 service015.runtime INFO ava-001: transcript interim: 'you'
+2026-10-10 17:32:01,725 service015.runtime INFO ava-001: transcript interim: 'Can I get it?'
+2026-10-10 17:32:02,340 service015.runtime INFO ava-001: transcript interim: 'Can I get a trial before?'
+2026-10-10 17:32:02,659 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:32:02,923 service015.runtime INFO ava-001: transcript interim: 'Can I get a trial before committing?'
+2026-10-10 17:32:03,227 service015.runtime INFO ava-001: transcript FINAL: 'Can I get a trial before committing?'
+2026-10-10 17:32:03,227 service015.runtime INFO ava-001: speech created id=speech_22bff984e831 source=generate_reply user_initiated=True
+2026-10-10 17:32:03,236 service015.runtime INFO llm_node start (measured=True, items=16, attempt=1)
+2026-10-10 17:32:03,593 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:32:03,684 service015.runtime INFO llm_node first chunk after 0.45s
+2026-10-10 17:32:03,771 service015.runtime INFO llm_node end after 0.55s (44 chunks, produced=True)
+2026-10-10 17:32:04,595 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:32:04,630 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:32:18,230 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:32:48,428 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/341ef0ec754247b99994ae632bb78579 "HTTP/1.1 200 OK"
+2026-10-10 17:32:48,786 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:33:05,059 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/f6191df2e0e84f58b77eb5fcc0fcf2b9 "HTTP/1.1 200 OK"
+2026-10-10 17:33:05,300 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:33:20,842 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/ba454f420f174e868778a982c65a8d3e "HTTP/1.1 200 OK"
+2026-10-10 17:33:22,398 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:33:22,406 service015.runtime INFO ava-001: speech done id=speech_22bff984e831 interrupted=False
+2026-10-10 17:33:27,910 livekit.agents WARNING event loop blocked for 292ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\linecache.py", line 142, in updatecache; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:28,276 livekit.agents WARNING event loop blocked for 136ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:32,200 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:32,409 livekit.agents WARNING event loop blocked for 199ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\linecache.py", line 142, in updatecache; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:32,554 livekit.agents WARNING event loop blocked for 340ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\telemetry\loop_monitor.py", line 656, in _format_frames; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:32,795 livekit.agents WARNING event loop blocked for 183ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 295, in request; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:32,879 livekit.agents WARNING event loop blocked for 293ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:33,701 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:33,993 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:37,385 service015.runtime INFO ava-001: user state listening -> away
+2026-10-10 17:33:44,243 service015.runtime INFO ava-001: user state away -> speaking
+2026-10-10 17:33:46,203 service015.runtime INFO ava-001: transcript interim: 'What?'
+2026-10-10 17:33:46,716 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:33:46,765 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:33:47,853 service015.runtime INFO ava-001: transcript interim: 'What kind of support do you offer?'
+2026-10-10 17:33:48,476 service015.runtime INFO ava-001: transcript FINAL: 'What kind of support do you offer?'
+2026-10-10 17:33:48,478 service015.runtime INFO ava-001: speech created id=speech_361f311e66b5 source=generate_reply user_initiated=True
+2026-10-10 17:33:48,633 service015.runtime INFO llm_node start (measured=True, items=18, attempt=1)
+2026-10-10 17:33:48,771 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:33:49,179 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:33:49,333 service015.runtime INFO llm_node first chunk after 0.70s
+2026-10-10 17:33:49,529 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:33:49,533 service015.runtime INFO llm_node end after 0.89s (49 chunks, produced=True)
+2026-10-10 17:33:56,774 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:57,239 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:58,032 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:58,356 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:58,724 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:59,354 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:33:59,791 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:00,113 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:00,417 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:00,946 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:01,086 livekit.agents WARNING event loop blocked for 168ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:01,562 livekit.agents WARNING event loop blocked for 402ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:03,408 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:04,719 livekit.agents WARNING process is unresponsive
+2026-10-10 17:34:04,720 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:05,234 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:06,409 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:06,685 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:41,532 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:34:41,893 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:41,905 livekit.agents WARNING event loop blocked for 198ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 157, in unsubscribe; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:42,106 livekit.agents WARNING event loop blocked for 120ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 487, in recv; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:42,290 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:42,362 livekit.agents WARNING event loop blocked for 230ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 295, in request; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:42,501 livekit.agents WARNING event loop blocked for 121ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 220, in _stft; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:42,804 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:42,823 livekit.agents WARNING event loop blocked for 199ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 215, in _stft; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:44,601 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:45,033 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:45,395 livekit.agents WARNING event loop blocked for 137ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:45,502 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:34:46,926 livekit.agents WARNING event loop blocked for 152ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:34:48,560 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 17:35:24,747 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/4e1d82b176a8495883d3e275fd09fdc7 "HTTP/1.1 200 OK"
+2026-10-10 17:35:25,050 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:36:31,738 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/618eac9774e940eaa262856b18e1cd27 "HTTP/1.1 200 OK"
+2026-10-10 17:36:32,043 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:36:50,551 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/4742fd6174db46bcaa14210ca84f1cf0 "HTTP/1.1 200 OK"
+2026-10-10 17:36:51,987 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:36:51,989 service015.runtime INFO ava-001: speech done id=speech_361f311e66b5 interrupted=False
+2026-10-10 17:37:06,959 service015.runtime INFO ava-001: user state listening -> away
+2026-10-10 17:37:11,908 service015.runtime INFO ava-001: user state away -> speaking
+2026-10-10 17:37:13,549 service015.runtime INFO ava-001: transcript interim: 'How is brother?'
+2026-10-10 17:37:13,813 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:37:14,753 service015.runtime INFO ava-001: transcript interim: 'How is pricing structured?'
+2026-10-10 17:37:15,222 service015.runtime INFO ava-001: transcript FINAL: 'How is pricing structured?'
+2026-10-10 17:37:15,223 service015.runtime INFO ava-001: speech created id=speech_1efcb87bbcba source=generate_reply user_initiated=True
+2026-10-10 17:37:15,233 service015.runtime INFO llm_node start (measured=True, items=20, attempt=1)
+2026-10-10 17:37:15,353 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 157, in unsubscribe; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:37:15,376 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:37:15,575 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:37:15,665 service015.runtime INFO llm_node first chunk after 0.44s
+2026-10-10 17:37:16,102 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\ssl.py", line 858, in read; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:37:16,103 livekit.agents WARNING event loop blocked for 230ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\linecache.py", line 142, in updatecache; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:37:16,351 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:37:16,356 service015.runtime INFO llm_node end after 1.12s (53 chunks, produced=True)
+2026-10-10 17:37:45,402 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:37:45,666 livekit.agents WARNING event loop blocked for 199ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 220, in _stft; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:38:28,086 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/bfcb9002144943459ee97b0409e7fccb "HTTP/1.1 200 OK"
+2026-10-10 17:38:28,439 livekit.agents WARNING event loop blocked for 136ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\numpy\_core\_methods.py", line 132, in _mean; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:38:28,878 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 150, in subscribe; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:38:28,918 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:39:14,750 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 220, in _stft; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:39:29,808 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/bb932a046a7f40e3a1aae7304529ccf7 "HTTP/1.1 200 OK"
+2026-10-10 17:39:29,974 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:39:44,579 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/03ed0827fca84abe88e05bcc83b9ccc9 "HTTP/1.1 200 OK"
+2026-10-10 17:39:46,631 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:39:46,632 service015.runtime INFO ava-001: speech done id=speech_1efcb87bbcba interrupted=False
+2026-10-10 17:39:59,208 service015.runtime INFO ava-001: user state listening -> speaking
+2026-10-10 17:40:00,194 service015.runtime INFO ava-001: transcript interim: 'Thank you.'
+2026-10-10 17:40:00,719 service015.runtime INFO ava-001: transcript interim: 'Great.'
+2026-10-10 17:40:01,305 service015.runtime INFO ava-001: transcript interim: 'Great. What would be the'
+2026-10-10 17:40:02,224 service015.runtime INFO ava-001: transcript interim: 'Great! What would be the best next step?'
+2026-10-10 17:40:02,557 service015.runtime INFO ava-001: user state speaking -> listening
+2026-10-10 17:40:02,949 service015.runtime INFO ava-001: transcript interim: 'Great! What would be the best next step for us?'
+2026-10-10 17:40:03,401 service015.runtime INFO ava-001: transcript FINAL: 'Great! What would be the best next step for us?'
+2026-10-10 17:40:03,402 service015.runtime INFO ava-001: speech created id=speech_cdb6f13d9c42 source=generate_reply user_initiated=True
+2026-10-10 17:40:03,549 service015.runtime INFO llm_node start (measured=True, items=22, attempt=1)
+2026-10-10 17:40:03,551 livekit.agents WARNING event loop blocked for 137ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 150, in subscribe; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:40:03,597 service015.runtime INFO ava-001: agent state listening -> thinking
+2026-10-10 17:40:03,800 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 17:40:03,866 service015.runtime INFO llm_node first chunk after 0.33s
+2026-10-10 17:40:03,951 service015.runtime INFO llm_node end after 0.41s (43 chunks, produced=True)
+2026-10-10 17:40:03,967 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:40:21,586 service015.runtime INFO ava-001: agent state thinking -> speaking
+2026-10-10 17:40:45,430 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/c6b6c85e573b4384ac15ccf0d8515c39 "HTTP/1.1 200 OK"
+2026-10-10 17:40:45,641 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 220, in _stft; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 17:40:45,773 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:41:19,682 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/88b7c137f27f488ead60fff52cc3aa2e "HTTP/1.1 200 OK"
+2026-10-10 17:41:19,875 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 17:41:35,020 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/721893e2cd9f4c438b8614124af53bc9 "HTTP/1.1 200 OK"
+2026-10-10 17:41:36,535 service015.runtime INFO ava-001: agent state speaking -> listening
+2026-10-10 17:41:36,645 service015.runtime INFO ava-001: speech done id=speech_cdb6f13d9c42 interrupted=False
+2026-10-10 17:41:49,255 livekit INFO livekit::room:1788:livekit::room - Disconnected from room "ava-001" with reason: ParticipantRemoved
+2026-10-10 17:41:49,263 service015.runtime WARNING ava-001: room disconnected: 4
+2026-10-10 17:41:49,541 service015.runtime INFO stop requested; closing worker
+2026-10-10 17:41:49,548 livekit.agents INFO shutting down worker
+2026-10-10 17:41:51,440 service015.runtime WARNING ava-001: session closed: CloseReason.USER_INITIATED
+2026-10-10 17:41:51,697 livekit.agents INFO process exiting

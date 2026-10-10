@@ -1,0 +1,189 @@
+{
+  "name": "barge_in",
+  "test_ref": "TEST 10",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "the long answer started",
+      "ok": true,
+      "detail": "waited 26.3s",
+      "kind": ""
+    },
+    {
+      "name": "the agent was speaking when interrupted",
+      "ok": true,
+      "detail": "state=speaking",
+      "kind": ""
+    },
+    {
+      "name": "agent audio went silent after the interruption",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "speech onset -> agent audio silent <= 1000 ms",
+      "ok": true,
+      "detail": "188 ms (agent state left 'speaking' after 719 ms)",
+      "kind": ""
+    },
+    {
+      "name": "a next reply was produced",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "the agent heard the interruption (user_text mentions price)",
+      "ok": true,
+      "detail": "Sorry. Stop there! Can you just tell me the price?",
+      "kind": ""
+    },
+    {
+      "name": "the next reply addresses the interruption (pricing keyword)",
+      "ok": true,
+      "detail": "hits=['pric'] heard=\"I can't share specific pricing over the, Phone. I'll have the right person send you the Exact details and writing so you have everything you need.\"",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "long_answer_first_audio_after_s": 28.4,
+    "interrupt_onset_after_first_audio_s": 20.2,
+    "agent_audio_heard_before_interrupt_s": 1.54,
+    "stop_ms_audio_rms": 188,
+    "agent_state_change_ms": 719,
+    "rms_threshold": 300.0,
+    "quiet_gap_s": 1.0,
+    "next_reply_transcript": "I can't share specific pricing over the, Phone. I'll have the right person send you the Exact details and writing so you have everything you need.",
+    "next_reply_agent_text": "I can\u2019t share specific pricing over the phone. I\u2019ll have the right person send you the exact details in writing so you have everything you need.",
+    "turn_rows": [
+      {
+        "id": 1,
+        "identity_id": "ava-001",
+        "session_id": "417faa5365d549fbbbf39fb4d0c56478",
+        "turn_index": 0,
+        "t0": 108886.281,
+        "t1": 108890.312,
+        "t2": 108890.546,
+        "t3": 108914.046,
+        "t4": 108914.046,
+        "t5": null,
+        "user_text": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+        "agent_text": "I would love to walk you through that process. To ensure I cover the specific details most relevant to your current setup, could you share a bit about what your team is currently using to handle this workflow?",
+        "interrupted": 1,
+        "created_at": "2026-10-10T11:47:14.270212+00:00"
+      },
+      {
+        "id": 2,
+        "identity_id": "ava-001",
+        "session_id": "417faa5365d549fbbbf39fb4d0c56478",
+        "turn_index": 1,
+        "t0": 108939.625,
+        "t1": 108943.687,
+        "t2": 108944.109,
+        "t3": 108995.5,
+        "t4": 108995.515,
+        "t5": null,
+        "user_text": "Sorry. Stop there! Can you just tell me the price?",
+        "agent_text": "I can\u2019t share specific pricing over the phone. I\u2019ll have the right person send you the exact details in writing so you have everything you need.",
+        "interrupted": 0,
+        "created_at": "2026-10-10T11:48:35.725368+00:00"
+      }
+    ],
+    "note": "Silence = last received frame above the RMS gate before the first >= quiet_gap_s pause. On CPU the engine bounds a follow-up by one in-flight chunk, but the AgentSession stops publishing on interruption independently.",
+    "resources": {
+      "samples": 132,
+      "cpu_pct": {
+        "min": 72.8,
+        "avg": 97.7,
+        "max": 100.0
+      },
+      "mem_available_mb": {
+        "min": 292,
+        "avg": 668.4,
+        "max": 938
+      },
+      "swap_used_mb": {
+        "min": 8441,
+        "avg": 8456.4,
+        "max": 8470
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.7,
+            "max": 57.5
+          },
+          "rss_mb": {
+            "min": 68.9,
+            "avg": 75.7,
+            "max": 89.8
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 223.6,
+            "max": 384.6
+          },
+          "rss_mb": {
+            "min": 941.1,
+            "avg": 1812.2,
+            "max": 1936.8
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 7.2,
+            "avg": 51.2,
+            "max": 511.0
+          },
+          "rss_mb": {
+            "min": 115.4,
+            "avg": 317.5,
+            "max": 475.8
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 59.7,
+            "max": 463.6
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 1189.3,
+            "max": 1377.5
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 3.5,
+            "max": 72.3
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 127.3,
+            "max": 157.6
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 1.3
+          },
+          "rss_mb": {
+            "min": 15.9,
+            "avg": 19.3,
+            "max": 27.4
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 313.14100000000326,
+  "error": null
+}

@@ -15,7 +15,7 @@ from service015.runtime import latency
 
 from .audio import load_clip
 from .driver import Ctx, ScenarioResult, TurnResult
-from .expectations import INTERRUPT_KEYWORDS, TURN_KEYWORDS, keyword_hits, mentions, mentions_strict
+from .expectations import INTERRUPT_KEYWORDS, TURN_KEYWORDS, documented_stt_mishearings, keyword_hits, mentions, mentions_strict, normalize as normalize_fact
 from .human import Human
 from .stack import engine_health, run_engine_script
 
@@ -93,6 +93,7 @@ async def run_self_knowledge(ctx: Ctx, key: str) -> dict[str, Any]:
     s = await session(ctx, key)
     mine, theirs = ctx.spec(key), ctx.spec(_other(key))
     turns, checks, fact_checks = [], [], []
+    known_mishearings = documented_stt_mishearings()
     for stem, fact in QUESTIONS:
         t = await ctx.ask(s.human, s.identity_id, stem, f"selfknowledge-{key}")
         want = mine[fact]
@@ -100,11 +101,17 @@ async def run_self_knowledge(ctx: Ctx, key: str) -> dict[str, Any]:
         llm_ok, heard_ok = mentions(t.agent_text, want), mentions(t.heard, want)
         # (a) the LLM did not state the fact: product failure. (b) the LLM stated it but the audio path lost it.
         verdict = "ok" if llm_ok and heard_ok else "(b) audio path: LLM right, transcript of the audio lost it" if llm_ok else "(a) LLM wrong"
-        fact_checks.append({"identity": key, "question": t.human_says, "fact": fact, "expected": want, "llm_text": t.agent_text, "heard_transcript": t.heard, "llm_has_fact": llm_ok, "heard_has_fact": heard_ok, "heard_has_fact_strict_no_alias": mentions_strict(t.heard, want), "llm_has_fact_strict_no_alias": mentions_strict(t.agent_text, want), "verdict": verdict})
+        # `llm_text_pass`: the LLM text states the configured fact (alias-free whole word). The strict transcript result stays in
+        # `heard_has_fact_strict_no_alias`. A transcript miss is PASS-with-audio-caveat only if the LLM text is right AND the fact is
+        # one the audio-path probe documents as mis-heard by Moonshine (evidence/probe/audio_path_probe.json); otherwise it FAILs.
+        llm_text_pass = mentions_strict(t.agent_text, want)
+        known_stt_mishearing = normalize_fact(want) in known_mishearings
+        audio_kind = "audio" if llm_text_pass and known_stt_mishearing else ""
+        fact_checks.append({"identity": key, "question": t.human_says, "fact": fact, "expected": want, "llm_text": t.agent_text, "heard_transcript": t.heard, "llm_has_fact": llm_ok, "heard_has_fact": heard_ok, "heard_has_fact_strict_no_alias": mentions_strict(t.heard, want), "llm_has_fact_strict_no_alias": mentions_strict(t.agent_text, want), "llm_text_pass": llm_text_pass, "known_stt_mishearing": known_stt_mishearing, "verdict": verdict})
         checks += [
             (f"{key}/{stem}: reply audio produced", t.reply.started, f"wait {t.wait_start_s}s", ""),
             (f"{key}/{stem}: LLM text contains {fact} '{want}'", llm_ok, t.agent_text, ""),
-            (f"{key}/{stem}: transcript of the audio contains {fact} '{want}'", heard_ok, f"heard={t.heard!r} llm={t.agent_text!r}", "audio"),
+            (f"{key}/{stem}: transcript of the audio contains {fact} '{want}'", heard_ok, f"heard={t.heard!r} llm={t.agent_text!r}", audio_kind),
         ]
         for fact_o in ("name", "company"):
             leak = [n for n, txt in texts.items() if mentions(txt, theirs[fact_o])]
@@ -296,10 +303,17 @@ async def scenario_barge_in(ctx: Ctx) -> ScenarioResult:
     reply = await ctx.wait_reply(h, silent_at or utt2.onset_t, cfg.post_interrupt_reply_timeout_s, cfg.reply_complete_timeout_s)
     if reply.started:
         reply.transcript = await ctx.tr.transcribe(reply.pcm)
-    rows = [dict(r) for r in ctx.db().execute("SELECT * FROM turn_metrics WHERE identity_id = ? AND id > ? ORDER BY id", (iid, before)).fetchall()]
-    await asyncio.sleep(3)
-    rows = [dict(r) for r in ctx.db().execute("SELECT * FROM turn_metrics WHERE identity_id = ? AND id > ? ORDER BY id", (iid, before)).fetchall()]
-    last = rows[-1] if rows else {}
+    # The interrupting turn's row is persisted by the runtime only once that turn's agent starts speaking (or the session closes),
+    # so the row must be awaited: wait up to 25 s for a second row (the long-answer turn is the first), not read a stale snapshot.
+    rows: list[dict[str, Any]] = []
+    row_deadline = time.monotonic() + 25
+    while time.monotonic() < row_deadline:
+        rows = [dict(r) for r in ctx.db().execute("SELECT * FROM turn_metrics WHERE identity_id = ? AND id > ? ORDER BY id", (iid, before)).fetchall()]
+        if len(rows) >= 2:
+            break
+        await asyncio.sleep(0.5)
+    interrupt_row = rows[1] if len(rows) >= 2 else {}
+    last = interrupt_row
     hits = keyword_hits(reply.transcript, INTERRUPT_KEYWORDS)
     heard_by_agent = (last.get("user_text") or "").lower()
     res.check("a next reply was produced", reply.started)
