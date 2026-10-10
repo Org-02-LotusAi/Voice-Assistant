@@ -151,5 +151,19 @@ contract is `openapi.yaml`.
 - TEST 12 (real phone through Service 014 + Exotel) is blocked on external systems; the adapter is mocked-tested and the
   runbook is `docs/PHONE_DOGFOOD.md`. The Service 014 HTTP contract in `HttpBackend` is an assumption.
 - One API process per database (per-process launch lock). One runtime worker serves all Identities, capped by
-  `SERVICE015_MAX_ACTIVE_IDENTITIES`.
+  `SERVICE015_MAX_ACTIVE_IDENTITIES` (default 2).
+- **LLM rate limit.** The default Groq on-demand tier allows about 7,000 input tokens per minute for `qwen/qwen3.8-27b`. One
+  reply request carries about 1k tokens (instructions plus the last `SERVICE015_MAX_HISTORY_TURNS` turns), so the whole key
+  serves roughly 1 conversation, 2 at light use (about 6 requests per minute in total). The Service Expert shares the same
+  `LLM_API_KEY` and budget. Upgrading the Groq tier, or pointing `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL` at another
+  OpenAI-compatible endpoint, raises this (then raise `SERVICE015_MAX_ACTIVE_IDENTITIES` too). A 429 shows as
+  `status_detail` `llm_rate_limited` (not `llm_unavailable`); the session backs off (honoring `Retry-After`) and is recreated
+  up to `SERVICE015_SESSION_RECOVERY_ATTEMPTS` times, never replying with invented speech. Speculative generation is off
+  (`SERVICE015_PREEMPTIVE_GENERATION=false`) and Moonshine merges the lines of one utterance into one transcript.
+- **Logs and privacy.** Transcripts and per-event tracing are logged at DEBUG only. `SERVICE015_RUNTIME_LOG` (default INFO) sets
+  the level of a size-rotated `runtime-worker.rotating.log` next to the database (`SERVICE015_RUNTIME_LOG_MAX_BYTES`,
+  `SERVICE015_RUNTIME_LOG_BACKUPS`); the per-spawn `runtime-worker.log` stays at INFO or above. Turn text in `turn_metrics`
+  is blanked after `SERVICE015_TRANSCRIPT_RETENTION_DAYS` (default 30) at API startup; timings are kept.
+- Phone dialing: set `SERVICE014_ALLOWED_DESTINATIONS` (E.164 prefixes). Empty means deny all on a non-local
+  `SERVICE015_PUBLIC_URL`, allow all on localhost.
 - Voicebox's full requirements do not install on Windows (pyopenjtalk); the scripts use the minimal Chatterbox set.

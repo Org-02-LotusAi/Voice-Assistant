@@ -26,6 +26,7 @@ from livekit.agents.utils import AudioBuffer
 log = logging.getLogger("service015.stt")
 
 SAMPLE_RATE = 16000
+COALESCE_QUIET_S = 0.6  # completed lines of one utterance are merged into one FINAL after this much quiet
 MAX_BACKLOG_S = 10.0  # audio waiting for the worker beyond this is dropped oldest-first
 MoonshineArchName = Literal["tiny", "small", "medium"]
 _ARCH_ATTR = {"tiny": "TINY_STREAMING", "small": "SMALL_STREAMING", "medium": "MEDIUM_STREAMING"}
@@ -189,6 +190,8 @@ class MoonshineStream(stt.RecognizeStream):
         self._update_interval = update_interval
         self._speaking = False
         self._last_text = ""
+        self._pending: list[_Transcript] = []  # completed lines of the current utterance, not yet emitted as a FINAL
+        self.coalesce_quiet_s = COALESCE_QUIET_S
 
     async def _run(self) -> None:
         loop = asyncio.get_running_loop()
@@ -209,10 +212,19 @@ class MoonshineStream(stt.RecognizeStream):
         thread.start()
         self._speaking = False
         self._last_text = ""
+        self._pending = []
         feeder = asyncio.create_task(self._feed(work), name="moonshine-feed")
         try:
             while True:
-                item = await inbox.get()
+                if self._pending:
+                    # one user turn can span several Moonshine lines; wait a short quiet window for the next one
+                    try:
+                        item = await asyncio.wait_for(inbox.get(), self.coalesce_quiet_s)
+                    except asyncio.TimeoutError:
+                        self._finish_pending()
+                        continue
+                else:
+                    item = await inbox.get()
                 if item is None:
                     break
                 if isinstance(item, _Failed):
@@ -320,15 +332,21 @@ class MoonshineStream(stt.RecognizeStream):
                 self._emit(stt.SpeechEventType.INTERIM_TRANSCRIPT, self._speech_data(text, tr.start_time, tr.duration))
             return
         self._last_text = ""
-        self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._speech_data(text, tr.start_time, tr.duration))
-        self._emit(stt.SpeechEventType.END_OF_SPEECH)
-        self._speaking = False
+        self._pending.append(_Transcript("complete", text, tr.start_time, tr.duration))
 
     def _finish_pending(self) -> None:
-        """Flush/end of input: finalize text Moonshine never completed, then close the speech segment."""
+        """Quiet window elapsed, flush or end of input: emit ONE FINAL for every completed line of the utterance (plus any
+        text Moonshine never completed), then close the speech segment."""
+        lines = self._pending
+        self._pending = []
         if self._last_text:
-            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._speech_data(self._last_text, 0.0, 0.0))
+            lines.append(_Transcript("complete", self._last_text, 0.0, 0.0))
             self._last_text = ""
+        if lines:
+            text = " ".join(t.text for t in lines)
+            start = lines[0].start_time
+            end = lines[-1].start_time + lines[-1].duration
+            self._emit(stt.SpeechEventType.FINAL_TRANSCRIPT, self._speech_data(text, start, max(end - start, 0.0)))
         if self._speaking:
             self._emit(stt.SpeechEventType.END_OF_SPEECH)
             self._speaking = False

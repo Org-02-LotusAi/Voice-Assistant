@@ -38,7 +38,7 @@ Ubuntu 22.04 Deep Learning AMI, everything on that one box (LiveKit, Voicebox, e
 | `g5.xlarge` | 1x A10G | 24 GB | Faster; fallback if the T4 misses latency. |
 
 RAM matters as much as VRAM: each launched Identity holds Moonshine and Silero in memory (about 1-2 GB), and
-`SERVICE015_MAX_ACTIVE_IDENTITIES` (default 4) caps the number. On 16 GB RAM keep it at 2-3 until measured. Disk: 60 GB gp3
+`SERVICE015_MAX_ACTIVE_IDENTITIES` (default 2) caps the number. On 16 GB RAM keep it at 2-3 until measured. Disk: 60 GB gp3
 is enough for the images (about 15 GB with the CUDA layer), model cache (about 6 GB), DB and logs; use more if you keep many
 image builds. These figures are estimates, not measurements.
 

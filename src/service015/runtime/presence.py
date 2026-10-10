@@ -23,6 +23,8 @@ log = logging.getLogger("service015.runtime")
 
 # status_detail values (SOW section 27): never fabricated speech, always an explicit coded failure.
 LLM_UNAVAILABLE = "llm_unavailable"
+LLM_RATE_LIMITED = "llm_rate_limited"
+LLM_EMPTY_COMPLETION = "llm_empty_completion"  # last_error text only; presence is not flipped for one lost turn
 STT_FAILURE = "stt_failure"
 TTS_UNAVAILABLE = "tts_unavailable"
 VOICE_REQUIRED = "voice_required"

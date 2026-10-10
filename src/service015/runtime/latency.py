@@ -21,7 +21,7 @@ import math
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 INTERVALS: tuple[tuple[str, str, str], ...] = (
@@ -32,6 +32,18 @@ INTERVALS: tuple[tuple[str, str, str], ...] = (
     ("t4_t5", "t4", "t5"),
 )
 _MAX_AGENT_TEXT = 4000
+
+
+def purge_old_text(conn: sqlite3.Connection, retention_days: int, now: datetime | None = None) -> int:
+    """Blank `user_text`/`agent_text` of turns older than `retention_days` (timing columns are kept). Returns rows changed."""
+    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=retention_days)).isoformat()
+    cur = conn.execute(
+        "UPDATE turn_metrics SET user_text = NULL, agent_text = NULL "
+        "WHERE created_at < ? AND (user_text IS NOT NULL OR agent_text IS NOT NULL)",
+        (cutoff,),
+    )
+    conn.commit()
+    return cur.rowcount
 
 
 @dataclass

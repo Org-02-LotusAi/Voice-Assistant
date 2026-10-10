@@ -293,3 +293,98 @@ def test_two_concurrent_streams_on_one_transcriber_both_finalize(transcriber):
     for events in asyncio.run(go()):
         finals = [e for e in events if e.type == stt.SpeechEventType.FINAL_TRANSCRIPT]
         assert finals and "name" in " ".join(e.alternatives[0].text for e in finals).lower()
+
+
+# ---------- coalescing: several Moonshine lines of one user turn -> ONE FINAL ----------
+
+
+class LineStarted:
+    def __init__(self, line):
+        self.line = line
+
+
+class LineUpdated(LineStarted):
+    pass
+
+
+class LineCompleted(LineStarted):
+    pass
+
+
+class _Line:
+    def __init__(self, text, start=0.0, duration=1.0):
+        self.text, self.start_time, self.duration = text, start, duration
+
+
+def _run_lines(emit, quiet_s=0.15, wait_s=0.6):
+    """Feeds one frame; `emit(listeners)` plays Moonshine events from the worker thread; returns the SpeechEvents."""
+    fired = []
+
+    def on_add(ms):
+        if not fired:
+            fired.append(1)
+            emit(ms.listeners)
+
+    async def go():
+        stream = MoonshineSTT(FakeTranscriber(on_add=on_add)).stream()
+        stream.coalesce_quiet_s = quiet_s
+        stream.push_frame(_frame())
+        await asyncio.sleep(wait_s)
+        stream.end_input()
+        events = [ev async for ev in stream]
+        await stream.aclose()
+        return events
+
+    return asyncio.run(go())
+
+
+def _types(events, t):
+    return [e for e in events if e.type == t]
+
+
+def test_multi_segment_utterance_yields_exactly_one_final():
+    def emit(ls):
+        for fn in ls:
+            fn(LineStarted(_Line("hello", 0.0, 0.4)))
+            fn(LineUpdated(_Line("hello there", 0.0, 0.8)))
+            fn(LineCompleted(_Line("hello there", 0.0, 1.0)))
+            fn(LineCompleted(_Line("how are you", 1.2, 0.9)))
+            fn(LineCompleted(_Line("today", 2.3, 0.4)))
+
+    events = _run_lines(emit)
+    finals = _types(events, stt.SpeechEventType.FINAL_TRANSCRIPT)
+    assert len(finals) == 1
+    assert finals[0].alternatives[0].text == "hello there how are you today"
+    assert len(_types(events, stt.SpeechEventType.END_OF_SPEECH)) == 1
+    assert _types(events, stt.SpeechEventType.INTERIM_TRANSCRIPT), "interim behavior is unchanged"
+    types = [e.type for e in events]
+    assert types.index(stt.SpeechEventType.FINAL_TRANSCRIPT) < types.index(stt.SpeechEventType.END_OF_SPEECH)
+
+
+def test_lines_separated_by_a_long_pause_are_separate_turns():
+    def emit(ls):
+        def later():
+            time.sleep(0.5)  # longer than the quiet window: a new utterance
+            for fn in ls:
+                fn(LineCompleted(_Line("second turn", 5.0, 1.0)))
+
+        for fn in ls:
+            fn(LineCompleted(_Line("first turn", 0.0, 1.0)))
+        threading.Thread(target=later).start()
+
+    events = _run_lines(emit, quiet_s=0.15, wait_s=1.2)
+    assert [e.alternatives[0].text for e in _types(events, stt.SpeechEventType.FINAL_TRANSCRIPT)] == ["first turn", "second turn"]
+    assert len(_types(events, stt.SpeechEventType.END_OF_SPEECH)) == 2
+
+
+def test_flush_emits_the_buffered_lines_as_one_final_immediately():
+    def emit(ls):
+        for fn in ls:
+            fn(LineCompleted(_Line("one", 0.0, 0.5)))
+            fn(LineCompleted(_Line("two", 0.6, 0.5)))
+
+    # a huge quiet window: only end of input can release the FINAL
+    events = _run_lines(emit, quiet_s=30.0, wait_s=0.3)
+    finals = _types(events, stt.SpeechEventType.FINAL_TRANSCRIPT)
+    assert [e.alternatives[0].text for e in finals] == ["one two"]
+    assert len(_types(events, stt.SpeechEventType.END_OF_SPEECH)) == 1

@@ -15,10 +15,12 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from service015.api.routers import expert, health, identities, meeting, phone, templates, ui, voices
+from service015.auth import RANK, authenticate
 from service015.config import Settings, check_api_keys_for_deployment, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
 from service015.expert.llm import Llm, OpenAICompatLlm
+from service015.runtime.latency import purge_old_text
 from service015.runtime.supervisor import LiveKitSupervisor
 from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSupervisor
 from service015.telephony.service014 import Service014Client
@@ -60,6 +62,9 @@ def create_app(
         try:
             migrate(conn)
             seed_starter_templates(conn)
+            purged = purge_old_text(conn, settings.transcript_retention_days)
+            if purged:
+                log.info("purged conversation text from %d turn_metrics rows older than %d days", purged, settings.transcript_retention_days)
         finally:
             conn.close()
         start = getattr(app.state.supervisor, "startup", None)
@@ -108,6 +113,16 @@ def create_app(
     async def _limit_voice_upload(request: Request, call_next):
         # Starlette spools a multipart body before any handler runs, so the cap must be enforced on Content-Length here.
         if request.method == "POST" and request.url.path == "/voices":
+            # Authenticate BEFORE any body is read, so an anonymous client cannot force a multipart spool (401/403 answer here).
+            try:
+                role = authenticate(settings, request.headers.get("authorization"))
+            except DomainError as exc:
+                return error_response(exc.status, exc.code, exc.message, exc.details, getattr(exc, "headers", None))
+            if RANK[role] < RANK["admin"]:
+                return error_response(
+                    403, "forbidden", f"this operation requires role 'admin'; your key has role {role!r}",
+                    {"required_role": "admin", "role": role},
+                )
             length = request.headers.get("content-length", "")
             if not length.isdigit() or int(length) > voices.MAX_BODY_BYTES:
                 return error_response(

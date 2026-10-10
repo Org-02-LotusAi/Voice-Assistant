@@ -13,21 +13,25 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import logging.handlers
 import math
 import multiprocessing
 import os
+import re
 import signal
 import sys
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, AsyncIterable
+from pathlib import Path
+from typing import Any, AsyncIterable, Callable
 
 from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    APIConnectOptions,
     JobContext,
     JobExecutorType,
     JobProcess,
@@ -39,6 +43,7 @@ from livekit.agents import (
 )
 from livekit.agents.types import NOT_GIVEN
 from livekit.agents.voice import room_io
+from livekit.agents.voice.agent_session import SessionConnectOptions
 from livekit.agents.voice.events import (
     AgentStateChangedEvent,
     CloseEvent,
@@ -132,9 +137,19 @@ async def request_fnc(req: JobRequest) -> None:
 class IdentityAgent(Agent):
     """Agent whose `llm_node` reports each generation's chunks to the latency recorder (T2, agent text) without altering them."""
 
-    def __init__(self, *, instructions: str, recorder: LatencyRecorder) -> None:
+    def __init__(
+        self,
+        *,
+        instructions: str,
+        recorder: LatencyRecorder,
+        max_history_turns: int = 8,
+        on_lost_turn: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__(instructions=instructions)
         self._recorder = recorder
+        self._max_history_items = max(2 * max_history_turns, 2)  # a turn = one user + one assistant message
+        self._on_lost_turn = on_lost_turn
+        self.rate_limited = False  # set by the session error handler when the provider answered HTTP 429
         self.chunks_seen = 0  # LLM output chunks produced so far (evidence that the LLM path works)
 
     async def llm_node(
@@ -142,17 +157,21 @@ class IdentityAgent(Agent):
     ) -> AsyncIterable[llm.ChatChunk | str | Any]:
         gen = self._recorder.begin_generation()
         t_start = time.monotonic()
+        # Self-facts come from `instructions` every turn, so older history can be dropped without touching identity. The
+        # instruction message is preserved by `truncate`; the session's own chat context is left untouched.
+        chat_ctx = chat_ctx.copy().truncate(max_items=self._max_history_items)
         # An LLM completion that carries no text and no tool call would end the speech silently and lose the user's turn (the
         # provider occasionally answers 200 OK with an empty stream). Nothing has been yielded in that case, so the request is
         # simply repeated; the reply is still LLM-generated, never invented here.
         for attempt in range(1, MAX_EMPTY_LLM_ATTEMPTS + 1):
-            log.info("llm_node start (measured=%s, items=%d, attempt=%d)", gen is not None, len(chat_ctx.items), attempt)
+            self.rate_limited = False
+            log.debug("llm_node start (measured=%s, items=%d, attempt=%d)", gen is not None, len(chat_ctx.items), attempt)
             n_chunks, produced, raw = 0, False, []
             try:
                 async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
                     n_chunks += 1
                     if n_chunks == 1:
-                        log.info("llm_node first chunk after %.2fs", time.monotonic() - t_start)
+                        log.debug("llm_node first chunk after %.2fs", time.monotonic() - t_start)
                     text = _chunk_text(chunk)
                     if text or _chunk_has_tool_call(chunk):
                         produced = True
@@ -163,13 +182,18 @@ class IdentityAgent(Agent):
                         self.chunks_seen += 1
                     yield chunk
             except asyncio.CancelledError:
-                log.info("llm_node CANCELLED after %.2fs (%d chunks)", time.monotonic() - t_start, n_chunks)
+                log.debug("llm_node CANCELLED after %.2fs (%d chunks)", time.monotonic() - t_start, n_chunks)
                 raise
-            log.info("llm_node end after %.2fs (%d chunks, produced=%s)", time.monotonic() - t_start, n_chunks, produced)
+            log.debug("llm_node end after %.2fs (%d chunks, produced=%s)", time.monotonic() - t_start, n_chunks, produced)
             if produced:
+                return
+            if self.rate_limited:  # a 429 is handled by the session's backoff; repeating the request would only compound it
+                log.warning("llm_node: empty completion caused by a rate limit; not retrying")
                 return
             log.warning("llm_node produced no text and no tool call (attempt %d/%d); chunks: %s", attempt, MAX_EMPTY_LLM_ATTEMPTS, raw)
         log.error("llm_node: %d consecutive empty LLM completions; this user turn gets no reply", MAX_EMPTY_LLM_ATTEMPTS)
+        if self._on_lost_turn is not None:
+            self._on_lost_turn(P.LLM_EMPTY_COMPLETION)
 
 
 def _chunk_text(chunk: Any) -> str:
@@ -207,14 +231,73 @@ def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProce
         tts=chatterbox,
         turn_handling={
             "interruption": {"enabled": resolved.conversation.barge_in, "mode": "vad", "min_duration": 0.3},
-            "endpointing": {"min_delay": 0.3},
-            "preemptive_generation": {"enabled": True},
+            "endpointing": {"min_delay": settings.endpointing_min_delay_s},
+            "preemptive_generation": {"enabled": settings.preemptive_generation},
         },
+        # A 429 is retried twice, 4 s apart, then surfaces as an LLM error (the session backoff takes over from there).
+        conn_options=SessionConnectOptions(llm_conn_options=APIConnectOptions(max_retry=2, retry_interval=4.0)),
     )
 
 
 _ERROR_TYPE_DETAIL = {"llm_error": P.LLM_UNAVAILABLE, "stt_error": P.STT_FAILURE, "tts_error": P.TTS_UNAVAILABLE}
 _DETAIL_LABEL = {P.LLM_UNAVAILABLE: "llm", P.STT_FAILURE: "stt", P.TTS_UNAVAILABLE: "tts"}
+
+
+def _error_chain(error: Any) -> list[Any]:
+    chain: list[Any] = []
+    while error is not None and not any(error is c for c in chain) and len(chain) < 6:
+        chain.append(error)
+        error = getattr(error, "error", None) or getattr(error, "__cause__", None)
+    return chain
+
+
+def is_rate_limited(error: Any) -> bool:
+    """True when the error (or an error it wraps) carries HTTP status 429."""
+    return any(getattr(e, "status_code", None) == 429 for e in _error_chain(error))
+
+
+_RETRY_IN_RE = re.compile(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", re.IGNORECASE)
+
+
+def retry_after_seconds(error: Any) -> float | None:
+    """Seconds the provider asked us to wait: a `Retry-After` header, else Groq's 'try again in 1m2.5s' message."""
+    for e in _error_chain(error):
+        for holder in (e, getattr(e, "response", None)):
+            headers = getattr(holder, "headers", None)
+            value = headers.get("retry-after") if hasattr(headers, "get") else None
+            if value:
+                try:
+                    return max(float(value), 0.0)
+                except ValueError:
+                    pass
+        m = _RETRY_IN_RE.search(f"{getattr(e, 'message', '')} {getattr(e, 'body', '') or ''} {e}")
+        if m:
+            return int(m.group(1) or 0) * 60 + float(m.group(2))
+    return None
+
+
+class SessionRecovery:
+    """Bounded, backoff-driven recreation of an AgentSession that closed on an unrecoverable error.
+
+    `on_closed` returns the seconds to wait before recreating the session, or None when the attempts are exhausted (the job then
+    stays in ERROR until the operator relaunches). `on_progress` (the new session produced LLM output) resets the counter.
+    """
+
+    def __init__(self, max_attempts: int, backoff_s: float, max_backoff_s: float = 120.0) -> None:
+        self.max_attempts = max_attempts
+        self._backoff_s = backoff_s
+        self._max_backoff_s = max_backoff_s
+        self.attempts = 0
+
+    def on_closed(self, retry_after: float | None = None) -> float | None:
+        if self.attempts >= self.max_attempts:
+            return None
+        self.attempts += 1
+        delay = max(self._backoff_s * self.attempts, retry_after or 0.0)
+        return min(delay, self._max_backoff_s)
+
+    def on_progress(self) -> None:
+        self.attempts = 0
 
 
 def classify_error(error: Any, source: Any = None) -> tuple[str, str] | None:
@@ -227,7 +310,9 @@ def classify_error(error: Any, source: Any = None) -> tuple[str, str] | None:
             detail = P.STT_FAILURE
         elif isinstance(source, tts.TTS):
             detail = P.TTS_UNAVAILABLE
-    return (detail, _DETAIL_LABEL[detail]) if detail else None
+    if detail == P.LLM_UNAVAILABLE and is_rate_limited(error):
+        detail = P.LLM_RATE_LIMITED
+    return (detail, _DETAIL_LABEL.get(detail, "llm")) if detail else None
 
 
 async def entrypoint(ctx: JobContext) -> None:
@@ -324,9 +409,10 @@ async def entrypoint(ctx: JobContext) -> None:
             ctx.shutdown("tts_unavailable")
             return
 
-        agent = IdentityAgent(instructions=build_instructions(resolved), recorder=recorder)
+        recovery = SessionRecovery(settings.session_recovery_attempts, settings.session_recovery_backoff_s)
         llm_failed_at = [0]  # agent.chunks_seen when the LLM last failed
-        session = build_session(settings, resolved, ctx.proc, recorder)
+        cur: dict[str, Any] = {}
+        room = ctx.room
 
         def guarded(fn):
             def wrapper(*a, **kw):
@@ -337,70 +423,107 @@ async def entrypoint(ctx: JobContext) -> None:
 
             return wrapper
 
-        def on_user_state(ev: UserStateChangedEvent) -> None:
-            log.info("%s: user state %s -> %s", identity_id, ev.old_state, ev.new_state)
-            recorder.on_user_state(ev.old_state, ev.new_state)
+        def make_session() -> tuple[IdentityAgent, AgentSession]:
+            agent = IdentityAgent(
+                instructions=build_instructions(resolved),
+                recorder=recorder,
+                max_history_turns=settings.max_history_turns,
+                on_lost_turn=lambda msg: bg(pres.note_error, msg),
+            )
+            session = build_session(settings, resolved, ctx.proc, recorder)
+            cur.update(agent=agent, session=session)
 
-        def on_agent_state(ev: AgentStateChangedEvent) -> None:
-            log.info("%s: agent state %s -> %s", identity_id, ev.old_state, ev.new_state)
-            recorder.on_agent_state(ev.old_state, ev.new_state)
-            if ev.old_state == "speaking" and ev.new_state != "speaking":
-                # Speech that played proves the TTS path; it proves the LLM only if the LLM produced output since it failed.
-                bg(pres.recovered, P.TTS_UNAVAILABLE)
-                if agent.chunks_seen > llm_failed_at[0]:
-                    bg(pres.recovered, P.LLM_UNAVAILABLE)
+            def on_user_state(ev: UserStateChangedEvent) -> None:
+                log.debug("%s: user state %s -> %s", identity_id, ev.old_state, ev.new_state)
+                recorder.on_user_state(ev.old_state, ev.new_state)
 
-        session.on("user_state_changed", guarded(on_user_state))
-        def on_transcript(ev) -> None:
-            log.info("%s: transcript %s: %r", identity_id, "FINAL" if ev.is_final else "interim", ev.transcript)
-            recorder.on_user_transcript(ev.transcript, ev.is_final)
-            if ev.is_final:
-                bg(pres.recovered, P.STT_FAILURE)  # a final transcript proves the STT path
+            def on_agent_state(ev: AgentStateChangedEvent) -> None:
+                log.debug("%s: agent state %s -> %s", identity_id, ev.old_state, ev.new_state)
+                recorder.on_agent_state(ev.old_state, ev.new_state)
+                if ev.old_state == "speaking" and ev.new_state != "speaking":
+                    # Speech that played proves the TTS path; it proves the LLM only if the LLM produced output since it failed.
+                    bg(pres.recovered, P.TTS_UNAVAILABLE)
+                    if agent.chunks_seen > llm_failed_at[0]:
+                        bg(pres.recovered, P.LLM_UNAVAILABLE)
+                        bg(pres.recovered, P.LLM_RATE_LIMITED)
+                        recovery.on_progress()
 
-        session.on("user_input_transcribed", guarded(on_transcript))
-        session.on("agent_state_changed", guarded(on_agent_state))
+            session.on("user_state_changed", guarded(on_user_state))
 
-        def on_speech_created(ev) -> None:
-            h = ev.speech_handle
-            log.info("%s: speech created id=%s source=%s user_initiated=%s", identity_id, h.id, ev.source, ev.user_initiated)
-            h.add_done_callback(
-                lambda hh: log.info("%s: speech done id=%s interrupted=%s", identity_id, hh.id, hh.interrupted)
+            def on_transcript(ev) -> None:
+                log.debug("%s: transcript %s: %r", identity_id, "FINAL" if ev.is_final else "interim", ev.transcript)
+                recorder.on_user_transcript(ev.transcript, ev.is_final)
+                if ev.is_final:
+                    bg(pres.recovered, P.STT_FAILURE)  # a final transcript proves the STT path
+
+            session.on("user_input_transcribed", guarded(on_transcript))
+            session.on("agent_state_changed", guarded(on_agent_state))
+
+            def on_speech_created(ev) -> None:
+                h = ev.speech_handle
+                log.debug("%s: speech created id=%s source=%s user_initiated=%s", identity_id, h.id, ev.source, ev.user_initiated)
+                h.add_done_callback(
+                    lambda hh: log.debug("%s: speech done id=%s interrupted=%s", identity_id, hh.id, hh.interrupted)
+                )
+
+            session.on("speech_created", guarded(on_speech_created))
+            session.on(
+                "agent_false_interruption",
+                guarded(lambda ev: log.debug("%s: false interruption resumed=%s", identity_id, ev.resumed)),
+            )
+            session.on(
+                "user_transcription_timeout",
+                guarded(lambda ev: log.debug("%s: user_transcription_timeout %r", identity_id, ev)),
             )
 
-        session.on("speech_created", guarded(on_speech_created))
-        session.on(
-            "agent_false_interruption",
-            guarded(lambda ev: log.info("%s: false interruption resumed=%s", identity_id, ev.resumed)),
-        )
-        session.on(
-            "user_transcription_timeout",
-            guarded(lambda ev: log.info("%s: user_transcription_timeout %r", identity_id, ev)),
-        )
+            def on_error(ev: ErrorEvent) -> None:
+                comp = classify_error(ev.error, ev.source)
+                msg = f"{type(ev.error).__name__}: {getattr(ev.error, 'message', ev.error)}"[:500]
+                if comp is None:
+                    log.error("%s: session error from %r: %s", identity_id, ev.source, msg)
+                    return
+                if is_rate_limited(ev.error):
+                    agent.rate_limited = True  # the empty-completion retry must not add another request on top of a 429
+                if getattr(ev.error, "recoverable", False):
+                    log.warning("%s: recoverable %s error (retrying): %s", identity_id, comp[1], msg)
+                    bg(pres.note_error, f"{comp[1]} (recovered): {msg}")
+                    return
+                if comp[0] in (P.LLM_UNAVAILABLE, P.LLM_RATE_LIMITED):
+                    llm_failed_at[0] = agent.chunks_seen
+                    agent.rate_limited = comp[0] == P.LLM_RATE_LIMITED
+                if comp[0] == P.LLM_RATE_LIMITED:
+                    fail_job(comp[0], "LLM rate limit reached; upgrade the provider tier or reduce concurrent identities: " + msg)
+                    return
+                fail_job(comp[0], f"{comp[1]} error: {msg}")
 
-        def on_error(ev: ErrorEvent) -> None:
-            comp = classify_error(ev.error, ev.source)
-            msg = f"{type(ev.error).__name__}: {getattr(ev.error, 'message', ev.error)}"[:500]
-            if comp is None:
-                log.error("%s: session error from %r: %s", identity_id, ev.source, msg)
-                return
-            if getattr(ev.error, "recoverable", False):
-                log.warning("%s: recoverable %s error (retrying): %s", identity_id, comp[1], msg)
-                bg(pres.note_error, f"{comp[1]} (recovered): {msg}")
-                return
-            if comp[0] == P.LLM_UNAVAILABLE:
-                llm_failed_at[0] = agent.chunks_seen
-            fail_job(comp[0], f"{comp[1]} error: {msg}")
-
-        def on_close(ev: CloseEvent) -> None:
-            log.warning("%s: session closed: %s", identity_id, ev.reason)
-            if ev.error is not None:
+            def on_close(ev: CloseEvent) -> None:
+                log.warning("%s: session closed: %s", identity_id, ev.reason)
+                if ev.error is None or state["ended"] or session is not cur["session"]:
+                    return
                 comp = classify_error(ev.error) or ("session_error", "session")
                 fail_job(comp[0], f"session closed after an unrecoverable {comp[1]} error")
+                # Keep the job alive: ERROR stays visible, the session is recreated after a backoff (bounded). No speech is invented.
+                delay = recovery.on_closed(retry_after_seconds(ev.error))
+                if delay is None:
+                    fail_job(comp[0], f"session closed after an unrecoverable {comp[1]} error; recovery attempts exhausted, relaunch the identity")
+                    return
+                log.warning("%s: recreating the session in %.0fs (attempt %d/%d)", identity_id, delay, recovery.attempts, recovery.max_attempts)
+                spawn(recreate_session(delay, comp[0]))
 
-        session.on("error", guarded(on_error))
-        session.on("close", guarded(on_close))
+            session.on("error", guarded(on_error))
+            session.on("close", guarded(on_close))
+            return agent, session
 
-        room = ctx.room
+        async def recreate_session(delay: float, detail: str) -> None:
+            await asyncio.sleep(delay)
+            if state["ended"]:
+                return
+            agent, session = make_session()
+            await session.start(agent, room=room, room_options=room_io.RoomOptions(close_on_disconnect=False))
+            bg(pres.recovered, detail)  # the new session is up; a new failure latches the coded ERROR again
+            log.info("%s: session recreated", identity_id)
+
+
         own = room.local_participant.identity
         started = asyncio.Event()
         greeted = [False]
@@ -410,7 +533,7 @@ async def entrypoint(ctx: JobContext) -> None:
             await asyncio.sleep(GREETING_DELAY_S)  # let the new participant finish subscribing to the agent's audio
             if humans and not greeted[0]:
                 greeted[0] = True  # once per occupancy (reset when the room empties): a reload greets again, nothing greets twice
-                session.say(resolved.conversation.greeting)  # TTS only; no LLM involved
+                cur["session"].say(resolved.conversation.greeting)  # TTS only; no LLM involved
 
         def on_join(p: rtc.RemoteParticipant) -> None:
             if not _is_human(p):
@@ -434,6 +557,7 @@ async def entrypoint(ctx: JobContext) -> None:
         room.on("reconnected", guarded(lambda: bg(pres.set_reconnecting, False)))
         room.on("disconnected", guarded(lambda reason=None: log.warning("%s: room disconnected: %s", identity_id, reason)))
 
+        agent, session = make_session()
         await session.start(agent, room=room, room_options=room_io.RoomOptions(close_on_disconnect=False))
         humans.update(p.identity for p in room.remote_participants.values() if p.identity != own and _is_human(p))
         started.set()
@@ -515,9 +639,34 @@ async def _serve(server: AgentServer) -> None:
         pass
 
 
+def configure_logging(settings: Settings, level_name: str) -> None:
+    """INFO lifecycle + warnings to stdout (the supervisor's per-spawn runtime-worker.log, which carries the ready marker).
+
+    The full stream at `SERVICE015_RUNTIME_LOG` (INFO, or DEBUG for per-event tracing incl. transcripts) also goes to a size-rotated
+    file next to the database, so a long-lived worker never grows an unbounded log.
+    """
+    level = getattr(logging, level_name.upper(), None)
+    if not isinstance(level, int):
+        raise ValueError(f"SERVICE015_RUNTIME_LOG must be a logging level name, got {level_name!r}")
+    fmt = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+    stream = logging.StreamHandler()
+    stream.setLevel(max(level, logging.INFO))  # transcripts and per-event tracing (DEBUG) never reach the plain stdout capture
+    stream.setFormatter(fmt)
+    log_path = Path(settings.db_path).resolve().parent / "runtime-worker.rotating.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    rotating = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=settings.runtime_log_max_bytes, backupCount=settings.runtime_log_backups, encoding="utf-8"
+    )
+    rotating.setLevel(level)
+    rotating.setFormatter(fmt)
+    root = logging.getLogger()
+    root.handlers[:] = [stream, rotating]
+    root.setLevel(level)
+
+
 def main() -> None:
-    logging.basicConfig(level=os.environ.get("SERVICE015_RUNTIME_LOG", "INFO"), format="%(asctime)s %(name)s %(levelname)s %(message)s")
     settings = get_settings()
+    configure_logging(settings, os.environ.get("SERVICE015_RUNTIME_LOG", "INFO"))
     migrate_conn = connect(settings.db_path)
     try:
         migrate(migrate_conn)

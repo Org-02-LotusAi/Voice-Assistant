@@ -177,4 +177,5 @@ def test_weak_keys_allowed_on_localhost_and_strong_keys_allowed_anywhere(tmp_pat
 
     check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="change-me:admin", SERVICE015_PUBLIC_URL="http://127.0.0.1:8015", _env_file=None))
     check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="change-me:admin", SERVICE015_PUBLIC_URL="http://localhost:8015", _env_file=None))
-    check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="k" * 32 + ":admin", SERVICE015_PUBLIC_URL="https://app.example.com", _env_file=None))
+    check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="k" * 32 + ":admin", SERVICE015_PUBLIC_URL="https://app.example.com",
+                                         LIVEKIT_API_KEY="lk" + "a" * 14, LIVEKIT_API_SECRET="s" * 40, _env_file=None))

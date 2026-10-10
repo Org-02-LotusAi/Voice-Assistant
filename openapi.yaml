@@ -442,6 +442,10 @@ paths:
         replies (up to 60 s). Callers should use a client timeout of at least 70 s. In `http` mode a missing
         `SERVICE014_API_KEY` is reported as 503 `telephony_not_configured` (never an unauthenticated call).
 
+        Destination control: `to` must start with one of the E.164 prefixes in `SERVICE014_ALLOWED_DESTINATIONS`
+        (403 `destination_not_allowed`); an empty list denies every number when `SERVICE015_PUBLIC_URL` is not local
+        and allows any on localhost. Only one dial per Identity may be in flight (409 `dial_in_progress`).
+
         Errors: 404 unknown identity; 409 `identity_not_ready` unless presence is READY or BUSY;
         422 `invalid_request` when `to` is not E.164; 502 `telephony_failed` / `telephony_bad_response`
         when Service 014 or the SIP layer fails; 503 `telephony_not_configured`. The phone number is
@@ -462,10 +466,14 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/PhoneCall"}
         "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
+        "403":
+          description: Role too low (`forbidden`) or the destination is not allowed (`destination_not_allowed`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409":
-          description: Identity presence is not READY or BUSY (`identity_not_ready`; `details.presence`).
+          description: Identity presence is not READY or BUSY (`identity_not_ready`; `details.presence`), or a dial for this Identity is already in flight (`dial_in_progress`).
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -1239,7 +1247,7 @@ components:
     ParticipantStatus:
       type: object
       additionalProperties: false
-      description: Presence contract (SOW section 14). `RECONNECTING` appears only as an ERROR sub-state in `status_detail`.
+      description: Presence contract (SOW section 14). `RECONNECTING` appears only as an ERROR sub-state in `status_detail`; `llm_rate_limited` marks an LLM provider HTTP 429 (distinct from `llm_unavailable`).
       required:
         - identity_id
         - participant_identity

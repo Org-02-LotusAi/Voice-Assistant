@@ -96,7 +96,7 @@ Launch preconditions (all 4xx/5xx carry `error.code`): the Identity needs a voic
 exists and is authorized (422 `voice_profile_not_found` / `voice_not_authorized`); Voicebox down 503
 `voicebox_unavailable`; no runtime configured 503 `dependency_unavailable`.
 
-**Capacity.** At most `SERVICE015_MAX_ACTIVE_IDENTITIES` (default 4) Identities may be STARTING/READY/BUSY at once;
+**Capacity.** At most `SERVICE015_MAX_ACTIVE_IDENTITIES` (default 2) Identities may be STARTING/READY/BUSY at once;
 the next launch answers `409 capacity_exceeded` with `details: {"active": 4, "limit": 4}`. Stop one first (or raise the
 limit with the hardware). Relaunching an already-running Identity is not counted twice.
 
@@ -112,7 +112,7 @@ limit with the hardware). Relaunching an already-running Identity is not counted
 
 `status_detail` values to expect on ERROR: `heartbeat_lost` (no heartbeat for >15 s: process died or hung),
 `worker_exited`, `start_timeout` (STARTING longer than 120 s), `livekit_disconnected`, `RECONNECTING` (transient),
-`llm_unavailable`, `stt_failure`, `tts_unavailable`, `voice_required`. **Staleness is computed when you read**: a
+`llm_unavailable`, `llm_rate_limited` (HTTP 429 from the LLM provider; the runtime backs off and recreates the session), `stt_failure`, `tts_unavailable`, `voice_required`. **Staleness is computed when you read**: a
 `READY`/`BUSY` row whose `heartbeat_at` is older than 15 s is reported as `ERROR heartbeat_lost` even though nothing wrote
 it, so always trust `presence`, not an old cached value, and treat `heartbeat_at` as informational. `launch` on an
 `ERROR` or stale Identity is allowed and restarts it. `GET /meeting/participants` and `GET /identities/{id}/status`
