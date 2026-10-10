@@ -267,7 +267,7 @@ async def scenario_barge_in(ctx: Ctx) -> ScenarioResult:
     # "1.5 s into the Identity's speech" = after 1.5 s of audible agent audio has been received, while it is still flowing. On CPU
     # the engine delivers a reply in bursts, so wall-clock time since the first burst could land in a pause between chunks, where
     # there is nothing to interrupt.
-    flow_deadline = time.monotonic() + 60
+    flow_deadline = time.monotonic() + cfg.reply_complete_timeout_s
     while time.monotonic() < flow_deadline:
         last = h.last_loud()
         if h.loud_seconds(t_first, time.monotonic()) >= cfg.barge_in_after_s and last is not None and time.monotonic() - last < 0.1:

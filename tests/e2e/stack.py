@@ -10,6 +10,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -239,8 +240,12 @@ def engine_command(action: str, mode: str, env: dict[str, str] | None = None) ->
 
 def run_engine_script(action: str, mode: str = "auto") -> str:
     argv = engine_command(action, engine_control_mode(mode))
-    res = subprocess.run(argv, capture_output=True, text=True, cwd=ROOT, timeout=300)
-    out = (res.stdout + res.stderr).strip()
+    # Output goes to a file, not a pipe: `start` leaves the engine running as a child that inherits the handles, and
+    # subprocess.run would wait for EOF on a pipe for as long as the engine lives (observed: harness hung for 40 minutes).
+    with tempfile.TemporaryFile() as sink:
+        res = subprocess.run(argv, stdout=sink, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=ROOT, timeout=300)
+        sink.seek(0)
+        out = sink.read().decode("utf-8", "replace").strip()
     if res.returncode != 0 and mode != "compose":
         raise RuntimeError(f"{' '.join(argv)} exited {res.returncode}: {out[:300]}")
     return out
