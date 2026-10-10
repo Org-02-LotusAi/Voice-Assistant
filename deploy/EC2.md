@@ -77,9 +77,16 @@ Elastic IP (static public IP) and two DNS names pointing to it, for example `app
 | 7881 | tcp | 0.0.0.0/0 | LiveKit WebRTC over TCP (fallback for clients that cannot use UDP) |
 | 7882 | udp | 0.0.0.0/0 | LiveKit WebRTC media (single muxed UDP port; this deployment sets `udp_port: 7882`, no 50000-60000 range) |
 | 5060 | udp + tcp | the SIP provider's addresses | SIP signalling (`sip` profile only) |
-| 10000-20000 | udp | the SIP provider's addresses (or 0.0.0.0/0) | RTP media (`sip` profile only; range set in `docker-compose.yml`) |
+| 10000-20000 | udp | the SIP provider's addresses (or 0.0.0.0/0) | RTP media (`sip` profile only) |
 
-Do NOT open 7880, 8015, 17493, 17494 or 6379 publicly: they are reachable only through Caddy or the Docker network
+SIP choice: `livekit/sip` runs with `network_mode: host` (Linux only). Publishing the 10 001-port RTP range through the
+Docker bridge creates one proxy/iptables rule per port, which is very slow to start and can fail. The cost is that the sip
+container reaches redis and LiveKit through their loopback-published ports (`127.0.0.1:6379`, `127.0.0.1:7880`), so it needs the
+self-hosted `livekit` and `redis` services of this compose file. If you prefer a bridge, narrow `rtp_port` in the compose
+`SIP_CONFIG_BODY` to about 100 ports (e.g. `10000-10100`), publish exactly that range, and open the same range in the SG.
+Unverified until a real trunk run.
+
+Do NOT open 7880 (published on 127.0.0.1 only), 8015, 17493, 17494 or 6379 publicly: they are reachable only through Caddy or the Docker network
 (`SERVICE015_BIND=127.0.0.1` keeps 8015 on loopback; Voicebox and the engine publish loopback-only ports for host scripts).
 If you run LiveKit with the default `use_external_ip` discovery instead, the UDP range LiveKit documents (50000-60000) would
 apply; this stack pins a single UDP port and advertises `LIVEKIT_NODE_IP` instead.
@@ -93,13 +100,21 @@ cp .env.example .env && chmod 600 .env
 $EDITOR .env
 ```
 
+Generate strong values (do not keep the `change-me` / `devkey` placeholders; the API refuses to start with weak keys when
+`SERVICE015_PUBLIC_URL` is not localhost, and compose refuses to start without LiveKit keys):
+
+```bash
+python3 -c "import secrets; print('admin:', secrets.token_urlsafe(32)); print('operator:', secrets.token_urlsafe(32)); print('viewer:', secrets.token_urlsafe(32)); print('LIVEKIT_API_KEY=API' + secrets.token_hex(6)); print('LIVEKIT_API_SECRET=' + secrets.token_urlsafe(36))"
+grep -c 'change-me' .env      # must print 0
+```
+
 Edit at least:
 
 ```
-SERVICE015_API_KEYS=<long-random-admin>:admin,<long-random-operator>:operator,<long-random-viewer>:viewer
+SERVICE015_API_KEYS=<admin key>:admin,<operator key>:operator,<viewer key>:viewer   # from the generator above
 LLM_API_KEY=<groq or compatible key>
-LIVEKIT_API_KEY=<generate>           # livekit-server generate-keys, or any random key id
-LIVEKIT_API_SECRET=<generate, >= 32 chars>
+LIVEKIT_API_KEY=<from the generator>
+LIVEKIT_API_SECRET=<from the generator, >= 32 chars>
 LIVEKIT_NODE_IP=<the Elastic IP>
 LIVEKIT_PUBLIC_URL=wss://lk.example.com
 SERVICE015_PUBLIC_URL=https://app.example.com
@@ -113,7 +128,7 @@ Start (the first start builds the images: the CUDA engine image takes a long tim
 ```bash
 docker compose up -d --build
 docker compose ps
-curl -s https://app.example.com/health        # {"status":"ok",...,"voicebox":"ok","voice_engine":"ok"} once models are loaded
+curl -s https://app.example.com/health        # {"status":"ok","version":"0.1.0","dependencies":{"database":"ok","runtime":"ok","voicebox":"ok","voice_engine":"ok"}} once models are loaded
 ```
 
 `COMPOSE_PROFILES` in `.env` is what makes plain `docker compose ...` pick the stack; you can instead pass
@@ -171,20 +186,28 @@ port 8015 is the harness port, or pass another `--api-port`; (b) the `failure` s
 
 ## 7. LiveKit Cloud alternative (unverified)
 
-Skip the `livekit`, `redis`, `sip` and `caddy`-for-LiveKit parts and use LiveKit Cloud's SFU:
+Use LiveKit Cloud's SFU instead of the self-hosted `livekit`/`redis`/`sip` services:
 
-1. Create a project at LiveKit Cloud and note the project URL (`wss://<project>.livekit.cloud`), API key and secret.
-2. In `.env`: `LIVEKIT_URL=wss://<project>.livekit.cloud`, `LIVEKIT_PUBLIC_URL=` (empty: the same URL serves browsers),
-   `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. In `docker-compose.yml` the `service015` service forces `LIVEKIT_URL: ws://livekit:7880`:
-   remove that line (and the `livekit` dependency) or use an override file for a Cloud deployment.
-3. Start only what is needed: `docker compose up -d --build service015 voicebox-gpu engine-gpu` (profile `gpu` active).
-   Only 80/443 (and 22) need to be open; media is between clients and LiveKit Cloud, and the `engine` sidecar is reached
-   only from `service015`.
-4. Telephony: LiveKit Cloud provides SIP (inbound/outbound trunks and dispatch rules) as a managed product, so the `sip`
-   profile is not needed. Service 014 creates its trunks there; set `SERVICE014_MODE=livekit_sip` and
-   `SERVICE014_SIP_TRUNK_ID=<outbound trunk id>` and follow `docs/PHONE_DOGFOOD.md`. Verify the exact SIP product setup in
-   LiveKit's current docs; this repo has not been run against LiveKit Cloud.
-5. The GPU engine remains self-hosted either way (LiveKit Cloud does not run Chatterbox).
+1. Create a project at LiveKit Cloud; note the URL (`wss://<project>.livekit.cloud`), API key and secret.
+2. In `.env` set all three of these explicitly (an empty `LIVEKIT_PUBLIC_URL` would NOT fall back to `LIVEKIT_URL` under compose):
+   ```
+   LIVEKIT_INTERNAL_URL=wss://<project>.livekit.cloud
+   LIVEKIT_PUBLIC_URL=wss://<project>.livekit.cloud
+   LIVEKIT_API_KEY=<cloud key>
+   LIVEKIT_API_SECRET=<cloud secret>
+   ```
+3. Build and start only what is needed, without the compose dependencies (this skips `livekit` and `redis`; `service015`'s
+   dependency on `livekit` is optional):
+   ```bash
+   docker compose --profile gpu build voicebox-gpu
+   docker compose --profile gpu up -d --no-deps voicebox-gpu engine-gpu service015
+   ```
+   Add `caddy` (profile `tls`, set only `SERVICE015_DOMAIN`) for https; open only 22/80/443. Media is between clients and
+   LiveKit Cloud.
+4. Telephony: LiveKit Cloud provides SIP trunks and dispatch rules as a managed product, so the `sip` profile is not
+   used. Service 014 creates its trunks there; set `SERVICE014_MODE=livekit_sip` and `SERVICE014_SIP_TRUNK_ID=<outbound trunk id>`
+   and follow `docs/PHONE_DOGFOOD.md`. Verify the SIP setup in LiveKit's current docs; not run against LiveKit Cloud here.
+5. The GPU engine stays self-hosted either way.
 
 ## 8. Operations
 

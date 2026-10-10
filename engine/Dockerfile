@@ -12,7 +12,7 @@
 # base adds the cuDNN runtime and the standard driver/library layout for the NVIDIA container runtime.
 ARG DEVICE=cpu
 
-FROM python:3.12-slim-bookworm AS base-cpu
+FROM python:3.12.12-slim-bookworm AS base-cpu
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 AS base-cuda
 
 FROM base-${DEVICE} AS final

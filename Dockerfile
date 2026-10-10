@@ -1,7 +1,7 @@
 # Service 015 API + runtime worker supervisor (the API process spawns `python -m service015.runtime.worker`).
 # Build:  docker build -t service015 .
 # The voice engine (Chatterbox) and Voicebox live in engine/Dockerfile; this image has no torch.
-FROM python:3.12-slim
+FROM python:3.12.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /usr/local/bin/uv
 

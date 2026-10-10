@@ -3,7 +3,8 @@
 #   CPU (dev / smoke):   docker compose --profile cpu up -d --build
 #   GPU (EC2 g4dn/g5):   docker compose --profile gpu up -d --build
 #   + TLS front (Caddy): add  --profile tls     (needs SERVICE015_DOMAIN and LIVEKIT_DOMAIN, see deploy/EC2.md)
-#   + SIP for Service 014: add --profile sip
+#   + SIP for Service 014: add --profile sip   (Linux only: livekit/sip uses host networking)
+#   LiveKit Cloud: no livekit/redis needed, see deploy/EC2.md section 7 (`up --no-deps service015 ...`)
 # Without a cpu|gpu profile only livekit, redis and service015 start (no voice stack; launch will fail preflight).
 # Copy .env.example to .env first (compose reads it for ${...} substitution; service015 also receives it via env_file).
 name: service015
@@ -32,8 +33,9 @@ x-voicebox-hc: &voicebox-hc
 
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.6-alpine
     restart: unless-stopped
+    ports: ["127.0.0.1:6379:6379"]   # loopback only: the host-networked sip service reaches redis here
     volumes: ["redis-data:/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -47,14 +49,20 @@ services:
     # LIVEKIT_NODE_IP: 127.0.0.1 for laptops, the instance's public (Elastic) IP on EC2.
     command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0", "--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
     environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-secret}"
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}"
     volumes: ["./deploy/livekit.yaml:/etc/livekit.yaml:ro"]
     ports:
-      - "7880:7880"
+      - "127.0.0.1:7880:7880"   # signalling: loopback only; browsers reach it through Caddy (wss)
       - "7881:7881"
       - "7882:7882/udp"
     depends_on:
       redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7880/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
 
   # ---- voice stack, CPU ----
   voicebox:
@@ -73,10 +81,7 @@ services:
 
   engine:
     profiles: ["cpu"]
-    image: service015-engine:cpu
-    build:
-      <<: *voice-build
-      args: {DEVICE: cpu}
+    image: service015-engine:cpu   # built by the voicebox service (same image)
     restart: unless-stopped
     ports: ["127.0.0.1:17494:17494"]   # loopback only: host-side scripts (seeding, acceptance run)
     environment:
@@ -110,10 +115,7 @@ services:
 
   engine-gpu:
     profiles: ["gpu"]
-    image: service015-engine:cuda
-    build:
-      <<: *voice-build
-      args: {DEVICE: cuda}
+    image: service015-engine:cuda   # built by the voicebox-gpu service (same image)
     restart: unless-stopped
     ports: ["127.0.0.1:17494:17494"]   # loopback only: host-side scripts (seeding, acceptance run)
     environment:
@@ -131,14 +133,16 @@ services:
     build: .
     image: service015
     restart: unless-stopped
+    init: true               # reaps the runtime worker's child processes
+    stop_grace_period: 30s   # the supervisor waits up to 15 s for the worker to drain
     env_file: [.env]
     environment:
       SERVICE015_HOST: 0.0.0.0
       SERVICE015_DB_PATH: /var/lib/service015/service015.db
       # Server side talks to LiveKit over the compose network; browsers use LIVEKIT_PUBLIC_URL (from .env).
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
-      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-secret}"
+      LIVEKIT_URL: "${LIVEKIT_INTERNAL_URL:-ws://livekit:7880}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}"
       LIVEKIT_PUBLIC_URL: "${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}"
       VOICEBOX_URL: http://voicebox:17493
       VOICE_ENGINE_URL: http://engine:17494
@@ -148,7 +152,7 @@ services:
       - service015-data:/var/lib/service015
       - service015-cache:/home/service015/.cache   # Moonshine + Silero models
     depends_on:
-      livekit: {condition: service_started}
+      livekit: {condition: service_healthy, required: false}   # absent with LiveKit Cloud
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8015/health', timeout=4).status == 200 else 1)"]
       interval: 15s
@@ -161,30 +165,29 @@ services:
     profiles: ["sip"]
     image: livekit/sip:v1.17.0   # released 2026-09-23
     restart: unless-stopped
+    # Host networking (Linux only): a bridge would need 10 001 published UDP ports for the RTP range (very slow to start).
+    # It therefore reaches redis and livekit through their loopback-published ports, and needs the selfhost livekit/redis.
+    network_mode: host
     environment:
       SIP_CONFIG_BODY: |
-        api_key: ${LIVEKIT_API_KEY:-devkey}
-        api_secret: ${LIVEKIT_API_SECRET:-secret}
-        ws_url: ws://livekit:7880
+        api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
+        api_secret: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}
+        ws_url: ws://127.0.0.1:7880
         redis:
-          address: redis:6379
+          address: 127.0.0.1:6379
         sip_port: 5060
         rtp_port: 10000-20000
         use_external_ip: true
         logging:
           level: info
-    ports:
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
-      - "10000-20000:10000-20000/udp"
     depends_on:
       redis: {condition: service_healthy}
-      livekit: {condition: service_started}
+      livekit: {condition: service_healthy}
 
   # ---- optional: TLS front for https (getUserMedia) and wss ----
   caddy:
     profiles: ["tls"]
-    image: caddy:2
+    image: caddy:2.10.2
     restart: unless-stopped
     environment:
       SERVICE015_DOMAIN: "${SERVICE015_DOMAIN:-}"
@@ -197,8 +200,8 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - service015
-      - livekit
+      service015: {condition: service_started}
+      livekit: {condition: service_started, required: false}
 
 volumes:
   redis-data:

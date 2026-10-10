@@ -4,7 +4,7 @@ How to read this file. Each row names the **mechanism** that proves the test (an
 step) and its **status** as of 2026-10-10. Status vocabulary:
 
 - **PASS (automated)**: proven by tests that run offline in `uv run pytest` (see "Reproduce" below); last full run of the
-  offline suite: `392 passed, 6 skipped` (Task 14, `--ignore=tests/test_runtime_live.py --ignore=tests/e2e`).
+  offline suite: recorded in the Task 14 report (`--ignore=tests/test_runtime_live.py --ignore=tests/e2e`).
 - **PENDING (Task 10 run)**: proven by a live end-to-end scenario run by `scripts/run_acceptance.py` against the real
   stack (LiveKit + Voicebox + engine + Groq + runtime worker + a scripted human speaking pre-rendered wav files).
   Evidence is written under `evidence/<UTC timestamp>/`; the links are filled in after that run.

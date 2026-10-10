@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Literal, get_args
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -29,6 +30,33 @@ def parse_api_keys(raw: str) -> dict[str, Role]:
             raise ValueError("duplicate key in SERVICE015_API_KEYS")
         keys[key] = role  # type: ignore[assignment]
     return keys
+
+
+MIN_KEY_LENGTH = 24
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def check_api_keys_for_deployment(settings: "Settings") -> None:
+    """Refuse placeholder or short API keys when the service is not local-only.
+
+    Local means SERVICE015_PUBLIC_URL points at localhost / 127.0.0.1. The message names the problem and the role,
+    never the key itself. Raises ValueError.
+    """
+    host = urlsplit(settings.public_url).hostname or ""
+    if host in _LOCAL_HOSTS:
+        return
+    problems: list[str] = []
+    for key, role in settings.api_keys.items():
+        if key.startswith("change-me"):
+            problems.append(f"the {role} key is still a 'change-me' placeholder")
+        elif len(key) < MIN_KEY_LENGTH:
+            problems.append(f"the {role} key is shorter than {MIN_KEY_LENGTH} characters")
+    if problems:
+        raise ValueError(
+            "refusing to start: SERVICE015_PUBLIC_URL is not localhost but SERVICE015_API_KEYS is weak ("
+            + "; ".join(problems)
+            + "). Generate strong keys: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
 
 
 class Settings(BaseSettings):

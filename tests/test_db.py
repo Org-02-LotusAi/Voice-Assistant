@@ -159,3 +159,22 @@ def test_livekit_public_url_is_what_browsers_get():
     s = Settings(SERVICE015_API_KEYS="a:admin", LIVEKIT_URL="ws://livekit:7880",
                  LIVEKIT_PUBLIC_URL="wss://lk.example.com", _env_file=None)
     assert s.livekit_url == "ws://livekit:7880" and s.livekit_client_url == "wss://lk.example.com"
+
+
+@pytest.mark.parametrize("keys", ["change-me-admin-key:admin", "short-key:operator"])
+def test_weak_keys_refused_when_public_url_is_not_local(tmp_path, keys):
+    from service015.api.app import create_app
+
+    s = Settings(SERVICE015_API_KEYS=keys, SERVICE015_PUBLIC_URL="https://app.example.com",
+                 SERVICE015_DB_PATH=str(tmp_path / "x.db"), _env_file=None)
+    with pytest.raises(ValueError) as e:
+        create_app(s)
+    assert keys.split(":")[0] not in str(e.value)  # names the problem, never the key
+
+
+def test_weak_keys_allowed_on_localhost_and_strong_keys_allowed_anywhere(tmp_path):
+    from service015.config import check_api_keys_for_deployment
+
+    check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="change-me:admin", SERVICE015_PUBLIC_URL="http://127.0.0.1:8015", _env_file=None))
+    check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="change-me:admin", SERVICE015_PUBLIC_URL="http://localhost:8015", _env_file=None))
+    check_api_keys_for_deployment(Settings(SERVICE015_API_KEYS="k" * 32 + ":admin", SERVICE015_PUBLIC_URL="https://app.example.com", _env_file=None))

@@ -127,7 +127,7 @@ HTTP: `POST /expert/experience` (admin), `POST /expert/sessions` and `POST /expe
 cp .env.example .env          # set keys; COMPOSE_PROFILES=cpu is the default in .env.example
 docker compose --profile cpu up -d --build     # livekit + redis + voicebox + engine (CPU) + service015
 docker compose --profile gpu up -d --build     # GPU engine/voicebox (NVIDIA container toolkit required)
-docker compose --profile sip up -d             # add livekit/sip for Service 014 (phone) testing
+docker compose --profile sip up -d             # add livekit/sip (Linux only, host networking) for Service 014 testing
 docker compose --profile tls up -d             # add Caddy (https/wss) for a public host; see deploy/EC2.md
 docker compose ps && curl http://127.0.0.1:8015/health
 ```

@@ -86,7 +86,7 @@ Run the first four blocks in separate terminals (repo root). Windows shown first
    uv run service015-api
    curl http://localhost:8015/health
    ```
-5. **Create and launch the Identity** (POSIX shell; `K=<operator key>`):
+5. **Create the Identity** (launch is step 7) (POSIX shell; `K=<operator key>`):
    ```
    curl -s -X POST http://localhost:8015/templates/sales-representative/instantiate -H "Authorization: Bearer $K" \
      -H "Content-Type: application/json" \

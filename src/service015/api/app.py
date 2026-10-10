@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from service015.api.routers import expert, health, identities, meeting, phone, templates, ui, voices
-from service015.config import Settings, get_settings
+from service015.config import Settings, check_api_keys_for_deployment, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
 from service015.expert.llm import Llm, OpenAICompatLlm
@@ -48,6 +48,7 @@ def create_app(
     voicebox: VoiceboxClient | None = None,
     voice_engine: VoiceEngineClient | None = None,
 ) -> FastAPI:
+    check_api_keys_for_deployment(settings)
     # Packaged copy of the repo-root openapi.yaml (a test keeps them byte-identical); raises if missing.
     openapi_yaml = resources.files("service015").joinpath("openapi.yaml").read_bytes()
     if not settings.api_keys:
