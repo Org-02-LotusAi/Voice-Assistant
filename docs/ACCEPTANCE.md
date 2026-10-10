@@ -95,6 +95,11 @@ T3->T4 0 / 78; T0->T4 18,188 / 20,750; T4->T5 188 / 344. Fresh-run health: engin
 
 Code SHA the accepted evidence was produced at: `c806c9ead216aef1c8ed0824e296ebe55c405428` (`c806c9e`). Commits after it change
 only evidence, docs, `docker-compose.yml` environment forwarding and `deploy/EC2.md`.
+Post-evidence commits (after `c806c9e`):
+- `33ecb1b` fix(runtime): session-recreation failures are bounded (same backoff) and end the job with ERROR; ERROR stays latched until the LLM produces a reply; Retry-After accepts seconds, HTTP-date, `850ms`/`1.2s`; e2e stack archives `runtime-worker.rotating.log`; compose forwards the recovery and log-rotation variables.
+
+These touch only the session-recovery error path (unit-tested in `tests/test_post_evidence.py`) and config/docs/test-harness archiving. They do not touch turn-taking, STT coalescing, TTS or any path exercised by the acceptance run.
+
 
 ## Reproduce
 

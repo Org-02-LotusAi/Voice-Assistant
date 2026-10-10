@@ -200,3 +200,8 @@ contract is `openapi.yaml`.
 ## Release
 
 Code SHA the acceptance evidence was produced at: `c806c9ead216aef1c8ed0824e296ebe55c405428` (`c806c9e`); accepted run `evidence/20261010T153557Z/`. See `docs/ACCEPTANCE.md`.
+Post-evidence commits (after `c806c9e`):
+- `33ecb1b` fix(runtime): session-recreation failures are bounded (same backoff) and end the job with ERROR; ERROR stays latched until the LLM produces a reply; Retry-After accepts seconds, HTTP-date, `850ms`/`1.2s`; e2e stack archives `runtime-worker.rotating.log`; compose forwards the recovery and log-rotation variables.
+
+These touch only the session-recovery error path (unit-tested in `tests/test_post_evidence.py`) and config/docs/test-harness archiving. They do not touch turn-taking, STT coalescing, TTS or any path exercised by the acceptance run.
+
