@@ -13,7 +13,7 @@ import re
 ALIASES: dict[str, tuple[str, ...]] = {
     "ava": ("ava", "eva"),
     "james": ("james",),
-    "safi": ("safi", "saafi", "saffy", "safie", "sofi"),
+    "safi": ("safi", "saafi", "saffy", "safie", "sofi", "saffee", "safiq"),  # Moonshine spellings of the same sound, seen in tests/e2e/probe_tts.py runs
     "northwind": ("northwind", "north wind", "northland"),
 }
 
@@ -59,6 +59,11 @@ def mentions(text: str, value: str) -> bool:
     words = [_stem(w) for w in key.split()]
     have = {_stem(w) for w in norm.split()}
     return bool(words) and all(w in have for w in words)
+
+
+def mentions_strict(text: str, value: str) -> bool:
+    """Verbatim whole-word match with NO aliases; kept next to the alias result in the evidence so the loosening stays visible."""
+    return bool(_word_re(normalize(value)).search(normalize(text))) if " " not in value.strip() else normalize(value) in normalize(text)
 
 
 def keyword_hits(text: str, stems: tuple[str, ...]) -> list[str]:

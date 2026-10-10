@@ -1,0 +1,9 @@
+{
+  "name": "failure",
+  "test_ref": "-",
+  "status": "FAIL",
+  "checks": [],
+  "data": {},
+  "duration_s": 696.8119999999908,
+  "error": "AssertionError: launch ava-001 -> 503: {\"error\":{\"code\":\"runtime_unavailable\",\"message\":\"the runtime worker did not register with LiveKit within 60 s\",\"details\":{}}}\nTraceback (most recent call last):\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\scripts\\run_acceptance.py\", line 182, in main_async\n    res = await scenarios.SCENARIOS[name](ctx)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\tests\\e2e\\scenarios.py\", line 491, in scenario_failure_recovery\n    health = await _wait_engine_ready(ctx, cfg.engine_restore_timeout_s)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\tests\\e2e\\driver.py\", line 150, in launch_ready\n    # twice, and record every retry in the evidence (never hidden).\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: launch ava-001 -> 503: {\"error\":{\"code\":\"runtime_unavailable\",\"message\":\"the runtime worker did not register with LiveKit within 60 s\",\"details\":{}}}\n"
+}

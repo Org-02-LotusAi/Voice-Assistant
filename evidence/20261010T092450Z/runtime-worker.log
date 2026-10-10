@@ -1,0 +1,132 @@
+2026-10-10 14:55:05,540 livekit.agents INFO starting worker
+2026-10-10 14:55:05,540 livekit.agents INFO plugin registered
+2026-10-10 14:55:05,541 livekit.agents INFO plugin registered
+2026-10-10 14:55:05,545 livekit.agents INFO HTTP server listening on :60851
+2026-10-10 14:55:05,609 livekit.agents INFO initializing process
+2026-10-10 14:55:17,233 livekit.agents INFO process initialized
+C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\jwt\api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 6 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+2026-10-10 14:55:17,316 livekit.agents INFO registered worker
+2026-10-10 14:55:17,782 livekit.agents INFO received job request
+2026-10-10 14:55:17,913 livekit.agents INFO initializing process
+2026-10-10 14:55:18,092 livekit INFO livekit_api::signal_client::signal_stream:53:livekit_api::signal_client::signal_stream - connecting to ws://localhost:7880/rtc/v1
+2026-10-10 14:55:18,426 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 14:55:18,434 httpx INFO HTTP Request: POST http://127.0.0.1:17494/warm "HTTP/1.1 200 OK"
+2026-10-10 14:55:18,853 httpx INFO HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
+2026-10-10 14:55:20,559 livekit.agents INFO RoomIO linked to participant
+2026-10-10 14:55:21,434 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:55:31,334 livekit.agents INFO process initialized
+2026-10-10 14:55:41,787 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/cac56452b97648818ae6996c75f89eed "HTTP/1.1 200 OK"
+2026-10-10 14:55:42,040 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:55:55,156 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/e697f3a265894df7a54cdc64be1f80bf "HTTP/1.1 200 OK"
+2026-10-10 14:56:10,756 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 14:56:11,610 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:56:12,032 livekit.agents WARNING transcript arrives after turn has been committed. consider raising `min_delay` in the endpointing options to accommodate a slow stt. subsequent occurrences will log at debug level.
+2026-10-10 14:56:12,311 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 14:56:12,443 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:56:43,479 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/46bb92e55f514bf1b52c855d94953938 "HTTP/1.1 200 OK"
+2026-10-10 14:56:43,605 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:57:13,264 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/5bf039da548b4088bc89d754d70c0015 "HTTP/1.1 200 OK"
+2026-10-10 14:57:24,028 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 14:57:24,155 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:57:55,350 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/40fc261edaac4bf7a9af8409b817dd32 "HTTP/1.1 200 OK"
+2026-10-10 14:57:55,492 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 14:58:24,827 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/7e31f5b277754be49c5150056bdb230d "HTTP/1.1 200 OK"
+2026-10-10 14:58:37,604 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:01:09,567 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:01:09,738 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:01:41,951 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/a8ab895e34164d8490ff74a70e4f31be "HTTP/1.1 200 OK"
+2026-10-10 15:01:42,100 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:02:08,876 livekit.agents WARNING event loop blocked for 136ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:02:09,976 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:02:09,997 livekit.agents WARNING event loop blocked for 511ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:02:40,122 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/e6267d64dc374dada61316c24eb32ef7 "HTTP/1.1 200 OK"
+2026-10-10 15:02:53,208 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:02:54,405 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:03:19,169 livekit.agents WARNING event loop blocked for 152ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:22,541 livekit.agents WARNING event loop blocked for 230ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:22,557 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:22,941 livekit.agents WARNING event loop blocked for 199ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:24,069 livekit.agents WARNING event loop blocked for 167ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\linecache.py", line 96, in updatecache; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:24,078 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:24,522 livekit.agents WARNING event loop blocked for 230ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 484, in recv; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:24,523 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:26,115 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:26,570 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:26,944 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:28,459 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:03:28,999 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:29,325 livekit.agents WARNING event loop blocked for 496ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\job.py", line 102, in get_job_context; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:03:29,332 livekit.agents WARNING event loop blocked for 245ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\linecache.py", line 142, in updatecache; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:04:26,356 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/e087637d97704f9d8b962ab303f72958 "HTTP/1.1 200 OK"
+2026-10-10 15:04:26,694 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:05:16,524 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:05:37,886 livekit.agents WARNING event loop blocked for 137ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 774, in _poll; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:05:51,100 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/de20324cd2f14d64b5e6f3ffc403228c "HTTP/1.1 200 OK"
+2026-10-10 15:06:14,708 livekit.agents WARNING event loop blocked for 121ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:06:23,067 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:06:23,410 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:06:23,825 livekit.agents WARNING event loop blocked for 120ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 487, in recv; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:06:24,239 livekit.agents WARNING event loop blocked for 136ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:06:24,579 livekit.agents WARNING event loop blocked for 136ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 157, in unsubscribe; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:06:25,266 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:06:25,478 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:06:40,849 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:07:33,339 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:07:45,053 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/df2545aff1cb46238364b67cfe460af3 "HTTP/1.1 200 OK"
+2026-10-10 15:07:45,394 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:08:15,193 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:08:15,335 livekit.agents WARNING event loop blocked for 199ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py", line 3354, in hanning; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:08:15,362 livekit.agents WARNING event loop blocked for 120ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:08:50,681 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/310d45754686450680facc5bd5ad1b3e "HTTP/1.1 200 OK"
+2026-10-10 15:09:12,509 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:09:13,604 livekit.agents WARNING event loop blocked for 183ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\ssl.py", line 858, in read; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:09:13,608 livekit.agents WARNING event loop blocked for 683ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:09:13,779 livekit.agents WARNING event loop blocked for 120ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 441, in _main_task; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:09:14,473 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:11:41,986 livekit.agents WARNING event loop blocked for 120ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:11:42,100 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:11:44,209 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:11:54,474 service015.runtime WARNING ava-001: recoverable llm error (retrying): LLMError: type='llm_error' timestamp=1791625314.4653378 label='livekit.plugins.openai.llm.LLM' error=APITimeoutError('Request timed out.', body=None, retryable=True) recoverable=True
+2026-10-10 15:11:54,476 livekit.agents WARNING failed to generate LLM completion: Request timed out., retrying in 0.1s
+2026-10-10 15:11:54,739 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:11:54,906 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:12:20,809 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:12:20,816 livekit.agents WARNING event loop blocked for 137ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\agents\voice\transcription\_speaking_rate.py", line 192, in _compute_speaking_rate; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:12:44,213 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/b944f20fbd514d8ebebcb7078d435c7d "HTTP/1.1 200 OK"
+2026-10-10 15:12:44,462 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:13:35,813 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/efbe64228b75404b8a2a761f335b113a "HTTP/1.1 200 OK"
+2026-10-10 15:13:54,075 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:13:54,252 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:14:20,490 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:02,218 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/55913d03672a4be99233a279a027a7e9 "HTTP/1.1 200 OK"
+2026-10-10 15:15:14,234 livekit.agents WARNING event loop blocked for 105ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 295, in request; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:22,006 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:15:22,211 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:15:22,939 livekit.agents WARNING event loop blocked for 184ms at "C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\livekit\rtc\_ffi_client.py", line 98, in dispose; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:22,940 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:15:23,144 livekit.agents WARNING event loop blocked for 121ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:23,268 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:15:23,676 livekit.agents WARNING event loop blocked for 152ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 487, in recv; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:23,749 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:15:24,161 livekit.agents WARNING event loop blocked for 152ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 462, in finish_socket_func; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:15:24,212 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:15:24,517 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:15:44,390 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:15:46,910 livekit.plugins.silero WARNING VAD inference is slower than realtime
+2026-10-10 15:16:20,842 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:16:24,802 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:16:26,372 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:16:28,587 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:16:34,034 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:16:54,535 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/08506af6fd02456fbd2a1b6d79e095c1 "HTTP/1.1 200 OK"
+2026-10-10 15:16:54,976 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:17:37,106 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/ecf164f64fe1427da7ef520f59fc93e7 "HTTP/1.1 200 OK"
+2026-10-10 15:17:46,273 livekit.agents WARNING event loop blocked for 105ms; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:17:51,275 livekit INFO livekit::room:1788:livekit::room - Disconnected from room "ava-001" with reason: ParticipantRemoved
+2026-10-10 15:17:51,278 service015.runtime WARNING ava-001: room disconnected: 4
+2026-10-10 15:17:51,532 service015.runtime INFO stop requested; closing worker
+2026-10-10 15:17:51,543 livekit.agents INFO shutting down worker
+2026-10-10 15:17:53,053 service015.runtime INFO ava-001: ava-001 is no longer owned by pid 15524; shutting down
+2026-10-10 15:17:53,342 service015.runtime WARNING ava-001: session closed: CloseReason.USER_INITIATED
+2026-10-10 15:17:53,388 livekit.agents INFO process exiting

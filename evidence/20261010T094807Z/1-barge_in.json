@@ -1,0 +1,173 @@
+{
+  "name": "barge_in",
+  "test_ref": "TEST 10",
+  "status": "FAIL",
+  "checks": [
+    {
+      "name": "the long answer started",
+      "ok": true,
+      "detail": "waited 53.3s",
+      "kind": ""
+    },
+    {
+      "name": "the agent was speaking when interrupted",
+      "ok": true,
+      "detail": "state=speaking",
+      "kind": ""
+    },
+    {
+      "name": "agent audio went silent after the interruption",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "speech onset -> agent audio silent <= 1000 ms",
+      "ok": true,
+      "detail": "375 ms (agent state left 'speaking' after 609 ms)",
+      "kind": ""
+    },
+    {
+      "name": "a next reply was produced",
+      "ok": false,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "the agent heard the interruption (user_text mentions price)",
+      "ok": false,
+      "detail": "Please explain in detail how your Service works from the first call-off, All the way through to the final report, and, it, Take your time.",
+      "kind": ""
+    },
+    {
+      "name": "the next reply addresses the interruption (pricing keyword)",
+      "ok": false,
+      "detail": "hits=[] heard=''",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "long_answer_first_audio_after_s": 55.7,
+    "interrupt_onset_after_first_audio_s": 2.25,
+    "agent_audio_heard_before_interrupt_s": 1.6,
+    "stop_ms_audio_rms": 375,
+    "agent_state_change_ms": 609,
+    "rms_threshold": 300.0,
+    "quiet_gap_s": 1.0,
+    "next_reply_transcript": "",
+    "next_reply_agent_text": "I want to make sure I explain this in a way that truly fits your situation, so could you tell me a bit about your current process or goals? Knowing your priorities will help me highlight how Safi works the most relevantly for you.",
+    "turn_rows": [
+      {
+        "id": 1,
+        "identity_id": "ava-001",
+        "session_id": "646af44003a8495190ec3dba07e0c0fb",
+        "turn_index": 0,
+        "t0": 101872.093,
+        "t1": 101874.75,
+        "t2": 101875.343,
+        "t3": 101927.468,
+        "t4": 101927.484,
+        "t5": null,
+        "user_text": "Please explain in detail how your Service works from the first call-off, All the way through to the final report, and, it, Take your time.",
+        "agent_text": "I want to make sure I explain this in a way that truly fits your situation, so could you tell me a bit about your current process or goals? Knowing your priorities will help me highlight how Safi works the most relevantly for you.",
+        "interrupted": 1,
+        "created_at": "2026-10-10T09:50:47.714861+00:00"
+      }
+    ],
+    "note": "Silence = last received frame above the RMS gate before the first >= quiet_gap_s pause. On CPU the engine bounds a follow-up by one in-flight chunk, but the AgentSession stops publishing on interruption independently.",
+    "resources": {
+      "samples": 228,
+      "cpu_pct": {
+        "min": 36.6,
+        "avg": 64.4,
+        "max": 100.0
+      },
+      "mem_available_mb": {
+        "min": 279,
+        "avg": 857.6,
+        "max": 1968
+      },
+      "swap_used_mb": {
+        "min": 10390,
+        "avg": 10446.2,
+        "max": 10562
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.5,
+            "max": 54.7
+          },
+          "rss_mb": {
+            "min": 34.4,
+            "avg": 69.9,
+            "max": 90.0
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 113.0,
+            "max": 488.6
+          },
+          "rss_mb": {
+            "min": 1825.8,
+            "avg": 1871.8,
+            "max": 1980.2
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 6.9,
+            "avg": 38.4,
+            "max": 464.6
+          },
+          "rss_mb": {
+            "min": 91.1,
+            "avg": 338.1,
+            "max": 434.0
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 49.5,
+            "max": 521.0
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 1198.0,
+            "max": 1329.9
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 3.0,
+            "max": 74.8
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 132.5,
+            "max": 158.6
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 5.0
+          },
+          "rss_mb": {
+            "min": 4.9,
+            "avg": 15.6,
+            "max": 23.9
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 525.5779999999941,
+  "error": null
+}

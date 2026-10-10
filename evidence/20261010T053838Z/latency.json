@@ -1,0 +1,128 @@
+{
+  "session_id": "cb27116283ae40068185027af7788d9a",
+  "identity": "ava-001",
+  "report": {
+    "turns": 12,
+    "t0_t4": {
+      "count": 12,
+      "p50": 34141.00000000326,
+      "p95": 90687.00000000536,
+      "max": 90687.00000000536
+    },
+    "t0_t1": {
+      "count": 12,
+      "p50": 2531.0000000026776,
+      "p95": 210687.00000000536,
+      "max": 210687.00000000536
+    },
+    "t1_t2": {
+      "count": 12,
+      "p50": 468.99999999732245,
+      "p95": 33093.99999999732,
+      "max": 33093.99999999732
+    },
+    "t2_t3": {
+      "count": 12,
+      "p50": 24577.999999994063,
+      "p95": 77608.99999999674,
+      "max": 77608.99999999674
+    },
+    "t3_t4": {
+      "count": 12,
+      "p50": 0.0,
+      "p95": 16.00000000325963,
+      "max": 16.00000000325963
+    },
+    "t4_t5": {
+      "count": 12,
+      "p50": 389.9999999994179,
+      "p95": 13281.000000002678,
+      "max": 13281.000000002678
+    }
+  },
+  "bottleneck_interval": "t2_t3",
+  "per_turn": [
+    {
+      "turn_index": 0,
+      "t0_t4_ms": 11328
+    },
+    {
+      "turn_index": 1,
+      "t0_t4_ms": 18922
+    },
+    {
+      "turn_index": 2,
+      "t0_t4_ms": 16485
+    },
+    {
+      "turn_index": 3,
+      "t0_t4_ms": 59782
+    },
+    {
+      "turn_index": 4,
+      "t0_t4_ms": 22875
+    },
+    {
+      "turn_index": 5,
+      "t0_t4_ms": 18328
+    },
+    {
+      "turn_index": 6,
+      "t0_t4_ms": 52672
+    },
+    {
+      "turn_index": 7,
+      "t0_t4_ms": 64203
+    },
+    {
+      "turn_index": 8,
+      "t0_t4_ms": 90687
+    },
+    {
+      "turn_index": 9,
+      "t0_t4_ms": 34141
+    },
+    {
+      "turn_index": 10,
+      "t0_t4_ms": 35797
+    },
+    {
+      "turn_index": 11,
+      "t0_t4_ms": 80406
+    }
+  ],
+  "first_turn_t0_t4_ms": 11328,
+  "later_turns_t0_t4_ms": [
+    16485,
+    18328,
+    18922,
+    22875,
+    34141,
+    35797,
+    52672,
+    59782,
+    64203,
+    80406,
+    90687
+  ],
+  "engine_health_at_report": {
+    "status": "ok",
+    "engine": "chatterbox-turbo",
+    "variant": "turbo",
+    "device": "cpu",
+    "sample_rate": 24000,
+    "warm": true,
+    "cached_profiles": [
+      "1ae6b96a-8410-4455-af19-7c58bcdfbd94",
+      "6326829e-38ae-475f-aedb-5c293aa43e51"
+    ],
+    "nano_supported": true,
+    "load_seconds": 35.6,
+    "error": null
+  },
+  "sow": {
+    "p50_limit_ms": 700.0,
+    "p95_limit_ms": 1500.0
+  },
+  "ceiling_met": false
+}

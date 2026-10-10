@@ -47,3 +47,11 @@ def test_engine_control_dispatch():
     assert engine_command("start", "compose", {"ENGINE_COMPOSE_SERVICE": "voice"}) == ["docker", "compose", "start", "voice"]
     with pytest.raises(ValueError):
         engine_command("restart", "script")
+
+
+def test_strict_match_has_no_aliases():
+    from tests.e2e.expectations import mentions_strict
+
+    assert mentions_strict("I work for Safi.", "Safi")
+    assert not mentions_strict("I work for Saffy.", "Safi")
+    assert mentions("I work for Saffy.", "Safi")  # the documented alias still passes the aliased check

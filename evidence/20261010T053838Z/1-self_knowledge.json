@@ -1,0 +1,230 @@
+{
+  "name": "self_knowledge",
+  "test_ref": "TEST 4/5",
+  "status": "FAIL",
+  "checks": [
+    {
+      "name": "ava/q_name: reply audio produced",
+      "ok": true,
+      "detail": "wait 11.56s"
+    },
+    {
+      "name": "ava/q_name: transcript contains name 'Ava'",
+      "ok": true,
+      "detail": "My name is Ava."
+    },
+    {
+      "name": "ava/q_name: LLM text contains name 'Ava'",
+      "ok": true,
+      "detail": "My name is Ava."
+    },
+    {
+      "name": "ava/q_name: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_name: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_company: reply audio produced",
+      "ok": true,
+      "detail": "wait 19.36s"
+    },
+    {
+      "name": "ava/q_company: transcript contains company 'Safi'",
+      "ok": false,
+      "detail": "I work for SaaS. See, I work."
+    },
+    {
+      "name": "ava/q_company: LLM text contains company 'Safi'",
+      "ok": true,
+      "detail": "I work for Safi."
+    },
+    {
+      "name": "ava/q_company: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_company: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_role: reply audio produced",
+      "ok": true,
+      "detail": "wait 17.47s"
+    },
+    {
+      "name": "ava/q_role: transcript contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "I'm an account specialist."
+    },
+    {
+      "name": "ava/q_role: LLM text contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "I'm an Account Specialist."
+    },
+    {
+      "name": "ava/q_role: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_role: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "greeting played when the human joined",
+      "ok": true,
+      "detail": "Hi, this is Ava with Safi. How can I help you today?"
+    }
+  ],
+  "data": {
+    "turns": [
+      {
+        "label": "q_name",
+        "clip": "q_name",
+        "human_says": "What is your name?",
+        "onset_t": 86913.64,
+        "reply": {
+          "started": true,
+          "t_first": 86926.671,
+          "t_last": 86927.578,
+          "complete": true,
+          "transcript": "My name is Ava.",
+          "audio_seconds": 1.61
+        },
+        "row": {
+          "id": 1,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 0,
+          "t0": 86915.218,
+          "t1": 86915.64,
+          "t2": 86915.828,
+          "t3": 86926.546,
+          "t4": 86926.546,
+          "t5": 86926.671,
+          "user_text": "What is your name?",
+          "agent_text": "My name is Ava.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:40:46.769724+00:00"
+        },
+        "t5": 86926.671,
+        "wait_start_s": 11.56,
+        "wait_complete_s": 13.0,
+        "agent_text": "My name is Ava.",
+        "heard_transcript": "My name is Ava."
+      },
+      {
+        "label": "q_company",
+        "clip": "q_company",
+        "human_says": "Who do you work for?",
+        "onset_t": 86931.062,
+        "reply": {
+          "started": true,
+          "t_first": 86952.187,
+          "t_last": 86955.609,
+          "complete": true,
+          "transcript": "I work for SaaS. See, I work.",
+          "audio_seconds": 4.13
+        },
+        "row": {
+          "id": 2,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 1,
+          "t0": 86933.078,
+          "t1": 86933.484,
+          "t2": 86933.843,
+          "t3": 86952.0,
+          "t4": 86952.0,
+          "t5": 86952.187,
+          "user_text": "Who do you work for?",
+          "agent_text": "I work for Safi.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:41:12.217111+00:00"
+        },
+        "t5": 86952.187,
+        "wait_start_s": 19.36,
+        "wait_complete_s": 23.0,
+        "agent_text": "I work for Safi.",
+        "heard_transcript": "I work for SaaS. See, I work."
+      },
+      {
+        "label": "q_role",
+        "clip": "q_role",
+        "human_says": "What is your role?",
+        "onset_t": 86959.453,
+        "reply": {
+          "started": true,
+          "t_first": 86978.421,
+          "t_last": 86979.75,
+          "complete": true,
+          "transcript": "I'm an account specialist.",
+          "audio_seconds": 2.03
+        },
+        "row": {
+          "id": 3,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 2,
+          "t0": 86961.64,
+          "t1": 86961.921,
+          "t2": 86962.39,
+          "t3": 86978.125,
+          "t4": 86978.125,
+          "t5": 86978.421,
+          "user_text": "What is your role?",
+          "agent_text": "I'm an Account Specialist.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:41:38.347102+00:00"
+        },
+        "t5": 86978.421,
+        "wait_start_s": 17.47,
+        "wait_complete_s": 19.02,
+        "agent_text": "I'm an Account Specialist.",
+        "heard_transcript": "I'm an account specialist."
+      }
+    ],
+    "greeting": {
+      "human_identity": "human-a118d507",
+      "room": "ava-001",
+      "greeting_started_after_join_s": 24.0,
+      "greeting_complete": true,
+      "greeting_transcript": "Hi, this is Ava with Safi. How can I help you today?",
+      "greeting_audio_s": 15.28
+    },
+    "launch": {
+      "ready_after_s": 57.4,
+      "presence_seen": [
+        "STARTING",
+        "READY"
+      ],
+      "status": {
+        "identity_id": "ava-001",
+        "participant_identity": "ava-001",
+        "default_room": "ava-001",
+        "presence": "READY",
+        "status_detail": null,
+        "last_error": null,
+        "capabilities": {
+          "audio_receive": true,
+          "audio_publish": true,
+          "barge_in": true,
+          "video_publish": false
+        },
+        "launched_at": "2026-10-10T05:39:40.792960+00:00",
+        "heartbeat_at": "2026-10-10T05:39:41.810486+00:00"
+      },
+      "start_retries": []
+    }
+  },
+  "duration_s": 178.07799999999406,
+  "error": null
+}

@@ -1,0 +1,396 @@
+{
+  "name": "isolation",
+  "test_ref": "TEST 6",
+  "status": "FAIL",
+  "checks": [
+    {
+      "name": "different identities",
+      "ok": true,
+      "detail": "ava-001 / james-001"
+    },
+    {
+      "name": "same template + version",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "different voices",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "different rooms",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_name: reply audio produced",
+      "ok": true,
+      "detail": "wait 14.11s"
+    },
+    {
+      "name": "james/q_name: transcript contains name 'James'",
+      "ok": true,
+      "detail": "My name is James."
+    },
+    {
+      "name": "james/q_name: LLM text contains name 'James'",
+      "ok": true,
+      "detail": "My name is James."
+    },
+    {
+      "name": "james/q_name: no ava name 'Ava'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_name: no ava company 'Safi'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_company: reply audio produced",
+      "ok": true,
+      "detail": "wait 19.05s"
+    },
+    {
+      "name": "james/q_company: transcript contains company 'Northwind'",
+      "ok": true,
+      "detail": "I work for North Wind."
+    },
+    {
+      "name": "james/q_company: LLM text contains company 'Northwind'",
+      "ok": true,
+      "detail": "I work for Northwind."
+    },
+    {
+      "name": "james/q_company: no ava name 'Ava'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_company: no ava company 'Safi'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_role: reply audio produced",
+      "ok": true,
+      "detail": "wait 33.0s"
+    },
+    {
+      "name": "james/q_role: transcript contains role 'Solutions Consultant'",
+      "ok": true,
+      "detail": "I'm a solutions consultant at Northwind."
+    },
+    {
+      "name": "james/q_role: LLM text contains role 'Solutions Consultant'",
+      "ok": true,
+      "detail": "I\u2019m a Solutions Consultant at Northwind."
+    },
+    {
+      "name": "james/q_role: no ava name 'Ava'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "james/q_role: no ava company 'Safi'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_name: reply audio produced",
+      "ok": true,
+      "detail": "wait 11.56s"
+    },
+    {
+      "name": "ava/q_name: transcript contains name 'Ava'",
+      "ok": true,
+      "detail": "My name is Ava."
+    },
+    {
+      "name": "ava/q_name: LLM text contains name 'Ava'",
+      "ok": true,
+      "detail": "My name is Ava."
+    },
+    {
+      "name": "ava/q_name: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_name: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_company: reply audio produced",
+      "ok": true,
+      "detail": "wait 19.36s"
+    },
+    {
+      "name": "ava/q_company: transcript contains company 'Safi'",
+      "ok": false,
+      "detail": "I work for SaaS. See, I work."
+    },
+    {
+      "name": "ava/q_company: LLM text contains company 'Safi'",
+      "ok": true,
+      "detail": "I work for Safi."
+    },
+    {
+      "name": "ava/q_company: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_company: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_role: reply audio produced",
+      "ok": true,
+      "detail": "wait 17.47s"
+    },
+    {
+      "name": "ava/q_role: transcript contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "I'm an account specialist."
+    },
+    {
+      "name": "ava/q_role: LLM text contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "I'm an Account Specialist."
+    },
+    {
+      "name": "ava/q_role: no james name 'James'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ava/q_role: no james company 'Northwind'",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "data": {
+    "james": [
+      {
+        "label": "q_name",
+        "clip": "q_name",
+        "human_says": "What is your name?",
+        "onset_t": 87187.203,
+        "reply": {
+          "started": true,
+          "t_first": 87202.781,
+          "t_last": 87203.562,
+          "complete": true,
+          "transcript": "My name is James.",
+          "audio_seconds": 1.49
+        },
+        "row": {
+          "id": 4,
+          "identity_id": "james-001",
+          "session_id": "dc66570ca25445348958ad2766fbf2e1",
+          "turn_index": 0,
+          "t0": 87188.781,
+          "t1": 87190.296,
+          "t2": 87190.531,
+          "t3": 87202.578,
+          "t4": 87202.593,
+          "t5": 87202.781,
+          "user_text": "What is your name?",
+          "agent_text": "My name is James.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:45:22.801747+00:00"
+        },
+        "t5": 87202.781,
+        "wait_start_s": 14.11,
+        "wait_complete_s": 15.25,
+        "agent_text": "My name is James.",
+        "heard_transcript": "My name is James."
+      },
+      {
+        "label": "q_company",
+        "clip": "q_company",
+        "human_says": "Who do you work for?",
+        "onset_t": 87206.906,
+        "reply": {
+          "started": true,
+          "t_first": 87227.75,
+          "t_last": 87228.828,
+          "complete": true,
+          "transcript": "I work for North Wind.",
+          "audio_seconds": 1.78
+        },
+        "row": {
+          "id": 5,
+          "identity_id": "james-001",
+          "session_id": "dc66570ca25445348958ad2766fbf2e1",
+          "turn_index": 1,
+          "t0": 87208.828,
+          "t1": 87209.671,
+          "t2": 87209.953,
+          "t3": 87227.468,
+          "t4": 87227.468,
+          "t5": 87227.75,
+          "user_text": "Who do ye work for?",
+          "agent_text": "I work for Northwind.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:45:47.692482+00:00"
+        },
+        "t5": 87227.75,
+        "wait_start_s": 19.05,
+        "wait_complete_s": 20.5,
+        "agent_text": "I work for Northwind.",
+        "heard_transcript": "I work for North Wind."
+      },
+      {
+        "label": "q_role",
+        "clip": "q_role",
+        "human_says": "What is your role?",
+        "onset_t": 87232.5,
+        "reply": {
+          "started": true,
+          "t_first": 87267.031,
+          "t_last": 87269.078,
+          "complete": true,
+          "transcript": "I'm a solutions consultant at Northwind.",
+          "audio_seconds": 2.76
+        },
+        "row": {
+          "id": 6,
+          "identity_id": "james-001",
+          "session_id": "dc66570ca25445348958ad2766fbf2e1",
+          "turn_index": 2,
+          "t0": 87234.234,
+          "t1": 87234.89,
+          "t2": 87235.203,
+          "t3": 87266.734,
+          "t4": 87266.734,
+          "t5": 87267.031,
+          "user_text": "What is your role?",
+          "agent_text": "I\u2019m a Solutions Consultant at Northwind.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:46:26.968912+00:00"
+        },
+        "t5": 87267.031,
+        "wait_start_s": 33.0,
+        "wait_complete_s": 35.49,
+        "agent_text": "I\u2019m a Solutions Consultant at Northwind.",
+        "heard_transcript": "I'm a solutions consultant at Northwind."
+      }
+    ],
+    "ava": [
+      {
+        "label": "q_name",
+        "clip": "q_name",
+        "human_says": "What is your name?",
+        "onset_t": 86913.64,
+        "reply": {
+          "started": true,
+          "t_first": 86926.671,
+          "t_last": 86927.578,
+          "complete": true,
+          "transcript": "My name is Ava.",
+          "audio_seconds": 1.61
+        },
+        "row": {
+          "id": 1,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 0,
+          "t0": 86915.218,
+          "t1": 86915.64,
+          "t2": 86915.828,
+          "t3": 86926.546,
+          "t4": 86926.546,
+          "t5": 86926.671,
+          "user_text": "What is your name?",
+          "agent_text": "My name is Ava.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:40:46.769724+00:00"
+        },
+        "t5": 86926.671,
+        "wait_start_s": 11.56,
+        "wait_complete_s": 13.0,
+        "agent_text": "My name is Ava.",
+        "heard_transcript": "My name is Ava."
+      },
+      {
+        "label": "q_company",
+        "clip": "q_company",
+        "human_says": "Who do you work for?",
+        "onset_t": 86931.062,
+        "reply": {
+          "started": true,
+          "t_first": 86952.187,
+          "t_last": 86955.609,
+          "complete": true,
+          "transcript": "I work for SaaS. See, I work.",
+          "audio_seconds": 4.13
+        },
+        "row": {
+          "id": 2,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 1,
+          "t0": 86933.078,
+          "t1": 86933.484,
+          "t2": 86933.843,
+          "t3": 86952.0,
+          "t4": 86952.0,
+          "t5": 86952.187,
+          "user_text": "Who do you work for?",
+          "agent_text": "I work for Safi.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:41:12.217111+00:00"
+        },
+        "t5": 86952.187,
+        "wait_start_s": 19.36,
+        "wait_complete_s": 23.0,
+        "agent_text": "I work for Safi.",
+        "heard_transcript": "I work for SaaS. See, I work."
+      },
+      {
+        "label": "q_role",
+        "clip": "q_role",
+        "human_says": "What is your role?",
+        "onset_t": 86959.453,
+        "reply": {
+          "started": true,
+          "t_first": 86978.421,
+          "t_last": 86979.75,
+          "complete": true,
+          "transcript": "I'm an account specialist.",
+          "audio_seconds": 2.03
+        },
+        "row": {
+          "id": 3,
+          "identity_id": "ava-001",
+          "session_id": "cb27116283ae40068185027af7788d9a",
+          "turn_index": 2,
+          "t0": 86961.64,
+          "t1": 86961.921,
+          "t2": 86962.39,
+          "t3": 86978.125,
+          "t4": 86978.125,
+          "t5": 86978.421,
+          "user_text": "What is your role?",
+          "agent_text": "I'm an Account Specialist.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T05:41:38.347102+00:00"
+        },
+        "t5": 86978.421,
+        "wait_start_s": 17.47,
+        "wait_complete_s": 19.02,
+        "agent_text": "I'm an Account Specialist.",
+        "heard_transcript": "I'm an account specialist."
+      }
+    ],
+    "james_greeting": "Hi, this is James with North Wind. How can I help you today?"
+  },
+  "duration_s": 291.0939999999973,
+  "error": null
+}

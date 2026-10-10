@@ -1,0 +1,108 @@
+{
+  "session_id": "68b4dcacbc814c118326e2d4b0e6fd67",
+  "identity": "ava-001",
+  "report": {
+    "turns": 8,
+    "t0_t4": {
+      "count": 8,
+      "p50": 31906.000000002678,
+      "p95": 66858.99999999674,
+      "max": 66858.99999999674
+    },
+    "t0_t1": {
+      "count": 8,
+      "p50": 531.0000000026776,
+      "p95": 2718.9999999973224,
+      "max": 2718.9999999973224
+    },
+    "t1_t2": {
+      "count": 8,
+      "p50": 500.0,
+      "p95": 10781.000000002678,
+      "max": 10781.000000002678
+    },
+    "t2_t3": {
+      "count": 8,
+      "p50": 25516.00000000326,
+      "p95": 63218.00000000803,
+      "max": 63218.00000000803
+    },
+    "t3_t4": {
+      "count": 8,
+      "p50": 0.0,
+      "p95": 32.00000000651926,
+      "max": 32.00000000651926
+    },
+    "t4_t5": {
+      "count": 8,
+      "p50": 218.99999999732245,
+      "p95": 937.0000000053551,
+      "max": 937.0000000053551
+    }
+  },
+  "bottleneck_interval": "t2_t3",
+  "per_turn": [
+    {
+      "turn_index": 0,
+      "t0_t4_ms": 31906
+    },
+    {
+      "turn_index": 1,
+      "t0_t4_ms": 16625
+    },
+    {
+      "turn_index": 2,
+      "t0_t4_ms": 15765
+    },
+    {
+      "turn_index": 3,
+      "t0_t4_ms": 39219
+    },
+    {
+      "turn_index": 4,
+      "t0_t4_ms": 52516
+    },
+    {
+      "turn_index": 5,
+      "t0_t4_ms": 37719
+    },
+    {
+      "turn_index": 6,
+      "t0_t4_ms": 24469
+    },
+    {
+      "turn_index": 7,
+      "t0_t4_ms": 66859
+    }
+  ],
+  "first_turn_t0_t4_ms": 31906,
+  "later_turns_t0_t4_ms": [
+    15765,
+    16625,
+    24469,
+    37719,
+    39219,
+    52516,
+    66859
+  ],
+  "engine_health_at_report": {
+    "status": "ok",
+    "engine": "chatterbox-turbo",
+    "variant": "turbo",
+    "device": "cpu",
+    "sample_rate": 24000,
+    "warm": true,
+    "cached_profiles": [
+      "1ae6b96a-8410-4455-af19-7c58bcdfbd94",
+      "6326829e-38ae-475f-aedb-5c293aa43e51"
+    ],
+    "nano_supported": true,
+    "load_seconds": 149.7,
+    "error": null
+  },
+  "sow": {
+    "p50_limit_ms": 700.0,
+    "p95_limit_ms": 1500.0
+  },
+  "ceiling_met": false
+}

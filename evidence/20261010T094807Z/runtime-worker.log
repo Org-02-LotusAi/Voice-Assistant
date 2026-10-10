@@ -1,0 +1,40 @@
+2026-10-10 15:18:26,424 livekit.agents INFO starting worker
+2026-10-10 15:18:26,424 livekit.agents INFO plugin registered
+2026-10-10 15:18:26,425 livekit.agents INFO plugin registered
+2026-10-10 15:18:26,428 livekit.agents INFO HTTP server listening on :64826
+2026-10-10 15:18:26,477 livekit.agents INFO initializing process
+2026-10-10 15:18:38,353 livekit.agents INFO process initialized
+C:\Users\Jaith\Desktop\Lotus Interworks\VoiceSOW\.venv\Lib\site-packages\jwt\api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 6 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+2026-10-10 15:18:38,448 livekit.agents INFO registered worker
+2026-10-10 15:18:38,801 livekit.agents INFO received job request
+2026-10-10 15:18:38,883 livekit.agents INFO initializing process
+2026-10-10 15:18:39,073 livekit INFO livekit_api::signal_client::signal_stream:53:livekit_api::signal_client::signal_stream - connecting to ws://localhost:7880/rtc/v1
+2026-10-10 15:18:39,806 livekit.agents WARNING event loop blocked for 136ms importing anyio.abc._subprocesses at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\importlib\__init__.py", line 90, in import_module; import it at process warm-up (prewarm) instead of on first use
+2026-10-10 15:18:39,817 livekit.agents WARNING event loop blocked for 137ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\tokenize.py", line 457, in open; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:18:39,827 httpx INFO HTTP Request: POST http://127.0.0.1:17494/warm "HTTP/1.1 200 OK"
+2026-10-10 15:18:40,304 httpx INFO HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
+2026-10-10 15:18:41,563 livekit.agents INFO RoomIO linked to participant
+2026-10-10 15:18:42,466 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:18:54,277 livekit.agents INFO process initialized
+2026-10-10 15:19:07,731 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/93c6861d84514626832a662e822a6a1c "HTTP/1.1 200 OK"
+2026-10-10 15:19:07,920 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:19:29,175 httpx INFO HTTP Request: GET http://127.0.0.1:17494/requests/dde7080c0c904f3b8e972bf1149bba48 "HTTP/1.1 200 OK"
+2026-10-10 15:19:47,866 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:19:51,506 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:19:52,392 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:19:53,522 livekit.agents WARNING transcript arrives after turn has been committed. consider raising `min_delay` in the endpointing options to accommodate a slow stt. subsequent occurrences will log at debug level.
+2026-10-10 15:19:54,017 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:19:54,264 livekit.agents WARNING event loop blocked for 120ms at "C:\Users\Jaith\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 487, in recv; synchronous work on the agent loop delays audio and turn handling, move it to a thread or an async client
+2026-10-10 15:19:54,527 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:19:55,461 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:19:55,841 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:20:55,151 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:20:55,286 httpx INFO HTTP Request: POST http://127.0.0.1:17494/synthesize/stream "HTTP/1.1 200 OK"
+2026-10-10 15:20:56,977 httpx INFO HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-10 15:27:00,845 livekit INFO livekit::room:1788:livekit::room - Disconnected from room "ava-001" with reason: ParticipantRemoved
+2026-10-10 15:27:00,847 service015.runtime WARNING ava-001: room disconnected: 4
+2026-10-10 15:27:01,072 service015.runtime INFO stop requested; closing worker
+2026-10-10 15:27:01,073 livekit.agents INFO shutting down worker
+2026-10-10 15:27:02,810 service015.runtime WARNING ava-001: session closed: CloseReason.USER_INITIATED
+2026-10-10 15:27:02,824 livekit.agents INFO process exiting

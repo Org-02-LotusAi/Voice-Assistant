@@ -1,0 +1,9 @@
+{
+  "name": "default_room",
+  "test_ref": "-",
+  "status": "FAIL",
+  "checks": [],
+  "data": {},
+  "duration_s": 506.9530000000086,
+  "error": "AssertionError: ava-001 went to ERROR during launch: start_timeout / still STARTING after 120 s\nTraceback (most recent call last):\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\scripts\\run_acceptance.py\", line 182, in main_async\n    res = await scenarios.SCENARIOS[name](ctx)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\tests\\e2e\\scenarios.py\", line 335, in scenario_default_room\n    ident = await ctx.ensure_identity(\"ava\")\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Jaith\\Desktop\\Lotus Interworks\\VoiceSOW\\tests\\e2e\\driver.py\", line 171, in launch_ready\n    r = await self.client.request(\"POST\", f\"/identities/{identity_id}/launch\")\nAssertionError: ava-001 went to ERROR during launch: start_timeout / still STARTING after 120 s\n"
+}

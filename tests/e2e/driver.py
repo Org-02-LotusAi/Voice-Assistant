@@ -25,26 +25,31 @@ class Check:
     name: str
     ok: bool
     detail: str = ""
+    kind: str = ""  # "audio": judges the audio path (TTS pronunciation + Moonshine hearing), not what the LLM decided to say
 
 
 @dataclass
 class ScenarioResult:
     name: str
     test_ref: str
-    status: str = "PASS"  # PASS | FAIL | FAIL-ON-THIS-HOST (latency ceiling missed on a host that cannot meet it)
+    status: str = "PASS"  # PASS | PASS-AUDIO-CAVEAT | FAIL | FAIL-ON-THIS-HOST (latency ceiling missed on a host that cannot meet it)
     checks: list[Check] = field(default_factory=list)
     data: dict[str, Any] = field(default_factory=dict)
     duration_s: float = 0.0
     error: str | None = None
 
-    def check(self, name: str, ok: bool, detail: str = "") -> bool:
-        self.checks.append(Check(name, bool(ok), detail))
+    def check(self, name: str, ok: bool, detail: str = "", kind: str = "") -> bool:
+        self.checks.append(Check(name, bool(ok), detail, kind))
         return bool(ok)
 
     def finalize(self) -> None:
-        if self.error or any(not c.ok for c in self.checks):
+        failing = [c for c in self.checks if not c.ok]
+        if self.error or failing:
             if self.status == "PASS":
-                self.status = "FAIL"
+                # Every LLM-level check passed and only the audio-path transcript checks failed: the product said the right
+                # thing and the failure is TTS pronunciation or STT hearing. Reported as a caveat, never as a plain PASS.
+                only_audio = bool(failing) and not self.error and all(c.kind == "audio" for c in failing)
+                self.status = "PASS-AUDIO-CAVEAT" if only_audio else "FAIL"
 
 
 @dataclass

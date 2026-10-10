@@ -1,0 +1,602 @@
+{
+  "name": "isolation",
+  "test_ref": "TEST 6",
+  "status": "PASS-AUDIO-CAVEAT",
+  "checks": [
+    {
+      "name": "different identities",
+      "ok": true,
+      "detail": "ava-001 / james-001",
+      "kind": ""
+    },
+    {
+      "name": "same template + version",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "different voices",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "different rooms",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_name: reply audio produced",
+      "ok": true,
+      "detail": "wait 12.47s",
+      "kind": ""
+    },
+    {
+      "name": "james/q_name: LLM text contains name 'James'",
+      "ok": true,
+      "detail": "My name is James.",
+      "kind": ""
+    },
+    {
+      "name": "james/q_name: transcript of the audio contains name 'James'",
+      "ok": true,
+      "detail": "heard='you My name is James.' llm='My name is James.'",
+      "kind": "audio"
+    },
+    {
+      "name": "james/q_name: no ava name 'Ava'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_name: no ava company 'Safi'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_company: reply audio produced",
+      "ok": true,
+      "detail": "wait 13.44s",
+      "kind": ""
+    },
+    {
+      "name": "james/q_company: LLM text contains company 'Northwind'",
+      "ok": true,
+      "detail": "I work for Northwind.",
+      "kind": ""
+    },
+    {
+      "name": "james/q_company: transcript of the audio contains company 'Northwind'",
+      "ok": true,
+      "detail": "heard='I work for Northwind.' llm='I work for Northwind.'",
+      "kind": "audio"
+    },
+    {
+      "name": "james/q_company: no ava name 'Ava'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_company: no ava company 'Safi'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_role: reply audio produced",
+      "ok": true,
+      "detail": "wait 14.78s",
+      "kind": ""
+    },
+    {
+      "name": "james/q_role: LLM text contains role 'Solutions Consultant'",
+      "ok": true,
+      "detail": "I am a Solutions Consultant.",
+      "kind": ""
+    },
+    {
+      "name": "james/q_role: transcript of the audio contains role 'Solutions Consultant'",
+      "ok": true,
+      "detail": "heard='I am a solutions consultant.' llm='I am a Solutions Consultant.'",
+      "kind": "audio"
+    },
+    {
+      "name": "james/q_role: no ava name 'Ava'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "james/q_role: no ava company 'Safi'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_name: reply audio produced",
+      "ok": true,
+      "detail": "wait 12.28s",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_name: LLM text contains name 'Ava'",
+      "ok": true,
+      "detail": "My name is Ava.",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_name: transcript of the audio contains name 'Ava'",
+      "ok": true,
+      "detail": "heard='My name is Ava.' llm='My name is Ava.'",
+      "kind": "audio"
+    },
+    {
+      "name": "ava/q_name: no james name 'James'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_name: no james company 'Northwind'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_company: reply audio produced",
+      "ok": true,
+      "detail": "wait 13.12s",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_company: LLM text contains company 'Safi'",
+      "ok": true,
+      "detail": "I work for Safi.",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_company: transcript of the audio contains company 'Safi'",
+      "ok": false,
+      "detail": "heard='I work for Sethie.' llm='I work for Safi.'",
+      "kind": "audio"
+    },
+    {
+      "name": "ava/q_company: no james name 'James'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_company: no james company 'Northwind'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_role: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.05s",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_role: LLM text contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "I'm an Account Specialist at Safi.",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_role: transcript of the audio contains role 'Account Specialist'",
+      "ok": true,
+      "detail": "heard=\"I'm an account specialist at Safi.\" llm=\"I'm an Account Specialist at Safi.\"",
+      "kind": "audio"
+    },
+    {
+      "name": "ava/q_role: no james name 'James'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "ava/q_role: no james company 'Northwind'",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "james": [
+      {
+        "label": "q_name",
+        "clip": "q_name",
+        "human_says": "What is your name?",
+        "onset_t": 100297.64,
+        "reply": {
+          "started": true,
+          "t_first": 100311.578,
+          "t_last": 100312.39,
+          "complete": true,
+          "transcript": "you My name is James.",
+          "audio_seconds": 1.68
+        },
+        "row": {
+          "id": 4,
+          "identity_id": "james-001",
+          "session_id": "733bd7ad0841403da3615e3c374747a0",
+          "turn_index": 0,
+          "t0": 100299.218,
+          "t1": 100299.468,
+          "t2": 100299.671,
+          "t3": 100311.328,
+          "t4": 100311.343,
+          "t5": 100311.578,
+          "user_text": "What is your name?",
+          "agent_text": "My name is James.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:23:51.548522+00:00"
+        },
+        "t5": 100311.578,
+        "wait_start_s": 12.47,
+        "wait_complete_s": 13.33,
+        "agent_text": "My name is James.",
+        "heard_transcript": "you My name is James."
+      },
+      {
+        "label": "q_company",
+        "clip": "q_company",
+        "human_says": "Who do you work for?",
+        "onset_t": 100316.078,
+        "reply": {
+          "started": true,
+          "t_first": 100331.203,
+          "t_last": 100332.187,
+          "complete": true,
+          "transcript": "I work for Northwind.",
+          "audio_seconds": 1.69
+        },
+        "row": {
+          "id": 5,
+          "identity_id": "james-001",
+          "session_id": "733bd7ad0841403da3615e3c374747a0",
+          "turn_index": 1,
+          "t0": 100317.859,
+          "t1": 100318.359,
+          "t2": 100318.687,
+          "t3": 100331.015,
+          "t4": 100331.015,
+          "t5": 100331.203,
+          "user_text": "Who do you work for?",
+          "agent_text": "I work for Northwind.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:24:11.228094+00:00"
+        },
+        "t5": 100331.203,
+        "wait_start_s": 13.44,
+        "wait_complete_s": 14.61,
+        "agent_text": "I work for Northwind.",
+        "heard_transcript": "I work for Northwind."
+      },
+      {
+        "label": "q_role",
+        "clip": "q_role",
+        "human_says": "What is your role?",
+        "onset_t": 100335.781,
+        "reply": {
+          "started": true,
+          "t_first": 100352.64,
+          "t_last": 100354.218,
+          "complete": true,
+          "transcript": "I am a solutions consultant.",
+          "audio_seconds": 2.28
+        },
+        "row": {
+          "id": 6,
+          "identity_id": "james-001",
+          "session_id": "733bd7ad0841403da3615e3c374747a0",
+          "turn_index": 2,
+          "t0": 100337.406,
+          "t1": 100337.671,
+          "t2": 100337.968,
+          "t3": 100352.468,
+          "t4": 100352.484,
+          "t5": 100352.64,
+          "user_text": "What is your role?",
+          "agent_text": "I am a Solutions Consultant.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:24:32.691965+00:00"
+        },
+        "t5": 100352.64,
+        "wait_start_s": 14.78,
+        "wait_complete_s": 16.66,
+        "agent_text": "I am a Solutions Consultant.",
+        "heard_transcript": "I am a solutions consultant."
+      }
+    ],
+    "ava": [
+      {
+        "label": "q_name",
+        "clip": "q_name",
+        "human_says": "What is your name?",
+        "onset_t": 100056.406,
+        "reply": {
+          "started": true,
+          "t_first": 100070.156,
+          "t_last": 100071.078,
+          "complete": true,
+          "transcript": "My name is Ava.",
+          "audio_seconds": 1.7
+        },
+        "row": {
+          "id": 1,
+          "identity_id": "ava-001",
+          "session_id": "9ce6ca05d8cb475e8aec634309fc3fb6",
+          "turn_index": 0,
+          "t0": 100058.0,
+          "t1": 100058.531,
+          "t2": 100058.734,
+          "t3": 100070.031,
+          "t4": 100070.031,
+          "t5": 100070.156,
+          "user_text": "What is your name?",
+          "agent_text": "My name is Ava.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:19:50.252737+00:00"
+        },
+        "t5": 100070.156,
+        "wait_start_s": 12.28,
+        "wait_complete_s": 13.3,
+        "agent_text": "My name is Ava.",
+        "heard_transcript": "My name is Ava."
+      },
+      {
+        "label": "q_company",
+        "clip": "q_company",
+        "human_says": "Who do you work for?",
+        "onset_t": 100074.671,
+        "reply": {
+          "started": true,
+          "t_first": 100089.89,
+          "t_last": 100091.046,
+          "complete": true,
+          "transcript": "I work for Sethie.",
+          "audio_seconds": 1.86
+        },
+        "row": {
+          "id": 2,
+          "identity_id": "ava-001",
+          "session_id": "9ce6ca05d8cb475e8aec634309fc3fb6",
+          "turn_index": 1,
+          "t0": 100076.562,
+          "t1": 100076.937,
+          "t2": 100077.187,
+          "t3": 100089.734,
+          "t4": 100089.734,
+          "t5": 100089.89,
+          "user_text": "Who do you work for?",
+          "agent_text": "I work for Safi.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:20:09.968211+00:00"
+        },
+        "t5": 100089.89,
+        "wait_start_s": 13.12,
+        "wait_complete_s": 14.83,
+        "agent_text": "I work for Safi.",
+        "heard_transcript": "I work for Sethie."
+      },
+      {
+        "label": "q_role",
+        "clip": "q_role",
+        "human_says": "What is your role?",
+        "onset_t": 100094.593,
+        "reply": {
+          "started": true,
+          "t_first": 100114.234,
+          "t_last": 100116.093,
+          "complete": true,
+          "transcript": "I'm an account specialist at Safi.",
+          "audio_seconds": 2.56
+        },
+        "row": {
+          "id": 3,
+          "identity_id": "ava-001",
+          "session_id": "9ce6ca05d8cb475e8aec634309fc3fb6",
+          "turn_index": 2,
+          "t0": 100096.296,
+          "t1": 100096.734,
+          "t2": 100096.984,
+          "t3": 100114.093,
+          "t4": 100114.093,
+          "t5": 100114.234,
+          "user_text": "What is your role?",
+          "agent_text": "I'm an Account Specialist at Safi.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T09:20:34.305660+00:00"
+        },
+        "t5": 100114.234,
+        "wait_start_s": 18.05,
+        "wait_complete_s": 20.31,
+        "agent_text": "I'm an Account Specialist at Safi.",
+        "heard_transcript": "I'm an account specialist at Safi."
+      }
+    ],
+    "fact_checks": [
+      {
+        "identity": "james",
+        "question": "What is your name?",
+        "fact": "name",
+        "expected": "James",
+        "llm_text": "My name is James.",
+        "heard_transcript": "you My name is James.",
+        "llm_has_fact": true,
+        "heard_has_fact": true,
+        "heard_has_fact_strict_no_alias": true,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "ok"
+      },
+      {
+        "identity": "james",
+        "question": "Who do you work for?",
+        "fact": "company",
+        "expected": "Northwind",
+        "llm_text": "I work for Northwind.",
+        "heard_transcript": "I work for Northwind.",
+        "llm_has_fact": true,
+        "heard_has_fact": true,
+        "heard_has_fact_strict_no_alias": true,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "ok"
+      },
+      {
+        "identity": "james",
+        "question": "What is your role?",
+        "fact": "role",
+        "expected": "Solutions Consultant",
+        "llm_text": "I am a Solutions Consultant.",
+        "heard_transcript": "I am a solutions consultant.",
+        "llm_has_fact": true,
+        "heard_has_fact": true,
+        "heard_has_fact_strict_no_alias": true,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "ok"
+      },
+      {
+        "identity": "ava",
+        "question": "What is your name?",
+        "fact": "name",
+        "expected": "Ava",
+        "llm_text": "My name is Ava.",
+        "heard_transcript": "My name is Ava.",
+        "llm_has_fact": true,
+        "heard_has_fact": true,
+        "heard_has_fact_strict_no_alias": true,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "ok"
+      },
+      {
+        "identity": "ava",
+        "question": "Who do you work for?",
+        "fact": "company",
+        "expected": "Safi",
+        "llm_text": "I work for Safi.",
+        "heard_transcript": "I work for Sethie.",
+        "llm_has_fact": true,
+        "heard_has_fact": false,
+        "heard_has_fact_strict_no_alias": false,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "(b) audio path: LLM right, transcript of the audio lost it"
+      },
+      {
+        "identity": "ava",
+        "question": "What is your role?",
+        "fact": "role",
+        "expected": "Account Specialist",
+        "llm_text": "I'm an Account Specialist at Safi.",
+        "heard_transcript": "I'm an account specialist at Safi.",
+        "llm_has_fact": true,
+        "heard_has_fact": true,
+        "heard_has_fact_strict_no_alias": true,
+        "llm_has_fact_strict_no_alias": true,
+        "verdict": "ok"
+      }
+    ],
+    "james_greeting": "Ay,, this is James with North Wind. How can I help you today?",
+    "resources": {
+      "samples": 106,
+      "cpu_pct": {
+        "min": 15.4,
+        "avg": 48.0,
+        "max": 94.4
+      },
+      "mem_available_mb": {
+        "min": 123,
+        "avg": 321.1,
+        "max": 514
+      },
+      "swap_used_mb": {
+        "min": 8071,
+        "avg": 8133.9,
+        "max": 8469
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 1.0,
+            "max": 14.1
+          },
+          "rss_mb": {
+            "min": 45.1,
+            "avg": 70.1,
+            "max": 89.0
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 168.3,
+            "max": 547.5
+          },
+          "rss_mb": {
+            "min": 1592.6,
+            "avg": 2310.0,
+            "max": 2645.4
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 12.9,
+            "avg": 60.1,
+            "max": 558.0
+          },
+          "rss_mb": {
+            "min": 356.5,
+            "avg": 378.4,
+            "max": 388.8
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 16.4,
+            "avg": 56.6,
+            "max": 486.2
+          },
+          "rss_mb": {
+            "min": 1189.5,
+            "avg": 1372.2,
+            "max": 1647.2
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 2.0,
+            "max": 4.7
+          },
+          "rss_mb": {
+            "min": 38.1,
+            "avg": 102.8,
+            "max": 155.8
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.3,
+            "max": 1.4
+          },
+          "rss_mb": {
+            "min": 23.3,
+            "avg": 25.5,
+            "max": 26.7
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 238.375,
+  "error": null
+}

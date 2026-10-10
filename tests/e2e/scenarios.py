@@ -15,7 +15,7 @@ from service015.runtime import latency
 
 from .audio import load_clip
 from .driver import Ctx, ScenarioResult, TurnResult
-from .expectations import INTERRUPT_KEYWORDS, TURN_KEYWORDS, keyword_hits, mentions
+from .expectations import INTERRUPT_KEYWORDS, TURN_KEYWORDS, keyword_hits, mentions, mentions_strict
 from .human import Human
 from .stack import engine_health, run_engine_script
 
@@ -92,21 +92,25 @@ async def run_self_knowledge(ctx: Ctx, key: str) -> dict[str, Any]:
         return ctx.cache[cache_key]
     s = await session(ctx, key)
     mine, theirs = ctx.spec(key), ctx.spec(_other(key))
-    turns, checks = [], []
+    turns, checks, fact_checks = [], [], []
     for stem, fact in QUESTIONS:
         t = await ctx.ask(s.human, s.identity_id, stem, f"selfknowledge-{key}")
         want = mine[fact]
         texts = {"heard": t.heard, "agent_text": t.agent_text}
+        llm_ok, heard_ok = mentions(t.agent_text, want), mentions(t.heard, want)
+        # (a) the LLM did not state the fact: product failure. (b) the LLM stated it but the audio path lost it.
+        verdict = "ok" if llm_ok and heard_ok else "(b) audio path: LLM right, transcript of the audio lost it" if llm_ok else "(a) LLM wrong"
+        fact_checks.append({"identity": key, "question": t.human_says, "fact": fact, "expected": want, "llm_text": t.agent_text, "heard_transcript": t.heard, "llm_has_fact": llm_ok, "heard_has_fact": heard_ok, "heard_has_fact_strict_no_alias": mentions_strict(t.heard, want), "llm_has_fact_strict_no_alias": mentions_strict(t.agent_text, want), "verdict": verdict})
         checks += [
-            (f"{key}/{stem}: reply audio produced", t.reply.started, f"wait {t.wait_start_s}s"),
-            (f"{key}/{stem}: transcript contains {fact} '{want}'", mentions(t.heard, want), t.heard),
-            (f"{key}/{stem}: LLM text contains {fact} '{want}'", mentions(t.agent_text, want), t.agent_text),
+            (f"{key}/{stem}: reply audio produced", t.reply.started, f"wait {t.wait_start_s}s", ""),
+            (f"{key}/{stem}: LLM text contains {fact} '{want}'", llm_ok, t.agent_text, ""),
+            (f"{key}/{stem}: transcript of the audio contains {fact} '{want}'", heard_ok, f"heard={t.heard!r} llm={t.agent_text!r}", "audio"),
         ]
         for fact_o in ("name", "company"):
             leak = [n for n, txt in texts.items() if mentions(txt, theirs[fact_o])]
-            checks.append((f"{key}/{stem}: no {_other(key)} {fact_o} '{theirs[fact_o]}'", not leak, f"leaked in {leak}" if leak else ""))
+            checks.append((f"{key}/{stem}: no {_other(key)} {fact_o} '{theirs[fact_o]}'", not leak, f"leaked in {leak}" if leak else "", ""))
         turns.append(turn_json(t))
-    out = {"turns": turns, "checks": checks, "greeting": s.info, "identity": s.identity_id}
+    out = {"turns": turns, "checks": checks, "fact_checks": fact_checks, "greeting": s.info, "identity": s.identity_id}
     ctx.cache[cache_key] = out
     return out
 
@@ -114,11 +118,11 @@ async def run_self_knowledge(ctx: Ctx, key: str) -> dict[str, Any]:
 async def scenario_self_knowledge(ctx: Ctx) -> ScenarioResult:
     res = ScenarioResult("self_knowledge", "TEST 4/5")
     out = await run_self_knowledge(ctx, "ava")
-    for name, ok, detail in out["checks"]:
-        res.check(name, ok, detail)
+    for name, ok, detail, kind in out["checks"]:
+        res.check(name, ok, detail, kind)
     greet = out["greeting"]
     res.check("greeting played when the human joined", bool(greet.get("greeting_transcript")), greet.get("greeting_transcript", ""))
-    res.data = {"turns": out["turns"], "greeting": {k: v for k, v in greet.items() if k != "launch"}, "launch": greet.get("launch")}
+    res.data = {"turns": out["turns"], "fact_checks": out["fact_checks"], "greeting": {k: v for k, v in greet.items() if k != "launch"}, "launch": greet.get("launch")}
     return res
 
 
@@ -132,9 +136,9 @@ async def scenario_isolation(ctx: Ctx) -> ScenarioResult:
     res.check("different rooms", ava_ident["participant"]["default_room"] != james_ident["participant"]["default_room"])
     james = await run_self_knowledge(ctx, "james")
     ava = await run_self_knowledge(ctx, "ava")  # cached when scenario 1 ran
-    for name, ok, detail in james["checks"] + ava["checks"]:
-        res.check(name, ok, detail)
-    res.data = {"james": james["turns"], "ava": ava["turns"], "james_greeting": james["greeting"].get("greeting_transcript")}
+    for name, ok, detail, kind in james["checks"] + ava["checks"]:
+        res.check(name, ok, detail, kind)
+    res.data = {"james": james["turns"], "ava": ava["turns"], "fact_checks": james["fact_checks"] + ava["fact_checks"], "james_greeting": james["greeting"].get("greeting_transcript")}
     await end_session(ctx, "james")
     return res
 

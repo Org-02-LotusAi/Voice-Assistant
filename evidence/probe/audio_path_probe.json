@@ -1,0 +1,74 @@
+[
+  {
+    "text": "I work for Safi.",
+    "fact": "Safi",
+    "run": 1,
+    "transcript": "I work for Saffy.",
+    "fact_heard": true,
+    "audio_s": 1.56
+  },
+  {
+    "text": "I work for Safi.",
+    "fact": "Safi",
+    "run": 2,
+    "transcript": "I work for Saffy.",
+    "fact_heard": true,
+    "audio_s": 1.44
+  },
+  {
+    "text": "I work for Safi.",
+    "fact": "Safi",
+    "run": 3,
+    "transcript": "I work for Safi. Answer any questions you have,",
+    "fact_heard": true,
+    "audio_s": 3.64
+  },
+  {
+    "text": "My name is Ava.",
+    "fact": "Ava",
+    "run": 1,
+    "transcript": "you My name is Ava.",
+    "fact_heard": true,
+    "audio_s": 1.56
+  },
+  {
+    "text": "My name is Ava.",
+    "fact": "Ava",
+    "run": 2,
+    "transcript": "My name is Ava.",
+    "fact_heard": true,
+    "audio_s": 1.44
+  },
+  {
+    "text": "My name is Ava.",
+    "fact": "Ava",
+    "run": 3,
+    "transcript": "My name is Ava.",
+    "fact_heard": true,
+    "audio_s": 1.48
+  },
+  {
+    "text": "I'm an Account Specialist here at Safi.",
+    "fact": "Safi",
+    "run": 1,
+    "transcript": "I'm an account specialist here at Safiq.",
+    "fact_heard": false,
+    "audio_s": 2.4
+  },
+  {
+    "text": "I'm an Account Specialist here at Safi.",
+    "fact": "Safi",
+    "run": 2,
+    "transcript": "I'm an account specialist here at Safi.",
+    "fact_heard": true,
+    "audio_s": 2.36
+  },
+  {
+    "text": "I'm an Account Specialist here at Safi.",
+    "fact": "Safi",
+    "run": 3,
+    "transcript": "I'm an account specialist here at Saffee.",
+    "fact_heard": false,
+    "audio_s": 2.44
+  }
+]

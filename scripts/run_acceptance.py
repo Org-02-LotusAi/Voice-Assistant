@@ -44,6 +44,7 @@ from livekit import api as lk_api  # noqa: E402
 from service015.config import Settings  # noqa: E402
 from tests.e2e import scenarios  # noqa: E402
 from tests.e2e.driver import Ctx, ScenarioResult  # noqa: E402
+from tests.e2e.monitor import ResourceMonitor  # noqa: E402
 from tests.e2e.stack import ApiProcess, Config, engine_health, kill_tree, pid_alive  # noqa: F401  # noqa: E402
 
 LATENCY_CHECK_PREFIX = "P50 T0->T4"
@@ -126,6 +127,18 @@ def summary_markdown(ts: str, results: list[ScenarioResult], cfg: Config, extra:
         if r.error:
             failed.append(f"ERROR: {r.error.splitlines()[-1][:120]}")
         lines.append(f"| {i} | {r.name} | {r.test_ref} | **{r.status}** | {r.duration_s:.0f} s | {'; '.join(failed) or '-'} |")
+    lines += ["", "## Host load per scenario (psutil, every 2 s; raw samples in resources.jsonl)", "",
+              "| Scenario | CPU % avg/max | RAM available MB min/avg | swap used MB max | engine CPU% avg | engine RSS MB max | worker+jobs RSS MB max |", "|---|---|---|---|---|---|---|"]
+    for r in results:
+        res = r.data.get("resources") or {}
+        if not res.get("samples"):
+            continue
+        g = res.get("groups", {})
+        eng, wk, jb = g.get("engine", {}), g.get("runtime_worker", {}), g.get("runtime_jobs", {})
+        lines.append(
+            f"| {r.name} | {res['cpu_pct']['avg']}/{res['cpu_pct']['max']} | {res['mem_available_mb']['min']}/{res['mem_available_mb']['avg']} | {res['swap_used_mb']['max']} | "
+            f"{eng.get('cpu_pct', {}).get('avg', '-')} | {eng.get('rss_mb', {}).get('max', '-')} | {round(wk.get('rss_mb', {}).get('max', 0) + jb.get('rss_mb', {}).get('max', 0), 1)} |"
+        )
     lines += ["", "## Checks", ""]
     for r in results:
         lines.append(f"### {r.name} ({r.status})")
@@ -166,6 +179,8 @@ async def main_async(args: argparse.Namespace, cfg: Config) -> int:
     if auth.returncode != 0:
         raise SystemExit(f"authorize_seed_voices failed: {auth.stderr.strip()}")
 
+    monitor = ResourceMonitor(evidence / "resources.jsonl")
+    monitor.start()
     api = ApiProcess(cfg, work, archive_dir=raw / "logs")
     ctx = Ctx(cfg, api, evidence, raw)
     results: list[ScenarioResult] = []
@@ -184,6 +199,7 @@ async def main_async(args: argparse.Namespace, cfg: Config) -> int:
                 res.error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
                 res.test_ref = res.test_ref or "-"
             res.duration_s = time.monotonic() - t0
+            res.data = {**res.data, "resources": monitor.summary(t0, time.monotonic())}
             res.finalize()
             if res.name == "latency" and res.status == "FAIL" and not res.error and args.allow_latency_fail:
                 failing = [c.name for c in res.checks if not c.ok]
@@ -207,6 +223,7 @@ async def main_async(args: argparse.Namespace, cfg: Config) -> int:
         except Exception as exc:
             print(f"teardown: end_all_sessions failed: {type(exc).__name__}: {exc}")
         await ctx.cleanup()
+        monitor.stop()
         stop = await api.stop()
         print("API stop:", stop)
         await asyncio.sleep(2)
