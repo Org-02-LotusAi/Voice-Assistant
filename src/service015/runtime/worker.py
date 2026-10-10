@@ -23,6 +23,7 @@ import sys
 import time
 import uuid
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, AsyncIterable, Callable
 
@@ -256,23 +257,39 @@ def is_rate_limited(error: Any) -> bool:
     return any(getattr(e, "status_code", None) == 429 for e in _error_chain(error))
 
 
-_RETRY_IN_RE = re.compile(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", re.IGNORECASE)
+_RETRY_IN_RE = re.compile(r"try again in (?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)(ms|s))?", re.IGNORECASE)
+
+
+def _parse_retry_after_header(value: str) -> float | None:
+    """`Retry-After` is delay-seconds ("2", "2.5") or an HTTP-date; also tolerates Groq-style "850ms" / "1.2s"."""
+    value = value.strip()
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(ms|s)?", value, re.IGNORECASE)
+    if m:
+        seconds = float(m.group(1))
+        return seconds / 1000.0 if (m.group(2) or "").lower() == "ms" else seconds
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
 
 
 def retry_after_seconds(error: Any) -> float | None:
-    """Seconds the provider asked us to wait: a `Retry-After` header, else Groq's 'try again in 1m2.5s' message."""
+    """Seconds the provider asked us to wait: a `Retry-After` header, else Groq's 'try again in 1m2.5s' / '850ms' message."""
     for e in _error_chain(error):
         for holder in (e, getattr(e, "response", None)):
             headers = getattr(holder, "headers", None)
             value = headers.get("retry-after") if hasattr(headers, "get") else None
             if value:
-                try:
-                    return max(float(value), 0.0)
-                except ValueError:
-                    pass
+                parsed = _parse_retry_after_header(str(value))
+                if parsed is not None:
+                    return parsed
         m = _RETRY_IN_RE.search(f"{getattr(e, 'message', '')} {getattr(e, 'body', '') or ''} {e}")
-        if m:
-            return int(m.group(1) or 0) * 60 + float(m.group(2))
+        if m and m.group(2):
+            seconds = float(m.group(2)) / 1000.0 if m.group(3).lower() == "ms" else float(m.group(2))
+            return int(m.group(1) or 0) * 60 + seconds
     return None
 
 
@@ -298,6 +315,58 @@ class SessionRecovery:
 
     def on_progress(self) -> None:
         self.attempts = 0
+
+
+class RecoveryDriver:
+    """Drives bounded session recreation: backoff, start failures count against the same attempts, exhaustion fails the job.
+
+    All side effects are injected so the error paths are unit-testable without a LiveKit room.
+    """
+
+    def __init__(self, recovery: SessionRecovery, *, start, fail, shutdown, spawn, ended, sleep=asyncio.sleep) -> None:
+        self.recovery = recovery
+        self._start = start  # async () -> None: build a new session and start it
+        self._fail = fail  # (detail, message, terminal=False)
+        self._shutdown = shutdown  # (reason)
+        self._spawn = spawn
+        self._ended = ended  # () -> bool
+        self._sleep = sleep
+
+    def on_closed(self, detail: str, label: str, error: Any) -> None:
+        """The session closed on an unrecoverable error: latch ERROR, then recreate after a backoff or give up."""
+        self._fail(detail, f"session closed after an unrecoverable {label} error; recovering")
+        delay = self.recovery.on_closed(retry_after_seconds(error))
+        if delay is None:
+            self._exhausted(detail, f"session closed after an unrecoverable {label} error")
+            return
+        log.warning("recreating the session in %.0fs (attempt %d/%d)", delay, self.recovery.attempts, self.recovery.max_attempts)
+        self._spawn(self.run(delay, detail, label))
+
+    def _exhausted(self, detail: str, why: str) -> None:
+        self._fail(detail, f"{why}; recovery attempts exhausted, relaunch the identity", True)
+        self._shutdown("session_recovery_exhausted")
+
+    async def run(self, delay: float, detail: str, label: str) -> None:
+        while True:
+            await self._sleep(delay)
+            if self._ended():
+                return
+            try:
+                await self._start()
+            except Exception as exc:
+                log.exception("session recreation failed (attempt %d/%d)", self.recovery.attempts, self.recovery.max_attempts)
+                why = f"session recreation failed: {type(exc).__name__}: {exc}"[:400]
+                next_delay = self.recovery.on_closed()
+                if next_delay is None:
+                    self._exhausted(detail, why)
+                    return
+                self._fail(detail, f"{why}; recovering")
+                delay = next_delay
+                continue
+            # Up again, but ERROR stays latched (still `detail`) until the LLM/STT/TTS proves itself with real output.
+            self._fail(detail, "session recreated; recovering until the first successful reply")
+            log.info("session recreated")
+            return
 
 
 def classify_error(error: Any, source: Any = None) -> tuple[str, str] | None:
@@ -446,6 +515,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     if agent.chunks_seen > llm_failed_at[0]:
                         bg(pres.recovered, P.LLM_UNAVAILABLE)
                         bg(pres.recovered, P.LLM_RATE_LIMITED)
+                        bg(pres.recovered, "session_error")
                         recovery.on_progress()
 
             session.on("user_state_changed", guarded(on_user_state))
@@ -501,28 +571,25 @@ async def entrypoint(ctx: JobContext) -> None:
                 if ev.error is None or state["ended"] or session is not cur["session"]:
                     return
                 comp = classify_error(ev.error) or ("session_error", "session")
-                fail_job(comp[0], f"session closed after an unrecoverable {comp[1]} error")
                 # Keep the job alive: ERROR stays visible, the session is recreated after a backoff (bounded). No speech is invented.
-                delay = recovery.on_closed(retry_after_seconds(ev.error))
-                if delay is None:
-                    fail_job(comp[0], f"session closed after an unrecoverable {comp[1]} error; recovery attempts exhausted, relaunch the identity")
-                    return
-                log.warning("%s: recreating the session in %.0fs (attempt %d/%d)", identity_id, delay, recovery.attempts, recovery.max_attempts)
-                spawn(recreate_session(delay, comp[0]))
+                driver.on_closed(comp[0], comp[1], ev.error)
 
             session.on("error", guarded(on_error))
             session.on("close", guarded(on_close))
             return agent, session
 
-        async def recreate_session(delay: float, detail: str) -> None:
-            await asyncio.sleep(delay)
-            if state["ended"]:
-                return
+        async def start_new_session() -> None:
             agent, session = make_session()
             await session.start(agent, room=room, room_options=room_io.RoomOptions(close_on_disconnect=False))
-            bg(pres.recovered, detail)  # the new session is up; a new failure latches the coded ERROR again
-            log.info("%s: session recreated", identity_id)
 
+        driver = RecoveryDriver(
+            recovery,
+            start=start_new_session,
+            fail=fail_job,
+            shutdown=ctx.shutdown,
+            spawn=spawn,
+            ended=lambda: state["ended"],
+        )
 
         own = room.local_participant.identity
         started = asyncio.Event()

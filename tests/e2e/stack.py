@@ -160,7 +160,8 @@ class ApiProcess:
 
             self.archive_dir.mkdir(parents=True, exist_ok=True)
             stamp = time.strftime("%H%M%S")
-            for src in (self.log_path, self.work_dir / "runtime-worker.log"):
+            # runtime-worker.rotating.log is DEBUG-capable (may hold transcripts): archive_dir is evidence/raw, which is git-ignored
+            for src in (self.log_path, self.work_dir / "runtime-worker.log", self.work_dir / "runtime-worker.rotating.log"):
                 if src is not None and src.exists():
                     shutil.copy(src, self.archive_dir / f"{stamp}-{src.name}")
         self.proc = None
