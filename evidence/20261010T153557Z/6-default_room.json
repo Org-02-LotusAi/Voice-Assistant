@@ -1,0 +1,171 @@
+{
+  "name": "default_room",
+  "test_ref": "TEST 8",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "room equals identity default_room on every launch",
+      "ok": true,
+      "detail": "[\"ava-001\", \"ava-001\", \"ava-001\"]",
+      "kind": ""
+    },
+    {
+      "name": "participant identity equals identity participant_identity on every launch",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "the agent participant is present in that room on every launch",
+      "ok": true,
+      "detail": "[{\"identity\": \"ava-001\", \"name\": \"Ava\", \"kind\": \"PARTICIPANT_KIND_AGENT\"}, {\"identity\": \"ava-001\", \"name\": \"Ava\", \"kind\": \"PARTICIPANT_KIND_AGENT\"}, {\"identity\": \"ava-001\", \"name\": \"Ava\", \"kind\": \"PARTICIPANT_KIND_AGENT\"}]",
+      "kind": ""
+    },
+    {
+      "name": "room/participant identical across launches",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "identity snapshot unchanged by relaunching",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "launches": [
+      {
+        "launch": 1,
+        "ready_after_s": 124.3,
+        "room": "ava-001",
+        "participant_identity": "ava-001",
+        "join_token_room": "ava-001",
+        "livekit_participant": {
+          "identity": "ava-001",
+          "name": "Ava",
+          "kind": "PARTICIPANT_KIND_AGENT"
+        }
+      },
+      {
+        "launch": 2,
+        "ready_after_s": 12.8,
+        "room": "ava-001",
+        "participant_identity": "ava-001",
+        "join_token_room": "ava-001",
+        "livekit_participant": {
+          "identity": "ava-001",
+          "name": "Ava",
+          "kind": "PARTICIPANT_KIND_AGENT"
+        }
+      },
+      {
+        "launch": 3,
+        "ready_after_s": 10.8,
+        "room": "ava-001",
+        "participant_identity": "ava-001",
+        "join_token_room": "ava-001",
+        "livekit_participant": {
+          "identity": "ava-001",
+          "name": "Ava",
+          "kind": "PARTICIPANT_KIND_AGENT"
+        }
+      }
+    ],
+    "resources": {
+      "samples": 68,
+      "cpu_pct": {
+        "min": 11.0,
+        "avg": 22.0,
+        "max": 60.6
+      },
+      "mem_available_mb": {
+        "min": 469,
+        "avg": 829.2,
+        "max": 1118
+      },
+      "swap_used_mb": {
+        "min": 9274,
+        "avg": 9385.4,
+        "max": 9519
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 1.9,
+            "max": 14.4
+          },
+          "rss_mb": {
+            "min": 34.0,
+            "avg": 34.6,
+            "max": 37.0
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.3,
+            "max": 2.9
+          },
+          "rss_mb": {
+            "min": 1916.7,
+            "avg": 1916.8,
+            "max": 1916.9
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 7.2,
+            "avg": 10.9,
+            "max": 66.7
+          },
+          "rss_mb": {
+            "min": 371.3,
+            "avg": 372.1,
+            "max": 372.7
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 18.6,
+            "max": 179.6
+          },
+          "rss_mb": {
+            "min": 14.0,
+            "avg": 77.8,
+            "max": 726.3
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.7,
+            "max": 2.9
+          },
+          "rss_mb": {
+            "min": 15.3,
+            "avg": 17.6,
+            "max": 22.1
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 5.7
+          },
+          "rss_mb": {
+            "min": 18.9,
+            "avg": 19.0,
+            "max": 19.3
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 148.31299999999464,
+  "error": null
+}

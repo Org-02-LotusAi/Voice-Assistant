@@ -1,0 +1,199 @@
+{
+  "name": "latency",
+  "test_ref": "TEST 11",
+  "status": "FAIL-ON-THIS-HOST",
+  "checks": [
+    {
+      "name": ">= 10 turns recorded by the API",
+      "ok": true,
+      "detail": "turns=13",
+      "kind": ""
+    },
+    {
+      "name": "API report equals report computed from the DB rows",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "t0_t4: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "t0_t1: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "t1_t2: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "t2_t3: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "t3_t4: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "t4_t5: >= 10 samples",
+      "ok": true,
+      "detail": "count=13",
+      "kind": ""
+    },
+    {
+      "name": "P50 T0->T4 <= 700 ms and P95 <= 1500 ms (SOW ceiling)",
+      "ok": false,
+      "detail": "P50=18,188 ms P95=20,750 ms; measured bottleneck: t2_t3 (P50 16,562 ms)",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "session_id": "34d59082195f4511b7217d64605776ca",
+    "identity": "ava-001",
+    "report": {
+      "turns": 13,
+      "t0_t4": {
+        "count": 13,
+        "p50": 18187.999999994645,
+        "p95": 20750.0,
+        "max": 20750.0
+      },
+      "t0_t1": {
+        "count": 13,
+        "p50": 1000.0,
+        "p95": 2187.000000005355,
+        "max": 2187.000000005355
+      },
+      "t1_t2": {
+        "count": 13,
+        "p50": 296.99999999138527,
+        "p95": 968.9999999973224,
+        "max": 968.9999999973224
+      },
+      "t2_t3": {
+        "count": 13,
+        "p50": 16562.000000005355,
+        "p95": 19343.000000008033,
+        "max": 19343.000000008033
+      },
+      "t3_t4": {
+        "count": 13,
+        "p50": 0.0,
+        "p95": 78.00000000861473,
+        "max": 78.00000000861473
+      },
+      "t4_t5": {
+        "count": 13,
+        "p50": 187.9999999946449,
+        "p95": 343.99999999732245,
+        "max": 343.99999999732245
+      }
+    },
+    "bottleneck_interval": "t2_t3",
+    "per_turn": [
+      {
+        "turn_index": 0,
+        "t0_t4_ms": 16078
+      },
+      {
+        "turn_index": 1,
+        "t0_t4_ms": 13422
+      },
+      {
+        "turn_index": 2,
+        "t0_t4_ms": 19796
+      },
+      {
+        "turn_index": 3,
+        "t0_t4_ms": 19531
+      },
+      {
+        "turn_index": 4,
+        "t0_t4_ms": 15641
+      },
+      {
+        "turn_index": 5,
+        "t0_t4_ms": 18656
+      },
+      {
+        "turn_index": 6,
+        "t0_t4_ms": 20750
+      },
+      {
+        "turn_index": 7,
+        "t0_t4_ms": 13062
+      },
+      {
+        "turn_index": 8,
+        "t0_t4_ms": 17625
+      },
+      {
+        "turn_index": 9,
+        "t0_t4_ms": 18391
+      },
+      {
+        "turn_index": 10,
+        "t0_t4_ms": 18188
+      },
+      {
+        "turn_index": 11,
+        "t0_t4_ms": 18078
+      },
+      {
+        "turn_index": 12,
+        "t0_t4_ms": 20329
+      }
+    ],
+    "first_turn_t0_t4_ms": 16078,
+    "later_turns_t0_t4_ms": [
+      13062,
+      13422,
+      15641,
+      17625,
+      18078,
+      18188,
+      18391,
+      18656,
+      19531,
+      19796,
+      20329,
+      20750
+    ],
+    "engine_health_at_report": {
+      "status": "ok",
+      "engine": "chatterbox-turbo",
+      "variant": "turbo",
+      "device": "cpu",
+      "sample_rate": 24000,
+      "warm": true,
+      "cached_profiles": [
+        "1ae6b96a-8410-4455-af19-7c58bcdfbd94",
+        "6326829e-38ae-475f-aedb-5c293aa43e51"
+      ],
+      "nano_supported": true,
+      "load_seconds": 42.3,
+      "error": null
+    },
+    "sow": {
+      "p50_limit_ms": 700.0,
+      "p95_limit_ms": 1500.0
+    },
+    "ceiling_met": false,
+    "resources": {
+      "samples": 0
+    }
+  },
+  "duration_s": 0.11000000000058208,
+  "error": null
+}

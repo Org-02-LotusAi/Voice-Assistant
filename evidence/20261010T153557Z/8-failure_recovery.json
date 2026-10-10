@@ -1,0 +1,325 @@
+{
+  "name": "failure_recovery",
+  "test_ref": "SOW 27",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "invalid override (disallowed override key) -> 422",
+      "ok": true,
+      "detail": "422 override_not_allowed",
+      "kind": ""
+    },
+    {
+      "name": "invalid override (non-boolean barge_in) -> 422",
+      "ok": true,
+      "detail": "422 invalid_override",
+      "kind": ""
+    },
+    {
+      "name": "invalid override (empty name) -> 422",
+      "ok": true,
+      "detail": "422 invalid_override",
+      "kind": ""
+    },
+    {
+      "name": "invalid override (missing required company) -> 422",
+      "ok": true,
+      "detail": "422 missing_required_field",
+      "kind": ""
+    },
+    {
+      "name": "identity unchanged after invalid overrides",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "no identity was created by rejected instantiates",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "presence became ERROR after the user's turn",
+      "ok": true,
+      "detail": "llm_unavailable | llm error: LLMError: type='llm_error' timestamp=1791648446.6215754 label='livekit.plugins.openai.llm.LLM' error=APIConnectionError('Connection error.', body=None, retryable=True) recoverable=False",
+      "kind": ""
+    },
+    {
+      "name": "error is llm_unavailable",
+      "ok": true,
+      "detail": "llm_unavailable | llm error: LLMError: type='llm_error' timestamp=1791648446.6215754 label='livekit.plugins.openai.llm.LLM' error=APIConnectionError('Connection error.', body=None, retryable=True) recoverable=False",
+      "kind": ""
+    },
+    {
+      "name": "no speech after the user's turn (no fabricated reply)",
+      "ok": true,
+      "detail": "0.00s of audio above the RMS gate",
+      "kind": ""
+    },
+    {
+      "name": "launch with the engine down -> 503",
+      "ok": true,
+      "detail": "503",
+      "kind": ""
+    },
+    {
+      "name": "error names the dependency failure (voice_engine)",
+      "ok": true,
+      "detail": "{\"code\": \"dependency_unavailable\", \"message\": \"the voice engine is not healthy (status: unavailable)\", \"details\": {\"dependency\": \"voice_engine\", \"engine_status\": \"unavailable\"}}",
+      "kind": ""
+    },
+    {
+      "name": "identity unchanged by the failed launch",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "presence still OFFLINE after the failed launch",
+      "ok": true,
+      "detail": "OFFLINE",
+      "kind": ""
+    },
+    {
+      "name": "engine restored and warm",
+      "ok": true,
+      "detail": "133.5s",
+      "kind": ""
+    },
+    {
+      "name": "relaunch after restore reaches READY",
+      "ok": true,
+      "detail": "42.4s",
+      "kind": ""
+    },
+    {
+      "name": "identity unchanged after recovery",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "engine still up and warm at the end",
+      "ok": true,
+      "detail": "{\"status\": \"ok\", \"engine\": \"chatterbox-turbo\", \"variant\": \"turbo\", \"device\": \"cpu\", \"sample_rate\": 24000, \"warm\": true, \"cached_profiles\": [\"6326829e-38ae-475f-aedb-5c293aa43e51\"], \"nano_supported\": true, \"load_seconds\": 31.4, \"error\": null}",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "invalid": {
+      "/templates/sales-representative/instantiate:POST": [
+        422,
+        "missing_required_field"
+      ],
+      "/identities/ava-001:PATCH": [
+        422,
+        "invalid_override"
+      ]
+    },
+    "llm_down": {
+      "launch": {
+        "ready_after_s": 18.3,
+        "presence_seen": [
+          "STARTING",
+          "READY"
+        ],
+        "status": {
+          "identity_id": "ava-001",
+          "participant_identity": "ava-001",
+          "default_room": "ava-001",
+          "presence": "READY",
+          "status_detail": null,
+          "last_error": null,
+          "capabilities": {
+            "audio_receive": true,
+            "audio_publish": true,
+            "barge_in": true,
+            "video_publish": false
+          },
+          "launched_at": "2026-10-10T16:06:37.144268+00:00",
+          "heartbeat_at": "2026-10-10T16:06:37.640145+00:00"
+        },
+        "start_retries": []
+      },
+      "greeting": "Hi, this is Ava with Safi. How can I help you today?",
+      "status": {
+        "identity_id": "ava-001",
+        "participant_identity": "ava-001",
+        "default_room": "ava-001",
+        "presence": "ERROR",
+        "status_detail": "llm_unavailable",
+        "last_error": "llm error: LLMError: type='llm_error' timestamp=1791648446.6215754 label='livekit.plugins.openai.llm.LLM' error=APIConnectionError('Connection error.', body=None, retryable=True) recoverable=False",
+        "capabilities": {
+          "audio_receive": true,
+          "audio_publish": true,
+          "barge_in": true,
+          "video_publish": false
+        },
+        "launched_at": "2026-10-10T16:06:37.144268+00:00",
+        "heartbeat_at": "2026-10-10T16:07:26.627558+00:00"
+      },
+      "speech_after_turn_s": 0
+    },
+    "engine_stop": "stopped engine (pid 4496)",
+    "engine_down_launch": {
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "dependency_unavailable",
+          "message": "the voice engine is not healthy (status: unavailable)",
+          "details": {
+            "dependency": "voice_engine",
+            "engine_status": "unavailable"
+          }
+        }
+      }
+    },
+    "engine_start": "engine starting (pid 32508, variant turbo, device cpu); poll http://127.0.0.1:17494/health until status=ok",
+    "engine_restored_after_s": 133.5,
+    "engine_health_restored": {
+      "status": "ok",
+      "engine": "chatterbox-turbo",
+      "variant": "turbo",
+      "device": "cpu",
+      "sample_rate": 24000,
+      "warm": true,
+      "cached_profiles": [],
+      "nano_supported": true,
+      "load_seconds": 31.4,
+      "error": null
+    },
+    "relaunch": {
+      "ready_after_s": 42.4,
+      "presence_seen": [
+        "STARTING",
+        "READY"
+      ],
+      "status": {
+        "identity_id": "ava-001",
+        "participant_identity": "ava-001",
+        "default_room": "ava-001",
+        "presence": "READY",
+        "status_detail": null,
+        "last_error": null,
+        "capabilities": {
+          "audio_receive": true,
+          "audio_publish": true,
+          "barge_in": true,
+          "video_publish": false
+        },
+        "launched_at": "2026-10-10T16:10:47.298832+00:00",
+        "heartbeat_at": "2026-10-10T16:10:48.480301+00:00"
+      },
+      "start_retries": []
+    },
+    "engine_final_health": {
+      "status": "ok",
+      "engine": "chatterbox-turbo",
+      "variant": "turbo",
+      "device": "cpu",
+      "sample_rate": 24000,
+      "warm": true,
+      "cached_profiles": [
+        "6326829e-38ae-475f-aedb-5c293aa43e51"
+      ],
+      "nano_supported": true,
+      "load_seconds": 31.4,
+      "error": null
+    },
+    "resources": {
+      "samples": 125,
+      "cpu_pct": {
+        "min": 19.6,
+        "avg": 44.2,
+        "max": 98.6
+      },
+      "mem_available_mb": {
+        "min": 94,
+        "avg": 2287.0,
+        "max": 4648
+      },
+      "swap_used_mb": {
+        "min": 7327,
+        "avg": 8088.3,
+        "max": 9422
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 1.7,
+            "max": 79.0
+          },
+          "rss_mb": {
+            "min": 46.5,
+            "avg": 80.2,
+            "max": 89.0
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 147.2,
+            "max": 584.4
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 1791.1,
+            "max": 5394.9
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 7.2,
+            "avg": 21.8,
+            "max": 360.8
+          },
+          "rss_mb": {
+            "min": 71.8,
+            "avg": 292.6,
+            "max": 384.4
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 17.2,
+            "max": 339.7
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 296.9,
+            "max": 1306.5
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 4.3,
+            "max": 81.3
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 56.1,
+            "max": 156.2
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 5.1
+          },
+          "rss_mb": {
+            "min": 14.1,
+            "avg": 22.6,
+            "max": 24.6
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 277.3440000000119,
+  "error": null
+}

@@ -1,0 +1,871 @@
+{
+  "name": "ten_turn",
+  "test_ref": "TEST 9",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": ">= 10 turns completed",
+      "ok": true,
+      "detail": "10",
+      "kind": ""
+    },
+    {
+      "name": "turn_01: reply audio produced",
+      "ok": true,
+      "detail": "wait 19.98s",
+      "kind": ""
+    },
+    {
+      "name": "turn_01: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "To help me give you the right picture. Can you tell me a bit about your current process and what you're hoping to improve?",
+      "kind": ""
+    },
+    {
+      "name": "turn_01: LLM text non-empty",
+      "ok": true,
+      "detail": "To help me give you the right picture, can you tell me a bit about your current process and what you're hoping to improve?",
+      "kind": ""
+    },
+    {
+      "name": "turn_01: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['help'] heard=\"To help me give you the right picture. Can you tell me a bit about your current process and what you're hoping to improve?\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_02: reply audio produced",
+      "ok": true,
+      "detail": "wait 15.86s",
+      "kind": ""
+    },
+    {
+      "name": "turn_02: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "We typically work with businesses that. Need to optimize their account management and customer interactions. Can you tell me a bit about your? Industry and the size of your team?",
+      "kind": ""
+    },
+    {
+      "name": "turn_02: LLM text non-empty",
+      "ok": true,
+      "detail": "We typically work with businesses that need to optimize their account management and customer interactions.\n\nCan you tell me a bit about your industry and the size of your team?",
+      "kind": ""
+    },
+    {
+      "name": "turn_02: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['customer', 'team', 'business', 'industr'] heard='We typically work with businesses that. Need to optimize their account management and customer interactions. Can you tell me a bit about your? Industry and the size of your team?'",
+      "kind": ""
+    },
+    {
+      "name": "turn_03: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.84s",
+      "kind": ""
+    },
+    {
+      "name": "turn_03: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "Onboarding timelines vary based on your, Specific needs and integration requirements. So I'll have the right person confirm the exact details in writing for you. In the meantime, Could you tell me what a successful start would look like for your team?",
+      "kind": ""
+    },
+    {
+      "name": "turn_03: LLM text non-empty",
+      "ok": true,
+      "detail": "Onboarding timelines vary based on your specific needs and integration requirements, so I\u2019ll have the right person confirm the exact details in writing for you.\n\nIn the meantime, could you tell me what a successful start would look like for your team?",
+      "kind": ""
+    },
+    {
+      "name": "turn_03: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['start', 'onboard', 'timeline', 'confirm'] heard=\"Onboarding timelines vary based on your, Specific needs and integration requirements. So I'll have the right person confirm the exact details in writing for you. In the meantime, Could you tell me what a successful start would look like for your team?\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_04: reply audio produced",
+      "ok": true,
+      "detail": "wait 20.91s",
+      "kind": ""
+    },
+    {
+      "name": "turn_04: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "We support many common enterprise tools But to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing. Which tools are currently part of your? Workflow,",
+      "kind": ""
+    },
+    {
+      "name": "turn_04: LLM text non-empty",
+      "ok": true,
+      "detail": "We support many common enterprise tools, but to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing.\n\nWhich tools are currently part of your workflow?",
+      "kind": ""
+    },
+    {
+      "name": "turn_04: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['tool', 'stack', 'confirm'] heard=\"We support many common enterprise tools But to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing. Which tools are currently part of your? Workflow,\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_05: reply audio produced",
+      "ok": true,
+      "detail": "wait 13.38s",
+      "kind": ""
+    },
+    {
+      "name": "turn_05: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "For a small team, Onboarding is typically streamlined to get you up and running quickly with minimal disruption. To tailor that process to your needs. Could you tell me what your current largest bottleneck is?",
+      "kind": ""
+    },
+    {
+      "name": "turn_05: LLM text non-empty",
+      "ok": true,
+      "detail": "For a small team, onboarding is typically streamlined to get you up and running quickly with minimal disruption.\n\nTo tailor that process to your needs, could you tell me what your current largest bottleneck is?",
+      "kind": ""
+    },
+    {
+      "name": "turn_05: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['onboard', 'team', 'small'] heard='For a small team, Onboarding is typically streamlined to get you up and running quickly with minimal disruption. To tailor that process to your needs. Could you tell me what your current largest bottleneck is?'",
+      "kind": ""
+    },
+    {
+      "name": "turn_06: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.05s",
+      "kind": ""
+    },
+    {
+      "name": "turn_06: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "Safi takes security and privacy. Seriously by following industry standard best practices but I can't go into specific technical details here. I'll have the right person send you our. Instructions. Current security documentation and writing to ensure you have all the exact information.",
+      "kind": ""
+    },
+    {
+      "name": "turn_06: LLM text non-empty",
+      "ok": true,
+      "detail": "Safi takes security and privacy seriously by following industry-standard best practices, but I can\u2019t go into specific technical details here.\n\nI\u2019ll have the right person send you our current security documentation in writing to ensure you have all the exact information.",
+      "kind": ""
+    },
+    {
+      "name": "turn_06: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['secur', 'privacy'] heard=\"Safi takes security and privacy. Seriously by following industry standard best practices but I can't go into specific technical details here. I'll have the right person send you our. Instructions. Current security documentation and writing to ensure you have all the exact information.\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_07: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.75s",
+      "kind": ""
+    },
+    {
+      "name": "turn_07: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "I don't have specific information on. Trial terms, so I'll have the right person confirm those details for you in writing. In the meantime, Could you tell me what specific outcome you're hoping to achieve during a trial?",
+      "kind": ""
+    },
+    {
+      "name": "turn_07: LLM text non-empty",
+      "ok": true,
+      "detail": "I don't have specific information on trial terms, so I'll have the right person confirm those details for you in writing.\n\nIn the meantime, could you tell me what specific outcome you're hoping to achieve during a trial?",
+      "kind": ""
+    },
+    {
+      "name": "turn_07: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['trial', 'confirm'] heard=\"I don't have specific information on. Trial terms, so I'll have the right person confirm those details for you in writing. In the meantime, Could you tell me what specific outcome you're hoping to achieve during a trial?\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_08: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.75s",
+      "kind": ""
+    },
+    {
+      "name": "turn_08: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "We provide ongoing support to ensure. Your team gets the most out of our solution. To ensure I point you to the right resources. Could you tell me what specific aspect of the platform you're most concerned about?",
+      "kind": ""
+    },
+    {
+      "name": "turn_08: LLM text non-empty",
+      "ok": true,
+      "detail": "We provide ongoing support to ensure your team gets the most out of our solution.\n\nTo ensure I point you to the right resources, could you tell me what specific aspect of the platform you're most concerned about?",
+      "kind": ""
+    },
+    {
+      "name": "turn_08: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['support', 'team'] heard=\"We provide ongoing support to ensure. Your team gets the most out of our solution. To ensure I point you to the right resources. Could you tell me what specific aspect of the platform you're most concerned about?\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_09: reply audio produced",
+      "ok": true,
+      "detail": "wait 18.16s",
+      "kind": ""
+    },
+    {
+      "name": "turn_09: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "I can't share specific pricing figures. As those depend on your unique needs and scale, so I will have the right person confirm the details in writing. To help them prepare a precise proposal. Could you tell me roughly how many users you anticipate needing access?",
+      "kind": ""
+    },
+    {
+      "name": "turn_09: LLM text non-empty",
+      "ok": true,
+      "detail": "I can't share specific pricing figures, as those depend on your unique needs and scale, so I will have the right person confirm the details in writing.\n\nTo help them prepare a precise proposal, could you tell me roughly how many users you anticipate needing access?",
+      "kind": ""
+    },
+    {
+      "name": "turn_09: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['pric', 'confirm', 'depend'] heard=\"I can't share specific pricing figures. As those depend on your unique needs and scale, so I will have the right person confirm the details in writing. To help them prepare a precise proposal. Could you tell me roughly how many users you anticipate needing access?\"",
+      "kind": ""
+    },
+    {
+      "name": "turn_10: reply audio produced",
+      "ok": true,
+      "detail": "wait 20.81s",
+      "kind": ""
+    },
+    {
+      "name": "turn_10: reply transcribed (non-empty)",
+      "ok": true,
+      "detail": "The best next step is a short demo, so I, Can show you how Safi addresses your specific needs. Would you be open to scheduling that for? Later this week,",
+      "kind": ""
+    },
+    {
+      "name": "turn_10: LLM text non-empty",
+      "ok": true,
+      "detail": "The best next step is a short demo so I can show you how Safi addresses your specific needs.\n\nWould you be open to scheduling that for later this week?",
+      "kind": ""
+    },
+    {
+      "name": "turn_10: relevant (keyword hit)",
+      "ok": true,
+      "detail": "hits=['next step', 'demo'] heard='The best next step is a short demo, so I, Can show you how Safi addresses your specific needs. Would you be open to scheduling that for? Later this week,'",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "turns": [
+      {
+        "label": "turn_01",
+        "clip": "turn_01",
+        "human_says": "Hi, I would like to know what your company actually does.",
+        "onset_t": 123077.468,
+        "reply": {
+          "started": true,
+          "t_first": 123101.562,
+          "t_last": 123129.25,
+          "complete": true,
+          "transcript": "To help me give you the right picture. Can you tell me a bit about your current process and what you're hoping to improve?",
+          "audio_seconds": 28.39
+        },
+        "row": {
+          "id": 7,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 3,
+          "t0": 123081.703,
+          "t1": 123083.89,
+          "t2": 123084.203,
+          "t3": 123101.234,
+          "t4": 123101.234,
+          "t5": 123101.562,
+          "user_text": "Hi, I would like to know what your company actually does.",
+          "agent_text": "To help me give you the right picture, can you tell me a bit about your current process and what you're hoping to improve?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:43:41.444357+00:00"
+        },
+        "t5": 123101.562,
+        "wait_start_s": 19.98,
+        "wait_complete_s": 47.56,
+        "agent_text": "To help me give you the right picture, can you tell me a bit about your current process and what you're hoping to improve?",
+        "heard_transcript": "To help me give you the right picture. Can you tell me a bit about your current process and what you're hoping to improve?",
+        "keyword_hits": [
+          "help"
+        ],
+        "expected_any_of": [
+          "safi",
+          "help",
+          "provid",
+          "offer",
+          "solution",
+          "service",
+          "platform",
+          "compan",
+          "work"
+        ]
+      },
+      {
+        "label": "turn_02",
+        "clip": "turn_02",
+        "human_says": "Who are your typical customers?",
+        "onset_t": 123135.109,
+        "reply": {
+          "started": true,
+          "t_first": 123153.359,
+          "t_last": 123206.515,
+          "complete": true,
+          "transcript": "We typically work with businesses that. Need to optimize their account management and customer interactions. Can you tell me a bit about your? Industry and the size of your team?",
+          "audio_seconds": 53.86
+        },
+        "row": {
+          "id": 8,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 4,
+          "t0": 123137.546,
+          "t1": 123138.546,
+          "t2": 123138.796,
+          "t3": 123153.187,
+          "t4": 123153.187,
+          "t5": 123153.359,
+          "user_text": "Who are your typical customers?",
+          "agent_text": "We typically work with businesses that need to optimize their account management and customer interactions.\n\nCan you tell me a bit about your industry and the size of your team?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:44:33.413461+00:00"
+        },
+        "t5": 123153.359,
+        "wait_start_s": 15.86,
+        "wait_complete_s": 69.09,
+        "agent_text": "We typically work with businesses that need to optimize their account management and customer interactions.\n\nCan you tell me a bit about your industry and the size of your team?",
+        "heard_transcript": "We typically work with businesses that. Need to optimize their account management and customer interactions. Can you tell me a bit about your? Industry and the size of your team?",
+        "keyword_hits": [
+          "customer",
+          "team",
+          "business",
+          "industr"
+        ],
+        "expected_any_of": [
+          "customer",
+          "client",
+          "team",
+          "business",
+          "compan",
+          "organi",
+          "industr",
+          "sector",
+          "prospect"
+        ]
+      },
+      {
+        "label": "turn_03",
+        "clip": "turn_03",
+        "human_says": "How long does it take to get started?",
+        "onset_t": 123214.328,
+        "reply": {
+          "started": true,
+          "t_first": 123235.921,
+          "t_last": 123309.125,
+          "complete": true,
+          "transcript": "Onboarding timelines vary based on your, Specific needs and integration requirements. So I'll have the right person confirm the exact details in writing for you. In the meantime, Could you tell me what a successful start would look like for your team?",
+          "audio_seconds": 73.91
+        },
+        "row": {
+          "id": 9,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 5,
+          "t0": 123217.109,
+          "t1": 123217.968,
+          "t2": 123218.218,
+          "t3": 123235.765,
+          "t4": 123235.765,
+          "t5": 123235.921,
+          "user_text": "How long does it take to get started?",
+          "agent_text": "Onboarding timelines vary based on your specific needs and integration requirements, so I\u2019ll have the right person confirm the exact details in writing for you.\n\nIn the meantime, could you tell me what a successful start would look like for your team?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:45:55.992099+00:00"
+        },
+        "t5": 123235.921,
+        "wait_start_s": 18.84,
+        "wait_complete_s": 92.27,
+        "agent_text": "Onboarding timelines vary based on your specific needs and integration requirements, so I\u2019ll have the right person confirm the exact details in writing for you.\n\nIn the meantime, could you tell me what a successful start would look like for your team?",
+        "heard_transcript": "Onboarding timelines vary based on your, Specific needs and integration requirements. So I'll have the right person confirm the exact details in writing for you. In the meantime, Could you tell me what a successful start would look like for your team?",
+        "keyword_hits": [
+          "start",
+          "onboard",
+          "timeline",
+          "confirm"
+        ],
+        "expected_any_of": [
+          "day",
+          "week",
+          "hour",
+          "minute",
+          "quick",
+          "start",
+          "onboard",
+          "setup",
+          "set up",
+          "timeline",
+          "soon",
+          "depend",
+          "confirm"
+        ]
+      },
+      {
+        "label": "turn_04",
+        "clip": "turn_04",
+        "human_says": "Do you integrate with the tools we already use?",
+        "onset_t": 123318.687,
+        "reply": {
+          "started": true,
+          "t_first": 123342.953,
+          "t_last": 123405.484,
+          "complete": true,
+          "transcript": "We support many common enterprise tools But to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing. Which tools are currently part of your? Workflow,",
+          "audio_seconds": 63.23
+        },
+        "row": {
+          "id": 10,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 6,
+          "t0": 123322.046,
+          "t1": 123323.015,
+          "t2": 123323.453,
+          "t3": 123342.796,
+          "t4": 123342.796,
+          "t5": 123342.953,
+          "user_text": "Do you integrate with the tools we already use?",
+          "agent_text": "We support many common enterprise tools, but to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing.\n\nWhich tools are currently part of your workflow?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:47:43.092480+00:00"
+        },
+        "t5": 123342.953,
+        "wait_start_s": 20.91,
+        "wait_complete_s": 83.95,
+        "agent_text": "We support many common enterprise tools, but to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing.\n\nWhich tools are currently part of your workflow?",
+        "heard_transcript": "We support many common enterprise tools But to be accurate about your specific stack, I'll have the right person confirm the exact capabilities in writing. Which tools are currently part of your? Workflow,",
+        "keyword_hits": [
+          "tool",
+          "stack",
+          "confirm"
+        ],
+        "expected_any_of": [
+          "integrat",
+          "tool",
+          "system",
+          "crm",
+          "stack",
+          "connect",
+          "software",
+          "depend",
+          "confirm",
+          "use"
+        ]
+      },
+      {
+        "label": "turn_05",
+        "clip": "turn_05",
+        "human_says": "What does onboarding look like for a small team?",
+        "onset_t": 123414.0,
+        "reply": {
+          "started": true,
+          "t_first": 123430.546,
+          "t_last": 123493.468,
+          "complete": true,
+          "transcript": "For a small team, Onboarding is typically streamlined to get you up and running quickly with minimal disruption. To tailor that process to your needs. Could you tell me what your current largest bottleneck is?",
+          "audio_seconds": 63.76
+        },
+        "row": {
+          "id": 11,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 7,
+          "t0": 123417.156,
+          "t1": 123418.937,
+          "t2": 123419.328,
+          "t3": 123430.218,
+          "t4": 123430.218,
+          "t5": 123430.546,
+          "user_text": "What does onboarding look like for a small team?",
+          "agent_text": "For a small team, onboarding is typically streamlined to get you up and running quickly with minimal disruption.\n\nTo tailor that process to your needs, could you tell me what your current largest bottleneck is?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:49:10.442408+00:00"
+        },
+        "t5": 123430.546,
+        "wait_start_s": 13.38,
+        "wait_complete_s": 76.52,
+        "agent_text": "For a small team, onboarding is typically streamlined to get you up and running quickly with minimal disruption.\n\nTo tailor that process to your needs, could you tell me what your current largest bottleneck is?",
+        "heard_transcript": "For a small team, Onboarding is typically streamlined to get you up and running quickly with minimal disruption. To tailor that process to your needs. Could you tell me what your current largest bottleneck is?",
+        "keyword_hits": [
+          "onboard",
+          "team",
+          "small"
+        ],
+        "expected_any_of": [
+          "onboard",
+          "team",
+          "small",
+          "setup",
+          "set up",
+          "train",
+          "start",
+          "kick",
+          "walk",
+          "support",
+          "confirm"
+        ]
+      },
+      {
+        "label": "turn_06",
+        "clip": "turn_06",
+        "human_says": "How do you handle security and privacy?",
+        "onset_t": 123502.406,
+        "reply": {
+          "started": true,
+          "t_first": 123523.453,
+          "t_last": 123619.64,
+          "complete": true,
+          "transcript": "Safi takes security and privacy. Seriously by following industry standard best practices but I can't go into specific technical details here. I'll have the right person send you our. Instructions. Current security documentation and writing to ensure you have all the exact information.",
+          "audio_seconds": 96.89
+        },
+        "row": {
+          "id": 12,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 8,
+          "t0": 123505.656,
+          "t1": 123506.515,
+          "t2": 123506.812,
+          "t3": 123523.281,
+          "t4": 123523.281,
+          "t5": 123523.453,
+          "user_text": "How do you handle security and privacy?",
+          "agent_text": "Safi takes security and privacy seriously by following industry-standard best practices, but I can\u2019t go into specific technical details here.\n\nI\u2019ll have the right person send you our current security documentation in writing to ensure you have all the exact information.",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:50:43.502783+00:00"
+        },
+        "t5": 123523.453,
+        "wait_start_s": 18.05,
+        "wait_complete_s": 114.48,
+        "agent_text": "Safi takes security and privacy seriously by following industry-standard best practices, but I can\u2019t go into specific technical details here.\n\nI\u2019ll have the right person send you our current security documentation in writing to ensure you have all the exact information.",
+        "heard_transcript": "Safi takes security and privacy. Seriously by following industry standard best practices but I can't go into specific technical details here. I'll have the right person send you our. Instructions. Current security documentation and writing to ensure you have all the exact information.",
+        "keyword_hits": [
+          "secur",
+          "privacy"
+        ],
+        "expected_any_of": [
+          "secur",
+          "privacy",
+          "data",
+          "protect",
+          "encrypt",
+          "complian",
+          "written",
+          "policy",
+          "confirm",
+          "safe"
+        ]
+      },
+      {
+        "label": "turn_07",
+        "clip": "turn_07",
+        "human_says": "Can I get a trial before committing?",
+        "onset_t": 123631.484,
+        "reply": {
+          "started": true,
+          "t_first": 123652.859,
+          "t_last": 123716.843,
+          "complete": true,
+          "transcript": "I don't have specific information on. Trial terms, so I'll have the right person confirm those details for you in writing. In the meantime, Could you tell me what specific outcome you're hoping to achieve during a trial?",
+          "audio_seconds": 64.69
+        },
+        "row": {
+          "id": 13,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 9,
+          "t0": 123634.296,
+          "t1": 123635.687,
+          "t2": 123636.656,
+          "t3": 123652.609,
+          "t4": 123652.687,
+          "t5": 123652.859,
+          "user_text": "Can I get a trial before committing?",
+          "agent_text": "I don't have specific information on trial terms, so I'll have the right person confirm those details for you in writing.\n\nIn the meantime, could you tell me what specific outcome you're hoping to achieve during a trial?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:52:52.895672+00:00"
+        },
+        "t5": 123652.859,
+        "wait_start_s": 18.75,
+        "wait_complete_s": 82.76,
+        "agent_text": "I don't have specific information on trial terms, so I'll have the right person confirm those details for you in writing.\n\nIn the meantime, could you tell me what specific outcome you're hoping to achieve during a trial?",
+        "heard_transcript": "I don't have specific information on. Trial terms, so I'll have the right person confirm those details for you in writing. In the meantime, Could you tell me what specific outcome you're hoping to achieve during a trial?",
+        "keyword_hits": [
+          "trial",
+          "confirm"
+        ],
+        "expected_any_of": [
+          "trial",
+          "pilot",
+          "demo",
+          "test",
+          "try",
+          "commit",
+          "sandbox",
+          "confirm",
+          "written"
+        ]
+      },
+      {
+        "label": "turn_08",
+        "clip": "turn_08",
+        "human_says": "What kind of support do you offer?",
+        "onset_t": 123726.156,
+        "reply": {
+          "started": true,
+          "t_first": 123747.421,
+          "t_last": 123809.234,
+          "complete": true,
+          "transcript": "We provide ongoing support to ensure. Your team gets the most out of our solution. To ensure I point you to the right resources. Could you tell me what specific aspect of the platform you're most concerned about?",
+          "audio_seconds": 62.56
+        },
+        "row": {
+          "id": 14,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 10,
+          "t0": 123728.937,
+          "t1": 123729.843,
+          "t2": 123730.125,
+          "t3": 123747.125,
+          "t4": 123747.125,
+          "t5": 123747.421,
+          "user_text": "What kind of support do you offer?",
+          "agent_text": "We provide ongoing support to ensure your team gets the most out of our solution.\n\nTo ensure I point you to the right resources, could you tell me what specific aspect of the platform you're most concerned about?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:54:27.352498+00:00"
+        },
+        "t5": 123747.421,
+        "wait_start_s": 18.75,
+        "wait_complete_s": 80.55,
+        "agent_text": "We provide ongoing support to ensure your team gets the most out of our solution.\n\nTo ensure I point you to the right resources, could you tell me what specific aspect of the platform you're most concerned about?",
+        "heard_transcript": "We provide ongoing support to ensure. Your team gets the most out of our solution. To ensure I point you to the right resources. Could you tell me what specific aspect of the platform you're most concerned about?",
+        "keyword_hits": [
+          "support",
+          "team"
+        ],
+        "expected_any_of": [
+          "support",
+          "help",
+          "team",
+          "assist",
+          "channel",
+          "email",
+          "phone",
+          "hours",
+          "available",
+          "confirm",
+          "written"
+        ]
+      },
+      {
+        "label": "turn_09",
+        "clip": "turn_09",
+        "human_says": "How is pricing structured?",
+        "onset_t": 123818.125,
+        "reply": {
+          "started": true,
+          "t_first": 123838.609,
+          "t_last": 123918.312,
+          "complete": true,
+          "transcript": "I can't share specific pricing figures. As those depend on your unique needs and scale, so I will have the right person confirm the details in writing. To help them prepare a precise proposal. Could you tell me roughly how many users you anticipate needing access?",
+          "audio_seconds": 80.42
+        },
+        "row": {
+          "id": 15,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 11,
+          "t0": 123820.343,
+          "t1": 123821.562,
+          "t2": 123821.859,
+          "t3": 123838.421,
+          "t4": 123838.421,
+          "t5": 123838.609,
+          "user_text": "How is pricing structured?",
+          "agent_text": "I can't share specific pricing figures, as those depend on your unique needs and scale, so I will have the right person confirm the details in writing.\n\nTo help them prepare a precise proposal, could you tell me roughly how many users you anticipate needing access?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:55:58.638071+00:00"
+        },
+        "t5": 123838.609,
+        "wait_start_s": 18.16,
+        "wait_complete_s": 98.34,
+        "agent_text": "I can't share specific pricing figures, as those depend on your unique needs and scale, so I will have the right person confirm the details in writing.\n\nTo help them prepare a precise proposal, could you tell me roughly how many users you anticipate needing access?",
+        "heard_transcript": "I can't share specific pricing figures. As those depend on your unique needs and scale, so I will have the right person confirm the details in writing. To help them prepare a precise proposal. Could you tell me roughly how many users you anticipate needing access?",
+        "keyword_hits": [
+          "pric",
+          "confirm",
+          "depend"
+        ],
+        "expected_any_of": [
+          "pric",
+          "cost",
+          "quote",
+          "plan",
+          "fee",
+          "budget",
+          "package",
+          "tier",
+          "confirm",
+          "written",
+          "depend"
+        ]
+      },
+      {
+        "label": "turn_10",
+        "clip": "turn_10",
+        "human_says": "Great, what would be the best next step for us?",
+        "onset_t": 123929.046,
+        "reply": {
+          "started": true,
+          "t_first": 123953.421,
+          "t_last": 124000.015,
+          "complete": true,
+          "transcript": "The best next step is a short demo, so I, Can show you how Safi addresses your specific needs. Would you be open to scheduling that for? Later this week,",
+          "audio_seconds": 47.3
+        },
+        "row": {
+          "id": 16,
+          "identity_id": "ava-001",
+          "session_id": "34d59082195f4511b7217d64605776ca",
+          "turn_index": 12,
+          "t0": 123932.796,
+          "t1": 123934.421,
+          "t2": 123934.734,
+          "t3": 123953.109,
+          "t4": 123953.125,
+          "t5": 123953.421,
+          "user_text": "Great, what would be the best next step for us?",
+          "agent_text": "The best next step is a short demo so I can show you how Safi addresses your specific needs.\n\nWould you be open to scheduling that for later this week?",
+          "interrupted": 0,
+          "created_at": "2026-10-10T15:57:53.339017+00:00"
+        },
+        "t5": 123953.421,
+        "wait_start_s": 20.81,
+        "wait_complete_s": 67.55,
+        "agent_text": "The best next step is a short demo so I can show you how Safi addresses your specific needs.\n\nWould you be open to scheduling that for later this week?",
+        "heard_transcript": "The best next step is a short demo, so I, Can show you how Safi addresses your specific needs. Would you be open to scheduling that for? Later this week,",
+        "keyword_hits": [
+          "next step",
+          "demo"
+        ],
+        "expected_any_of": [
+          "next step",
+          "demo",
+          "call",
+          "follow",
+          "schedule",
+          "meeting",
+          "proposal",
+          "walkthrough",
+          "calendar",
+          "send",
+          "time"
+        ]
+      }
+    ],
+    "resources": {
+      "samples": 405,
+      "cpu_pct": {
+        "min": 15.5,
+        "avg": 73.6,
+        "max": 100.0
+      },
+      "mem_available_mb": {
+        "min": 177,
+        "avg": 588.3,
+        "max": 1130
+      },
+      "swap_used_mb": {
+        "min": 9416,
+        "avg": 9472.4,
+        "max": 9543
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 1.4
+          },
+          "rss_mb": {
+            "min": 7.4,
+            "avg": 38.4,
+            "max": 46.5
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 448.0,
+            "max": 596.5
+          },
+          "rss_mb": {
+            "min": 1561.3,
+            "avg": 1923.8,
+            "max": 2090.4
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 25.7,
+            "avg": 70.0,
+            "max": 753.5
+          },
+          "rss_mb": {
+            "min": 348.3,
+            "avg": 373.8,
+            "max": 507.4
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 25.3,
+            "avg": 65.3,
+            "max": 673.3
+          },
+          "rss_mb": {
+            "min": 456.1,
+            "avg": 795.1,
+            "max": 1400.4
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 1.4,
+            "max": 4.7
+          },
+          "rss_mb": {
+            "min": 14.3,
+            "avg": 30.7,
+            "max": 37.6
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.2,
+            "max": 2.1
+          },
+          "rss_mb": {
+            "min": 3.8,
+            "avg": 18.4,
+            "max": 26.1
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 929.9530000000086,
+  "error": null
+}

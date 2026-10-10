@@ -174,15 +174,13 @@ not in a container (the harness imports `tests/`), with the compose stack up and
 
 ```bash
 uv sync
-uv run python scripts/run_acceptance.py --only self_knowledge,isolation,ten_turn,latency,barge_in,default_room,restart
+uv run python scripts/run_acceptance.py --only self_knowledge,isolation,ten_turn,latency,barge_in,default_room,restart,failure
 ```
 
 Do NOT pass `--allow-latency-fail` here. Evidence lands in `evidence/<UTC timestamp>/` (`latency.md` has the P50/P95/MAX
 table and the per-component breakdown). Notes: (a) the acceptance harness starts its own API process on `--api-port` with a
 temporary database, so it does not touch the compose `service015` data; stop the compose `service015` container first if
-port 8015 is the harness port, or pass another `--api-port`; (b) the `failure` scenario restarts the engine through
-`scripts/run_engine.ps1` (Windows only) and does not work against the containerised engine on Linux, so it is excluded above;
-(c) none of this has been run on a GPU yet.
+port 8015 is the harness port, or pass another `--api-port`; (b) the `failure` scenario stops and restarts the engine through `ENGINE_CONTROL` (`compose` on this host: `export ENGINE_CONTROL=compose`, service name from `ENGINE_COMPOSE_SERVICE`, `engine` for the cpu profile and `engine-gpu` for gpu), so it runs here too and always runs last; (c) none of this has been run on a GPU yet.
 
 ## 7. LiveKit Cloud alternative (unverified)
 

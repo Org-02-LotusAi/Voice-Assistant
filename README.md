@@ -72,6 +72,35 @@ start http://127.0.0.1:8015/
 Stop: Ctrl+C the API (stops the worker), `scripts/run_engine.ps1 -Action stop`, `scripts/run_deps.ps1 -Action stop`.
 Seed voices can be regenerated with `scripts/make_seed_voices.ps1` (Windows SAPI only; committed WAVs already exist).
 
+## Run the local demo (Windows laptop) [verified]
+
+Prerequisites: Docker Desktop running, `uv sync` done, `.env` copied from `.env.example` with `LLM_API_KEY` and
+`SERVICE015_API_KEYS` set, `scripts/setup_deps.ps1` run once. Then, in order:
+
+```powershell
+powershell -File scripts/run_deps.ps1 -Action start -Warm        # LiveKit + Voicebox (:17493)
+powershell -File scripts/run_engine.ps1 -Action start            # Chatterbox Turbo engine (:17494); wait for "status":"ok"
+curl http://127.0.0.1:17494/health
+uv run --no-project --python 3.12 --with httpx python scripts/seed_voicebox_profiles.py   # first time only
+uv run python scripts/authorize_seed_voices.py                   # authorize the seed voices
+uv run service015-api                                            # API + runtime worker on :8015
+curl http://localhost:8015/health                                # runtime, voicebox, voice_engine all "ok"
+```
+
+Then in the browser:
+
+1. Open http://localhost:8015 and paste an operator key (an `operator` or `admin` entry of `SERVICE015_API_KEYS`).
+2. Create Ava: pick the **Sales Representative** template, set name Ava (company and role as you like), choose the voice
+   **Ava Warm**, press **CREATE IDENTITY**.
+3. Press **LAUNCH** and wait for the status to reach READY (about a minute on CPU).
+4. Press **TEST** to open the talk page, allow the microphone and speak. On this CPU each reply takes 15-20 s; that is the
+   documented latency limit, not a hang.
+
+Verified on this host: the API starts, `/health` reports `database`, `runtime`, `voicebox` and `voice_engine` ok, and `/`
+serves the Workbench (CREATE IDENTITY, LAUNCH, TEST controls present). The create/launch/talk flow itself is what the
+acceptance run exercises (`docs/ACCEPTANCE.md`). Stop with Ctrl+C on the API, then `scripts/run_engine.ps1 -Action stop` and
+`scripts/run_deps.ps1 -Action stop`.
+
 ## Quickstart: Linux [unverified]
 
 ```bash
@@ -167,3 +196,7 @@ contract is `openapi.yaml`.
 - Phone dialing: set `SERVICE014_ALLOWED_DESTINATIONS` (E.164 prefixes). Empty means deny all on a non-local
   `SERVICE015_PUBLIC_URL`, allow all on localhost.
 - Voicebox's full requirements do not install on Windows (pyopenjtalk); the scripts use the minimal Chatterbox set.
+
+## Release
+
+Code SHA the acceptance evidence was produced at: `c806c9ead216aef1c8ed0824e296ebe55c405428` (`c806c9e`); accepted run `evidence/20261010T153557Z/`. See `docs/ACCEPTANCE.md`.

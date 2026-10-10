@@ -1,0 +1,311 @@
+{
+  "name": "restart_persistence",
+  "test_ref": "TEST 13",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "API + runtime stopped",
+      "ok": true,
+      "detail": "{\"graceful\": true, \"returncode\": 3}",
+      "kind": ""
+    },
+    {
+      "name": "runtime worker did not survive the API",
+      "ok": true,
+      "detail": "{\"graceful\": true, \"returncode\": 3}",
+      "kind": ""
+    },
+    {
+      "name": "identity_id unchanged",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "template_id/template_version unchanged",
+      "ok": true,
+      "detail": "v1",
+      "kind": ""
+    },
+    {
+      "name": "name/company/role (self) unchanged",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "persona unchanged",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "voice unchanged",
+      "ok": true,
+      "detail": "{\"profile_id\": \"6326829e-38ae-475f-aedb-5c293aa43e51\", \"engine\": \"chatterbox-turbo\"}",
+      "kind": ""
+    },
+    {
+      "name": "default_room/participant_identity unchanged",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "resolved_hash identical",
+      "ok": true,
+      "detail": "f01eb6de1cb75fff1b1a70d080bedb82f4df741aea39f7e12ba6e3c3bd606eca",
+      "kind": ""
+    },
+    {
+      "name": "whole snapshot identical",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "template versions unchanged",
+      "ok": true,
+      "detail": "",
+      "kind": ""
+    },
+    {
+      "name": "presence after restart is OFFLINE (stale runtime reconciled)",
+      "ok": true,
+      "detail": "OFFLINE / None",
+      "kind": ""
+    },
+    {
+      "name": "relaunched Ava reaches READY/BUSY",
+      "ok": true,
+      "detail": "BUSY",
+      "kind": ""
+    },
+    {
+      "name": "still answers 'Ava' (audio transcript)",
+      "ok": true,
+      "detail": "My name is Ava.",
+      "kind": ""
+    },
+    {
+      "name": "still answers 'Ava' (LLM text)",
+      "ok": true,
+      "detail": "My name is Ava.",
+      "kind": ""
+    }
+  ],
+  "data": {
+    "identity_before": {
+      "identity_id": "ava-001",
+      "template_id": "sales-representative",
+      "template_version": 1,
+      "self": {
+        "identity_id": "ava-001",
+        "name": "Ava",
+        "archetype": "sales-representative",
+        "template_version": 1,
+        "company": "Safi",
+        "role": "Account Specialist",
+        "language": "en-US"
+      },
+      "persona": {
+        "objective": "Understand the prospect's situation, show how the company can genuinely help, and agree on a concrete next step such as a demo, a follow-up call, or a written proposal.",
+        "style": "Confident, curious, and respectful of the prospect's time. Consultative rather than pushy. Enthusiastic about the product but honest about its limits.",
+        "instructions": "You are a sales representative for Safi, speaking live with a prospect. Start by learning about them. Ask open questions about their goals, their current process, and what is not working. Ask one question at a time, then listen and reflect back what you heard before moving on. Qualify gently. Find out who is involved in the decision, what timeline they have, and what a good outcome looks like for them. Only after you understand the need, explain how Safi helps, using their own words and priorities. Tie every benefit to a problem they mentioned. Skip features that do not matter to them. Handle objections calmly. Acknowledge the concern, ask what is behind it, and answer honestly. Never invent pricing, discounts, promotions, contract terms, delivery dates, or product capabilities. If you are asked about any of those and you do not have the exact information, say you will have the right person confirm it in writing. Never pressure, never create false urgency, and never disparage competitors. Close every conversation with one clear next step and confirm it out loud, for example a short demo or a follow-up call. Keep replies to one to three short sentences. Speak naturally with no bullet points, numbering, or markdown. If the person is not a fit or not interested, thank them warmly and end gracefully. If you are interrupted, stop at once and respond to what the prospect just said instead of finishing your earlier point. If what you heard seems garbled or does not make sense, ask them briefly to repeat it instead of guessing. Say numbers, IDs, and email addresses naturally and slowly in spoken form, and never read out URLs or symbols. If asked whether you are an AI or a bot, answer honestly that you are an AI voice assistant, and keep your name, your company, and your role."
+      },
+      "conversation": {
+        "greeting": "Hi, this is Ava with Safi. How can I help you today?",
+        "barge_in": true,
+        "speaking_style": "Upbeat and professional, with a steady friendly pace and genuine interest in the answers."
+      },
+      "voice": {
+        "profile_id": "6326829e-38ae-475f-aedb-5c293aa43e51",
+        "engine": "chatterbox-turbo"
+      },
+      "participant": {
+        "participant_identity": "ava-001",
+        "default_room": "ava-001"
+      },
+      "overrides": {
+        "company": "Safi",
+        "name": "Ava",
+        "role": "Account Specialist",
+        "voice.profile_id": "6326829e-38ae-475f-aedb-5c293aa43e51"
+      },
+      "resolved_hash": "f01eb6de1cb75fff1b1a70d080bedb82f4df741aea39f7e12ba6e3c3bd606eca"
+    },
+    "status_after_restart": {
+      "identity_id": "ava-001",
+      "participant_identity": "ava-001",
+      "default_room": "ava-001",
+      "presence": "OFFLINE",
+      "status_detail": null,
+      "last_error": null,
+      "capabilities": {
+        "audio_receive": true,
+        "audio_publish": true,
+        "barge_in": true,
+        "video_publish": false
+      },
+      "launched_at": null,
+      "heartbeat_at": null
+    },
+    "stop": {
+      "graceful": true,
+      "returncode": 3
+    },
+    "turn": {
+      "label": "q_name",
+      "clip": "q_name",
+      "human_says": "What is your name?",
+      "onset_t": 124433.312,
+      "reply": {
+        "started": true,
+        "t_first": 124447.64,
+        "t_last": 124448.625,
+        "complete": true,
+        "transcript": "My name is Ava.",
+        "audio_seconds": 1.69
+      },
+      "row": {
+        "id": 19,
+        "identity_id": "ava-001",
+        "session_id": "e283a583da40477cbee0f84bc2ae6070",
+        "turn_index": 0,
+        "t0": 124434.859,
+        "t1": 124435.984,
+        "t2": 124436.171,
+        "t3": 124447.468,
+        "t4": 124447.468,
+        "t5": 124447.64,
+        "user_text": "What is your name?",
+        "agent_text": "My name is Ava.",
+        "interrupted": 0,
+        "created_at": "2026-10-10T16:06:07.685973+00:00"
+      },
+      "t5": 124447.64,
+      "wait_start_s": 12.59,
+      "wait_complete_s": 14.02,
+      "agent_text": "My name is Ava.",
+      "heard_transcript": "My name is Ava."
+    },
+    "relaunch": {
+      "ready_after_s": 19.1,
+      "presence_seen": [
+        "STARTING",
+        "READY"
+      ],
+      "status": {
+        "identity_id": "ava-001",
+        "participant_identity": "ava-001",
+        "default_room": "ava-001",
+        "presence": "READY",
+        "status_detail": null,
+        "last_error": null,
+        "capabilities": {
+          "audio_receive": true,
+          "audio_publish": true,
+          "barge_in": true,
+          "video_publish": false
+        },
+        "launched_at": "2026-10-10T16:05:13.613661+00:00",
+        "heartbeat_at": "2026-10-10T16:05:14.118800+00:00"
+      },
+      "start_retries": []
+    },
+    "resources": {
+      "samples": 59,
+      "cpu_pct": {
+        "min": 22.5,
+        "avg": 60.6,
+        "max": 94.4
+      },
+      "mem_available_mb": {
+        "min": 251,
+        "avg": 604.0,
+        "max": 1623
+      },
+      "swap_used_mb": {
+        "min": 9206,
+        "avg": 9299.5,
+        "max": 9349
+      },
+      "groups": {
+        "api": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 1.5,
+            "max": 57.8
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 66.2,
+            "max": 89.7
+          }
+        },
+        "engine": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 295.7,
+            "max": 580.3
+          },
+          "rss_mb": {
+            "min": 1459.7,
+            "avg": 1811.1,
+            "max": 1916.9
+          }
+        },
+        "harness": {
+          "cpu_pct": {
+            "min": 5.8,
+            "avg": 43.0,
+            "max": 443.2
+          },
+          "rss_mb": {
+            "min": 361.7,
+            "avg": 368.0,
+            "max": 415.6
+          }
+        },
+        "runtime_jobs": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 49.9,
+            "max": 283.2
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 932.8,
+            "max": 1306.0
+          }
+        },
+        "runtime_worker": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 4.6,
+            "max": 77.2
+          },
+          "rss_mb": {
+            "min": 0.0,
+            "avg": 92.6,
+            "max": 155.9
+          }
+        },
+        "voicebox": {
+          "cpu_pct": {
+            "min": 0.0,
+            "avg": 0.3,
+            "max": 4.3
+          },
+          "rss_mb": {
+            "min": 19.4,
+            "avg": 21.5,
+            "max": 23.1
+          }
+        }
+      }
+    }
+  },
+  "duration_s": 133.61000000000058,
+  "error": null
+}
