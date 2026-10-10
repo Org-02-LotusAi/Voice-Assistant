@@ -1,0 +1,73 @@
+{
+  "test": "TEST 15 - Fresh Expert Learning (SOW 24)",
+  "result": "PASS",
+  "run_at": "2026-10-10T12:21:47.250383+00:00",
+  "llm": {
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "qwen/qwen3.8-27b"
+  },
+  "document_ingest": {
+    "repo": "VoiceSOW",
+    "branch": "main",
+    "sha": "6faa3136ff5d226756a73846e4107d6d82aca4c5",
+    "dirty": false,
+    "missing_required": [
+      "evidence/latency*.json"
+    ],
+    "sources": 12
+  },
+  "verified_experience": {
+    "id": 235,
+    "kind": "verified_experience",
+    "title": "LiveKit Agents worker stops accepting dispatches under host CPU load",
+    "source": "src/service015/runtime/worker.py; .venv livekit/agents/worker.py (_is_available, load_threshold); evidence: task-9 live runs",
+    "repo": "VoiceSOW",
+    "branch": "main",
+    "sha": "6faa3136ff5d226756a73846e4107d6d82aca4c5",
+    "min_role": "viewer",
+    "created_at": "2026-10-10T12:21:46.100078+00:00",
+    "dirty": false,
+    "body": "Verified on livekit-agents 1.8.3: the AgentServer marks the worker unavailable when its load exceeds load_threshold (default 0.7). With the default CPU-based load function, a host busy with Chatterbox CPU synthesis crossed 0.7, and an identity relaunch dispatch was never delivered, leaving the identity in STARTING until the 120 s start timeout. Even returning 0.0 from a custom load_fnc does not disable the gate, because the SDK estimates 0.7 load per reserved job slot, so a second back-to-back dispatch is declined. Fix used in Service 015: AgentServer(load_threshold=math.inf) plus an explicit SERVICE015_MAX_ACTIVE_IDENTITIES cap (default 4) enforced at launch with 409 capacity_exceeded."
+  },
+  "retrieval_rank": 1,
+  "database": "C:\\Users\\Jaith\\AppData\\Local\\Temp\\expert_fresh_af0rnbod\\expert.db",
+  "question": "A second Identity launch sits in STARTING and the runtime worker never receives the dispatch while the TTS engine is busy on the same host. What causes this and what setting does Service 015 use to prevent it?",
+  "control_before_ingest": {
+    "session_id": "dd4087d53239486fac9ef1fd16f3ded3",
+    "answer": "Based on the provided knowledge items, I do not have specific knowledge explaining the exact mechanism by which a busy TTS engine causes a second Identity launch to stall in `STARTING` without the runtime worker receiving the dispatch.\n\nHowever, the items do state that Service 015 uses a specific setting to manage concurrency and prevent resource contention issues:\n\n*   **Setting:** `SERVICE015_MAX_ACTIVE_IDENTITIES`\n*   **Context:** The system uses \"One runtime worker [that] serves all Identities, capped by `SERVICE015_MAX_ACTIVE_IDENTITIES`\" [K198@6faa3136ff5d].\n\nAdditionally, the items note that CPU-only hosts cannot meet latency targets because TTS is significantly slower (6-9x slower than real time), which implies resource contention is a known constraint, but the specific internal dispatch logic for the `STARTING` state during TTS busy periods is not detailed in the provided text [K198@6faa3136ff5d].",
+    "expectations": {
+      "load_threshold": false,
+      "0.7": false
+    }
+  },
+  "fresh_session": {
+    "session_id": "87efcffe1f8b458dbab0791d4a67bcc4",
+    "answer": "The cause is the LiveKit Agents worker load gate. On livekit-agents 1.8.3, the AgentServer marks the worker unavailable when its load exceeds `load_threshold` (default 0.7). With the default CPU-based load function, a host busy with Chatterbox CPU synthesis crossed 0.7, so an identity relaunch dispatch was never delivered, leaving the identity in STARTING until the 120 s start timeout. Even returning 0.0 from a custom `load_fnc` does not disable the gate, because the SDK estimates 0.7 load per reserved job slot, so a second back-to-back dispatch is declined [K235@6faa3136ff5d].\n\nThe fix used in Service 015 is:\n- `AgentServer(load_threshold=math.inf)` to disable the load gate, plus\n- an explicit `SERVICE015_MAX_ACTIVE_IDENTITIES` cap (default 4) enforced at launch with a 409 `capacity_exceeded` response [K235@6faa3136ff5d].\n\nThis cap is also noted as the mechanism by which one runtime worker serves all Identities [K198@6faa3136ff5d].",
+    "citations": [
+      {
+        "id": 235,
+        "kind": "verified_experience",
+        "title": "LiveKit Agents worker stops accepting dispatches under host CPU load",
+        "source": "src/service015/runtime/worker.py; .venv livekit/agents/worker.py (_is_available, load_threshold); evidence: task-9 live runs",
+        "repo": "VoiceSOW",
+        "branch": "main",
+        "sha": "6faa3136ff5d226756a73846e4107d6d82aca4c5"
+      },
+      {
+        "id": 198,
+        "kind": "document",
+        "title": "README.md (part 15/16)",
+        "source": "README.md",
+        "repo": "VoiceSOW",
+        "branch": "main",
+        "sha": "6faa3136ff5d226756a73846e4107d6d82aca4c5"
+      }
+    ],
+    "expectations": {
+      "load_threshold": true,
+      "0.7": true
+    },
+    "cites_the_verified_experience": true
+  },
+  "criteria": "PASS = the fresh session's answer contains every expected text AND cites the verified_experience row"
+}
