@@ -1,0 +1,76 @@
+// My voices: list shared + own, preview, upload with consent.
+(function () {
+  const { api, el, showError, init } = window.S015;
+  const $ = (id) => document.getElementById(id);
+
+  async function load() {
+    try {
+      const list = await api("GET", "/voices");
+      const box = $("voices"); box.textContent = "";
+      if (!list.length) box.append(el("div", { class: "notice", textContent: "No voices yet." }));
+      for (const v of list) {
+        box.append(el("div", { class: "ident" }, [
+          el("div", { class: "row" }, [
+            el("strong", { textContent: v.name }), el("span", { class: "pill", textContent: v.language }),
+            el("span", { class: "pill " + (v.authorized ? "READY" : "ERROR"), textContent: v.authorized ? "authorized" : "not authorized" }),
+            el("button", { type: "button", textContent: "Preview", disabled: !v.authorized, onclick: () => preview(v) }),
+          ]),
+          el("div", { class: "mono notice", textContent: v.voice_profile_id }),
+        ]));
+      }
+      showError("globalError", null);
+    } catch (e) { showError("globalError", e); }
+  }
+
+  async function preview(v) {
+    showError("globalError", null);
+    $("previewState").textContent = "Synthesizing preview for " + v.name + " - this takes 15-40 s on CPU...";
+    document.querySelectorAll("#voices button").forEach((b) => { b.disabled = true; });
+    try {
+      const blob = await api("POST", "/voices/" + encodeURIComponent(v.voice_profile_id) + "/preview", {}, { blob: true });
+      const a = $("previewAudio");
+      if (a.src) URL.revokeObjectURL(a.src);
+      a.src = URL.createObjectURL(blob);
+      a.classList.remove("hidden");
+      $("previewState").textContent = "";
+      a.play().catch(() => { $("previewState").textContent = "Preview ready; press play."; });
+    } catch (e) { $("previewState").textContent = ""; showError("globalError", e); }
+    finally { await load(); }
+  }
+
+  async function upload(ev) {
+    ev.preventDefault();
+    showError("formError", null); $("formMsg").textContent = "";
+    const f = $("v-file").files[0];
+    if (!f) { showError("formError", new Error("Choose a reference audio file.")); return; }
+    const fd = new FormData();
+    fd.append("name", $("v-name").value.trim());
+    fd.append("language", $("v-language").value.trim() || "en");
+    fd.append("description", $("v-desc").value.trim());
+    fd.append("reference_text", $("v-text").value.trim());
+    fd.append("consent_statement", $("v-consent").value.trim());
+    fd.append("subject_name", $("v-subject").value.trim());
+    fd.append("authorized_by", $("v-by").value.trim());
+    fd.append("file", f, f.name);
+    $("upload").disabled = true;
+    $("formMsg").textContent = "Uploading and cloning - this can take a while...";
+    try {
+      const v = await api("POST", "/voices", fd);
+      $("formMsg").textContent = "Created voice " + v.name + " (" + v.voice_profile_id + ").";
+      $("form").reset();
+      $("v-by").value = authorizedBy;
+      await load();
+    } catch (e) { $("formMsg").textContent = ""; showError("formError", e); }
+    finally { $("upload").disabled = false; }
+  }
+
+  let authorizedBy = "";
+  $("form").onsubmit = upload;
+  $("refresh").onclick = load;
+  init().then((me) => {
+    if (!me) return;
+    authorizedBy = me.username || "";
+    $("v-by").value = authorizedBy;
+    load();
+  });
+})();

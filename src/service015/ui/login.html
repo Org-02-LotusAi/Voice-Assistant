@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in - Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main class="narrow">
+  <h1>Identity Workbench</h1>
+  <section>
+    <h2>Sign in</h2>
+    <form id="form" autocomplete="on">
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <div class="row spaced"><button id="submit" type="submit" class="primary">Sign in</button></div>
+    </form>
+    <div id="globalError" class="error hidden" role="alert"></div>
+  </section>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/login.js"></script>
+</body>
+</html>

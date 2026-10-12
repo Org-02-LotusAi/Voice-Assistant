@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Templates - Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <div id="hdr"></div>
+  <h1>Templates</h1>
+  <div id="globalError" class="error hidden" role="alert"></div>
+
+  <section>
+    <div class="row"><h2 class="grow">My private templates</h2><button id="newTpl" type="button" class="primary">New template</button></div>
+    <div id="mine"></div>
+  </section>
+  <section>
+    <h2>Shared templates (read-only)</h2>
+    <div id="shared"></div>
+  </section>
+
+  <section id="editor" class="hidden">
+    <h2 id="edTitle">Template</h2>
+    <div class="guard" id="guardrails">
+      <strong>Guardrails - always applied, not editable.</strong>
+      <span class="notice">The service appends a locked guardrail block to every persona built from any template: authoritative self-facts,
+      spoken-reply rules, never inventing prices or account data, and honestly saying it is an AI voice assistant when asked.
+      A template body cannot weaken it.</span>
+    </div>
+    <form id="form" autocomplete="off">
+      <label for="t-id">Template id (lowercase letters, digits, hyphens)</label>
+      <input id="t-id" type="text" maxlength="64">
+      <label for="t-name">Name</label>
+      <input id="t-name" type="text">
+      <label for="t-desc">Description</label>
+      <input id="t-desc" type="text">
+      <label for="t-role">Default role</label>
+      <input id="t-role" type="text">
+      <label for="t-company">Default company</label>
+      <input id="t-company" type="text">
+      <label for="t-language">Default language</label>
+      <select id="t-language"></select>
+      <label for="t-objective">Persona objective</label>
+      <textarea id="t-objective"></textarea>
+      <label for="t-style">Persona style</label>
+      <textarea id="t-style"></textarea>
+      <label for="t-instructions">Persona instructions (may use {name}, {company}, {role})</label>
+      <textarea id="t-instructions" rows="8"></textarea>
+      <label for="t-greeting">Greeting</label>
+      <textarea id="t-greeting"></textarea>
+      <label for="t-speaking">Speaking style</label>
+      <textarea id="t-speaking"></textarea>
+      <label for="t-barge"><input id="t-barge" type="checkbox"> Barge-in (caller can interrupt)</label>
+      <label>Required when creating a persona</label>
+      <div id="required" class="checks"></div>
+      <label>Fields a persona may override</label>
+      <div id="allowed" class="checks"></div>
+      <div class="row spaced">
+        <button id="save" type="button" class="primary">Save</button>
+        <button id="close" type="button">Close</button>
+      </div>
+    </form>
+    <div id="formMsg" class="notice"></div>
+    <div id="formError" class="error hidden" role="alert"></div>
+  </section>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/templates.js"></script>
+</body>
+</html>

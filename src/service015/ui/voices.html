@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voices - Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <div id="hdr"></div>
+  <h1>Voices</h1>
+  <div id="globalError" class="error hidden" role="alert"></div>
+
+  <section>
+    <div class="row"><h2 class="grow">Voices available to me</h2><button id="refresh" type="button">Refresh</button></div>
+    <p class="notice">Shared voices plus the voices you uploaded. A voice you upload is usable only for your own personas.</p>
+    <div id="voices"></div>
+    <div id="previewState" class="notice"></div>
+    <audio id="previewAudio" controls class="hidden"></audio>
+  </section>
+
+  <section>
+    <h2>Upload a voice</h2>
+    <p class="notice">Only upload a voice you have permission to clone. The consent details are recorded with the voice.
+      The audio sample must be longer than 5 seconds, at most 25 MiB (wav, mp3, m4a, ogg, flac or webm).</p>
+    <form id="form" autocomplete="off">
+      <label for="v-name">Voice name</label>
+      <input id="v-name" type="text" maxlength="100" required>
+      <label for="v-language">Language code (for example en)</label>
+      <input id="v-language" type="text" maxlength="20" value="en">
+      <label for="v-desc">Description (optional)</label>
+      <input id="v-desc" type="text" maxlength="1000">
+      <label for="v-file">Reference audio</label>
+      <input id="v-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm" required>
+      <label for="v-text">Exact transcript of the sample</label>
+      <textarea id="v-text" maxlength="4000" required></textarea>
+      <label for="v-subject">Whose voice is it (subject name)</label>
+      <input id="v-subject" type="text" maxlength="200" required>
+      <label for="v-consent">Consent statement</label>
+      <textarea id="v-consent" maxlength="4000" required placeholder="I confirm the subject gave informed consent for their voice to be cloned and used by this service."></textarea>
+      <label for="v-by">Authorized by</label>
+      <input id="v-by" type="text" maxlength="200" required>
+      <div class="row spaced"><button id="upload" type="submit" class="primary">Upload and clone</button></div>
+    </form>
+    <div id="formMsg" class="notice"></div>
+    <div id="formError" class="error hidden" role="alert"></div>
+  </section>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/voices.js"></script>
+</body>
+</html>

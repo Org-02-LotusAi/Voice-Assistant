@@ -1,6 +1,6 @@
 // Identity Workbench. All behavior goes through the public API.
 (function () {
-  const { api, describe, el, getKey, setKey, pollWhileVisible } = window.S015;
+  const { api, describe, el, getKey, setKey, apiKeyMode, setApiKeyMode, pollWhileVisible, init: initSession } = window.S015;
   const $ = (id) => document.getElementById(id);
 
   const FIELDS = Array.from(document.querySelectorAll("[data-key]"));
@@ -96,7 +96,7 @@
     $("formTitle").textContent = editing ? "Identity " + state.identity.identity_id : "New identity";
     $("template").disabled = editing;
     $("create").disabled = editing;
-    for (const id of ["save", "launch", "stop", "test"]) $(id).disabled = !editing;
+    for (const id of ["save", "launch", "stop", "test", "archive"]) $(id).disabled = !editing;
     document.querySelectorAll(".ident").forEach((n) => n.classList.toggle("sel", editing && n.dataset.id === state.identity.identity_id));
   }
 
@@ -173,9 +173,10 @@
     setMode();
   }
 
+  let ready = false;
   let refreshing = false, refreshQueued = false;
   async function refreshIdentities() {
-    if (!getKey()) return;
+    if (!ready) return;
     if (refreshing) { refreshQueued = true; return; }   // at most one in flight; one trailing rerun
     refreshing = true;
     try {
@@ -193,6 +194,7 @@
   }
 
   async function selectIdentity(id) {
+    $("archiveConfirm").classList.add("hidden");
     showError("formError", null); $("formMsg").textContent = "";
     try {
       const r = await api("GET", "/identities/" + encodeURIComponent(id));
@@ -207,6 +209,7 @@
 
   async function resetForm() {
     state.identity = null; showError("formError", null); $("formMsg").textContent = "";
+    $("archiveConfirm").classList.add("hidden");
     setMode();
     await onTemplateChange();
   }
@@ -259,6 +262,29 @@
       $("formMsg").textContent = kind + ": presence " + st.presence;
       await refreshIdentities();
     } catch (e) { showError("formError", e); }
+  }
+
+  function askArchive() {
+    if (!state.identity) return;
+    $("archiveText").textContent = "Archive " + state.identity.self.name + " (" + state.identity.identity_id +
+      ")? It is stopped if running and disappears from your lists. This cannot be undone from this page.";
+    $("archiveConfirm").classList.remove("hidden");
+    $("archiveNo").focus();
+  }
+
+  async function doArchive() {
+    showError("formError", null); $("formMsg").textContent = "";
+    const r = state.identity; if (!r) return;
+    $("archiveYes").disabled = true;
+    try {
+      await api("DELETE", "/identities/" + encodeURIComponent(r.identity_id));
+      $("archiveConfirm").classList.add("hidden");
+      state.identity = null;
+      await resetForm();
+      await refreshIdentities();
+      $("formMsg").textContent = "Archived " + r.identity_id + ".";
+    } catch (e) { showError("formError", e); }
+    finally { $("archiveYes").disabled = false; }
   }
 
   async function preview() {
@@ -332,17 +358,28 @@
 
   async function init() {
     $("apikey").value = getKey();
-    if (!getKey()) { showError("globalError", new Error("Enter your API key to begin.")); return; }
+    $("apikeyOn").checked = apiKeyMode();
+    if (apiKeyMode()) $("keyMode").open = true;
+    const me = await initSession();
+    if (!me) return;
+    ready = true;
+    showError("globalError", null);
     try { await loadTemplates(); } catch (e) { showError("globalError", e); return; }
     await loadVoices();
     await refreshIdentities();
   }
 
   $("savekey").onclick = () => {
-    try { setKey($("apikey").value.trim()); } catch (e) { showError("globalError", e); return; }
-    showError("globalError", null);
-    init();
+    try { setKey($("apikey").value.trim()); setApiKeyMode($("apikeyOn").checked); } catch (e) { showError("globalError", e); return; }
+    location.reload();
   };
+  $("apikeyOn").onchange = () => {
+    try { setApiKeyMode($("apikeyOn").checked); } catch (e) { showError("globalError", e); return; }
+    location.reload();
+  };
+  $("archive").onclick = askArchive;
+  $("archiveYes").onclick = doArchive;
+  $("archiveNo").onclick = () => $("archiveConfirm").classList.add("hidden");
   $("template").onchange = onTemplateChange;
   $("create").onclick = create;
   $("save").onclick = save;

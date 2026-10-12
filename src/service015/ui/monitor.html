@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor - Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <div id="hdr"></div>
+  <h1>Monitor (read-only)</h1>
+  <div id="globalError" class="error hidden" role="alert"></div>
+  <section>
+    <div class="row"><h2 class="grow">Roster and status</h2><button id="refresh" type="button">Refresh</button></div>
+    <div id="roster"></div>
+  </section>
+  <section>
+    <h2>Latency (ms)</h2>
+    <p class="notice">Select a persona from the roster to see its per-turn latency percentiles.</p>
+    <div id="latency"></div>
+  </section>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/monitor.js"></script>
+</body>
+</html>

@@ -1,10 +1,11 @@
 // Talk page: mint a join token via the public API, join the Identity's room with livekit-client, publish the mic.
 (function () {
-  const { api, describe, el, getKey, pollWhileVisible } = window.S015;
+  const { api, describe, el, pollWhileVisible, init: initSession } = window.S015;
   const $ = (id) => document.getElementById(id);
   const identityId = new URLSearchParams(location.search).get("identity");
 
   let room = null;
+  let ready = false;
   const segments = new Map();   // transcription segment id -> <p>
 
   function showError(e) {
@@ -34,7 +35,7 @@
   }
 
   async function refreshPresence() {
-    if (!identityId || !getKey()) return;
+    if (!identityId || !ready) return;
     try {
       const st = await api("GET", "/identities/" + encodeURIComponent(identityId) + "/status");
       const p = $("presence");
@@ -160,6 +161,12 @@
     try { await room.startAudio(); $("audioHint").classList.add("hidden"); } catch (e) { showError(e); }
   };
   if (!window.isSecureContext) $("secureWarn").classList.remove("hidden");
+  $("connect").disabled = true;
   pollWhileVisible(refreshPresence, 5000);
-  refreshPresence();
+  initSession().then((me) => {
+    if (!me) return;
+    ready = true;
+    $("connect").disabled = false;
+    refreshPresence();
+  });
 })();

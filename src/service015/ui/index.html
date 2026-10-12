@@ -3,20 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Identity Workbench</title>
+<title>My personas - Identity Workbench</title>
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
 <main>
-  <h1>AI Voice Identity Workbench</h1>
+  <div id="hdr"></div>
+  <h1>My personas</h1>
 
-  <section>
-    <label for="apikey">API key (stored in this browser only)</label>
+  <details id="keyMode">
+    <summary>Advanced: API key mode (machine debugging)</summary>
+    <label for="apikeyOn"><input id="apikeyOn" type="checkbox"> Use a Bearer API key instead of my signed-in session</label>
     <div class="row">
-      <input id="apikey" class="grow" type="password" autocomplete="off" placeholder="Bearer key">
+      <input id="apikey" class="grow" type="password" autocomplete="off" placeholder="Bearer key (stored in this browser only)">
       <button id="savekey" class="primary" type="button">Save key</button>
     </div>
-  </section>
+  </details>
 
   <div id="globalError" class="error hidden" role="alert"></div>
 
@@ -65,7 +67,15 @@
           <button id="launch" type="button" disabled>LAUNCH</button>
           <button id="stop" type="button" class="danger" disabled>STOP</button>
           <button id="test" type="button" disabled>TEST</button>
+          <button id="archive" type="button" class="danger" disabled>ARCHIVE</button>
           <button id="reset" type="button">New</button>
+        </div>
+        <div id="archiveConfirm" class="confirm hidden" role="alertdialog" aria-labelledby="archiveText">
+          <p id="archiveText"></p>
+          <div class="row">
+            <button id="archiveYes" type="button" class="danger">Yes, archive it</button>
+            <button id="archiveNo" type="button">Cancel</button>
+          </div>
         </div>
       </form>
       <div id="formMsg" class="notice"></div>

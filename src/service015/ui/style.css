@@ -41,3 +41,12 @@ th:first-child, td:first-child { text-align:left; }
 a { color:var(--accent); }
 .spaced { margin-top:12px; }
 .spaced-sm { margin-top:8px; }
+header.row { border-bottom:1px solid var(--line); padding:6px 0 10px; margin-bottom:6px; }
+header nav a { margin-right:12px; }
+header nav a.cur { font-weight:600; text-decoration:none; color:var(--fg); }
+.narrow { max-width:420px; margin:48px auto; }
+.confirm { border:1px solid var(--bad); border-radius:6px; padding:8px; margin:8px 0; }
+.guard { border:1px dashed var(--muted); border-radius:6px; padding:8px; margin:8px 0; background:color-mix(in srgb, var(--muted) 8%, transparent); }
+.checks label { display:inline-block; margin-right:12px; }
+input[type=file] { max-width:100%; }
+details { margin:8px 0; }

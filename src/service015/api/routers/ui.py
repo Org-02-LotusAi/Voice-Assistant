@@ -1,4 +1,5 @@
-"""Static Identity Workbench UI (unauthenticated; the pages call the public API with the user's key)."""
+"""Static Identity Workbench UI. The pages are public static files; each page signs the user in (session cookie + CSRF header)
+or redirects to /login, and every data call goes through the authenticated public API."""
 
 from __future__ import annotations
 
@@ -15,9 +16,19 @@ _FILES: dict[str, tuple[str, str]] = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/talk.html": ("talk.html", "text/html; charset=utf-8"),
+    "/login": ("login.html", "text/html; charset=utf-8"),
+    "/change-password": ("change-password.html", "text/html; charset=utf-8"),
+    "/templates.html": ("templates.html", "text/html; charset=utf-8"),
+    "/voices.html": ("voices.html", "text/html; charset=utf-8"),
+    "/monitor.html": ("monitor.html", "text/html; charset=utf-8"),
     "/ui/common.js": ("common.js", "text/javascript; charset=utf-8"),
     "/ui/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/ui/talk.js": ("talk.js", "text/javascript; charset=utf-8"),
+    "/ui/login.js": ("login.js", "text/javascript; charset=utf-8"),
+    "/ui/change-password.js": ("change-password.js", "text/javascript; charset=utf-8"),
+    "/ui/templates.js": ("templates.js", "text/javascript; charset=utf-8"),
+    "/ui/voices.js": ("voices.js", "text/javascript; charset=utf-8"),
+    "/ui/monitor.js": ("monitor.js", "text/javascript; charset=utf-8"),
     "/ui/style.css": ("style.css", "text/css; charset=utf-8"),
 }
 
