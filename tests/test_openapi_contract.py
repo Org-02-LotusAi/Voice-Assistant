@@ -111,6 +111,16 @@ def test_routes_match_spec(db_file):
     assert _app_ops(app) == {(p, m) for p, m, _ in OPS}
 
 
+def test_also_allowed_extension_matches_routes(db_file):
+    app = create_app(make_settings(db_file))
+    assert ALSO_USER == {("/templates", "post"), ("/voices", "post")}
+    for path, method, op in OPS:
+        route = next(r for r in _api_routes(app) if r.path == path and method.upper() in r.methods)
+        deps = [d.call for d in route.dependant.dependencies if hasattr(d.call, "required_role")]
+        declared = set(op.get("x-also-allowed", []))
+        assert {a for d in deps for a in getattr(d, "also_allowed", ())} == declared, (path, method)
+
+
 def test_app_dependency_roles_equal_spec(db_file):
     app = create_app(make_settings(db_file))
     for path, method, op in OPS:
@@ -152,8 +162,7 @@ BODIES = {
 }
 
 SESSION_ONLY = {("/auth/change-password", "post")}  # Bearer callers are refused with 403 session_required
-# Declared `operator`, but authoring is for human accounts and admin credentials: operator keys/tokens get 403 `forbidden`.
-AUTHORING = {("/templates", "post"), ("/voices", "post")}
+ALSO_USER = {(p, m) for p, m, op in OPS if "user-session" in op.get("x-also-allowed", [])}  # admin ops open to `user` sessions
 
 
 @pytest.mark.parametrize("path,method,op", OPS, ids=[f"{m.upper()} {p}" for p, m, _ in OPS])
@@ -197,12 +206,6 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
         assert r.status_code == 403 and r.json()["error"]["code"] == "session_required"
         assert_conforms(path, method, r)
         return
-    if (path, method) in AUTHORING:
-        r = client.request(method, url, headers=H[required], **kw)
-        assert r.status_code == 403 and r.json()["error"]["code"] == "forbidden", r.text
-        assert r.json()["error"]["details"]["required_role"] == "admin"
-        assert_conforms(path, method, r)
-        required = "admin"  # the env key that may author
     # exactly the declared role is accepted (proves app role is not higher than spec)
     r = client.request(method, url, headers=H[required], **kw)
     assert r.status_code not in (401, 403), r.text
@@ -395,9 +398,9 @@ def test_operation_session_rbac_and_response_conformance(session_client, path, m
     declared = {int(c) for c in op["responses"]}
     for who, rank in SESSION_ROLES.items():
         headers = uma if who == "uma" else login_headers(client, who)
-        if (path, method) == ("/templates", "post"):  # one private/shared family per signer: nobody versions another's
-            kw = {"json": {**body, "template_id": f"contract-{who}"}}
         r = client.request(method, url, headers=headers, **kw)
+        if who == "uma" and (path, method) in ALSO_USER:
+            rank = "admin"  # x-also-allowed: [user-session]
         if RANKS[rank] < RANKS[required]:
             assert r.status_code == 403 and r.json()["error"]["code"] == "forbidden", (who, r.text)
             assert r.json()["error"]["details"]["required_role"] == required

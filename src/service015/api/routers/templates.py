@@ -9,9 +9,9 @@ from fastapi import APIRouter, Depends, Query
 from service015 import identities_repo, templates_repo
 from service015.api.deps import get_conn, get_voicebox
 from service015.api.schemas import InstantiateRequest, TemplatePatch
-from service015.auth import Forbidden, Principal, ensure_author, require_principal
+from service015.auth import Forbidden, Principal, require_author, require_principal
 from service015 import accounts
-from service015.errors import Conflict, ValidationFailed
+from service015.errors import ValidationFailed
 from service015.models import TemplateBody, TemplateCreate, TemplateSummary
 from service015.resolver import ResolvedIdentity
 from service015.voice.authz import ensure_voice_usable
@@ -27,32 +27,25 @@ def list_templates(principal: Principal = Depends(require_principal("viewer")), 
 
 @router.post("/templates", status_code=201, response_model=TemplateBody)
 def create_template(
-    body: TemplateCreate, principal: Principal = Depends(require_principal("operator")), conn: sqlite3.Connection = Depends(get_conn)
+    body: TemplateCreate, principal: Principal = Depends(require_author()), conn: sqlite3.Connection = Depends(get_conn)
 ):
-    """Admin: a shared template (new family, or the next version of any shared family). User: a private template owned by the
-    caller (new family) or the next version of a private family they own. Same validation either way."""
-    ensure_author(principal)
+    """Admin: a shared template, stored under the given id (new family, or the next version of a shared family). User: a private
+    template stored as `<username>.<template_id>`: ids are per owner, so users never collide with, or learn about, anyone
+    else's ids. The same validation applies either way."""
     is_admin = principal.effective_role == "admin"
+    if not is_admin:
+        body = body.model_copy(update={"template_id": f"{principal.username}.{body.template_id}"})
 
     def authorize(meta: sqlite3.Row | None) -> None:  # runs inside the write transaction
         if meta is None:
             return
-        if not principal.visibility.allows(meta["owner_user_id"], bool(meta["shared"])):
-            raise Conflict(  # the same answer whether or not the id exists privately for someone else
-                "template_id_taken", f"template_id {body.template_id!r} is already in use; choose another",
-                details={"template_id": body.template_id},
-            )
         if meta["shared"]:
-            if not is_admin:
-                raise Forbidden(
-                    "forbidden", "shared templates can only be versioned by an administrator",
-                    details={"required_role": "admin", "role": principal.role},
-                )
+            if not is_admin:  # an admin turned a user's family into a shared one
+                raise Forbidden("forbidden", "shared templates can only be versioned by an administrator",
+                                details={"required_role": "admin", "role": principal.role})
         elif principal.user_id is None or meta["owner_user_id"] != principal.user_id:
-            raise Forbidden(
-                "template_not_owned", "a private template can only be versioned by its owner",
-                details={"template_id": body.template_id},
-            )
+            raise Forbidden("template_not_owned", "a private template can only be versioned by its owner",
+                            details={"template_id": body.template_id})
 
     return templates_repo.create_template(
         conn, body, owner_user_id=principal.owner_id_for_new, shared=is_admin, authorize=authorize
@@ -74,7 +67,7 @@ def patch_template(
         if key in changes and changes[key] is None:
             raise ValidationFailed("invalid_request", f"{key} must be true or false", details={"field": key})
     if changes.get("owner_user_id") is not None:
-        accounts.get_user(conn, changes["owner_user_id"])  # 404 user_not_found
+        accounts.require_assignable_owner(conn, changes["owner_user_id"])  # 404 user_not_found / 422 invalid_owner
     return templates_repo.patch_template(conn, template_id, changes)
 
 

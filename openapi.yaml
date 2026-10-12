@@ -18,7 +18,8 @@ info:
       `/auth/change-password`, `/auth/me` and `/auth/logout`. A Bearer header, when present, wins over the cookie.
 
     The minimum rank for each operation is given in `x-required-role` (`none` = unauthenticated); a `user` session
-    satisfies `operator`, never `admin`.
+    satisfies `operator`, never `admin`. The extension `x-also-allowed: [user-session]` widens an `admin` operation to
+    signed-in `user` accounts (viewer accounts, operator keys and operator tokens are still refused).
 
     **Owner scoping.** Identities (personas) carry an owner. A `user` lists, reads, edits, launches, stops, archives and
     dials only their own; for any other identity they get 404 `identity_not_found`, indistinguishable from a missing one.
@@ -28,10 +29,12 @@ info:
     attach only shared voices plus their own; a disabled voice cannot be attached or launched (422 `voice_disabled`).
     Archived identities are hidden from every listing and answer 404.
 
-    **Authoring.** `POST /templates` and `POST /voices` need rank `operator` and an *author*: a signed-in `user` or `admin`
-    account, or an admin key / token (an `operator` key or token gets 403 `forbidden`). An admin authors shared templates
-    and voices; a `user` authors private ones (owned by them, visible and usable only to them and to admins). Private
-    templates obey exactly the same validation, and every template's runtime instructions get a non-removable
+    **Authoring.** `POST /templates` and `POST /voices` are `admin` operations that also allow a signed-in `user` account
+    (`x-also-allowed: [user-session]`). An admin authors shared templates and voices; a `user` authors private ones (owned by
+    them, visible and usable only to them and to admins). Private template ids are namespaced per owner: the server stores
+    a user's `sales` as `<username>.sales` (the dot is reserved, shared ids never contain one), so two users can both create
+    `sales`, and no response ever reveals another owner's ids; a template the caller may not see answers 404 like a missing
+    one. Private templates obey exactly the same validation, and every template's runtime instructions get a non-removable
     `LOCKED GUARDRAILS` block appended by the service (see `GET /identities/{identity_id}/self-context`).
     **Expert sessions** created by a human account are private to that account (admins see all); other sessions answer
     404 `session_not_found`.
@@ -210,13 +213,14 @@ paths:
       tags: [templates]
       summary: Create a template (v1) or a new version of an existing template
       description: |
-        An admin creates a shared template (visible to everyone, owned by the creating admin account, if any); a `user`
-        creates a private template owned by them. A new `template_id` creates version 1; an existing `template_id`
-        creates the next version: shared families only by an admin (403 `forbidden`), private families only by their
-        owner (403 `template_not_owned`). A `template_id` that exists but is not visible to the caller answers 409
-        `template_id_taken`. Earlier versions and the identities bound to them are never modified. The same validation
-        applies to every template; guardrails are not part of a template and cannot be edited or removed by one.
-      x-required-role: operator
+        An admin creates a shared template (visible to everyone, owned by the creating admin account, if any) under the given
+        `template_id`; a `user` creates a private template owned by them, stored (and returned) as
+        `<username>.<template_id>`. A new id creates version 1; the same id again creates the next version (for a user, of
+        their own namespaced family). The `template_id` you send is a slug without dots. Earlier versions and the identities
+        bound to them are never modified. The same validation applies to every template; guardrails are not part of a
+        template and cannot be edited or removed by one.
+      x-required-role: admin
+      x-also-allowed: [user-session]
       requestBody:
         required: true
         content:
@@ -231,7 +235,6 @@ paths:
               schema: {$ref: "#/components/schemas/TemplateBody"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/Unprocessable"}
 
   /templates/{template_id}:
@@ -265,7 +268,7 @@ paths:
       description: |
         Admin only. Only the fields present are changed. `disabled: true` blocks new instantiation (409
         `template_disabled`); identities already created from it are unaffected. `owner_user_id` hands the template to a
-        user (404 `user_not_found` for an unknown user) or, when null, leaves it unowned. An empty body is 422 `empty_patch`.
+        active `user` account (404 `user_not_found`, 422 `invalid_owner`) or, when null, leaves it unowned. An empty body is 422 `empty_patch`.
       x-required-role: admin
       parameters:
         - {$ref: "#/components/parameters/TemplateId"}
@@ -733,7 +736,8 @@ paths:
         Voicebox down: 503 `voicebox_unavailable`; Voicebox rejecting the sample: 502 `voicebox_rejected`.
         An admin creates a shared voice; a `user` account creates a voice they own, usable only for their own personas.
         The consent statement, subject name and authorizing person are mandatory for everyone.
-      x-required-role: operator
+      x-required-role: admin
+      x-also-allowed: [user-session]
       requestBody:
         required: true
         content:
@@ -769,7 +773,7 @@ paths:
       summary: Disable / enable a voice or assign its owner
       description: |
         Admin only. `disabled: true` blocks new attachment (422 `voice_disabled`), preview and launch preflight; a persona that
-        is already running is not interrupted. `owner_user_id` hands the voice to a user (it is then private to them) or, when
+        is already running is not interrupted. `owner_user_id` hands the voice to an active `user` account (404 `user_not_found`, 422 `invalid_owner`; it is then private to them) or, when
         null, makes it unowned (shared). The voice must have a recorded authorization (404 `voice_profile_not_found`).
       x-required-role: admin
       parameters:
@@ -865,8 +869,8 @@ paths:
       description: |
         Stores a fact verified during development as `verified_experience` knowledge. It survives every
         document re-ingest and is visible to every new Expert session (SOW 24). `repo`, `branch` and `sha`
-        must be given together, or all omitted to resolve them with `git rev-parse` in the server's working
-        directory (422 `provenance_unresolved` if that fails). `sha` must be 7-40 lowercase hex characters.
+        must be given together, or all omitted to resolve them with `git rev-parse` in the service's repository (see `POST /expert/reingest`)
+        (422 `provenance_unresolved` if that fails). `sha` must be 7-40 lowercase hex characters.
         Idempotent on (`title`, `sha`): a repeat returns the existing item with 200 instead of 201.
       x-required-role: admin
       requestBody:
@@ -896,9 +900,10 @@ paths:
       tags: [expert, admin]
       summary: Re-ingest the Service Expert manifest documents
       description: |
-        Replaces the `document` chunks of every manifest source found under the server's working directory. Verified
+        Replaces the `document` chunks of every manifest source found under the service's repository root. Verified
         experience is never touched. Missing required sources are reported in `missing_required`, not as an error.
-        Provenance (repo, branch, sha) is resolved with git in the working directory (422 `provenance_unresolved`).
+        The root is `SERVICE015_REPO_ROOT`, else the repository containing the installed package - never the process working
+        directory; provenance (repo, branch, sha) comes from git there (422 `provenance_unresolved` if it is not a checkout).
       x-required-role: admin
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
@@ -1146,8 +1151,11 @@ paths:
       tags: [admin]
       summary: Assign a persona to a user
       description: |
-        Hands a persona (also an archived or machine-created one) to the given user; null leaves it unowned. Unknown user:
-        404 `user_not_found`; unknown identity: 404 `identity_not_found`.
+        Hands a persona (also an archived or machine-created one) to the given user; null leaves it unowned. The target must
+        be an active account with role `user` (422 `invalid_owner` for a disabled, viewer or admin account; 404
+        `user_not_found`). If the persona's voice is private to someone else and so unusable by the new owner, the call is
+        refused with 409 `voice_not_accessible` unless `clear_voice` is true, which sets `voice.profile_id` to null (the
+        persona then needs a voice before it can launch: 422 `voice_required`). Unknown identity: 404 `identity_not_found`.
       x-required-role: admin
       parameters:
         - {$ref: "#/components/parameters/IdentityId"}
@@ -1207,7 +1215,7 @@ components:
       name: template_id
       in: path
       required: true
-      schema: {type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 64}
+      schema: {type: string, pattern: '^([a-z0-9][a-z0-9_.-]{2,31}\.)?[a-z0-9]+(-[a-z0-9]+)*$', maxLength: 100, description: "A shared slug, or `<owner_username>.<slug>` for a private template."}
     IdentityId:
       name: identity_id
       in: path
@@ -1264,7 +1272,7 @@ components:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     Conflict:
       description: |
-        The request conflicts with current state (`template_disabled`, `template_id_taken`, `username_taken`, `admin_account_protected`, `capacity_exceeded`, `identity_not_ready`,
+        The request conflicts with current state (`template_disabled`, `voice_not_accessible`, `username_taken`, `admin_account_protected`, `capacity_exceeded`, `identity_not_ready`,
         `dial_in_progress`).
       content:
         application/json:
@@ -1467,7 +1475,7 @@ components:
     TemplateFields:
       type: object
       properties:
-        template_id: {type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 64}
+        template_id: {type: string}
         name: {type: string, minLength: 1}
         description: {type: string, minLength: 1}
         default_self_facts:
@@ -1510,6 +1518,9 @@ components:
       description: Template contract (SOW section 7) without server-assigned `version` and `created_at`. `required_instance_fields` must be a subset of `allowed_overrides`.
       allOf:
         - {$ref: "#/components/schemas/TemplateFields"}
+        - type: object
+          properties:
+            template_id: {type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 64, description: "A slug without dots; a user's private template is stored as `<username>.<slug>`."}
       required: [template_id, name, description, persona, conversation]
       unevaluatedProperties: false
       examples:
@@ -1535,6 +1546,7 @@ components:
         - {$ref: "#/components/schemas/TemplateFields"}
         - type: object
           properties:
+            template_id: {type: string, pattern: '^([a-z0-9][a-z0-9_.-]{2,31}\.)?[a-z0-9]+(-[a-z0-9]+)*$', maxLength: 100}
             version: {type: integer, minimum: 1}
             created_at: {type: string, format: date-time}
       required:
@@ -2040,6 +2052,7 @@ components:
       required: [owner_user_id]
       properties:
         owner_user_id: {type: [string, "null"]}
+        clear_voice: {type: boolean, default: false, description: "Detach the voice when the new owner cannot use it."}
 
     TemplatePatch:
       type: object

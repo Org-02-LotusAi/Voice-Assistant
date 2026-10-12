@@ -164,8 +164,8 @@ A Template is a reusable archetype. `allowed_overrides` lists the flat dotted ke
       "type": "array"
     },
     "template_id": {
-      "maxLength": 64,
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 100,
+      "pattern": "^([a-z0-9][a-z0-9_.-]{2,31}\\.)?[a-z0-9]+(-[a-z0-9]+)*$",
       "title": "Template Id",
       "type": "string"
     },

@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     # Bootstrap password for the first `admin` account (created only when no admin exists; forced change on first login).
     admin_password: str = Field("", validation_alias="SERVICE015_ADMIN_PASSWORD", repr=False)
     # Peers (IPs / CIDRs, comma-separated) whose X-Forwarded-For is believed when deriving the client IP for login throttling.
+    repo_root: str = Field("", validation_alias="SERVICE015_REPO_ROOT")  # Service Expert sources / provenance; default: this checkout
     trusted_proxies: Annotated[tuple[Network, ...], NoDecode] = Field((), validation_alias="SERVICE015_TRUSTED_PROXIES")
     db_path: str = Field("./data/service015.db", validation_alias="SERVICE015_DB_PATH")
     host: str = Field("127.0.0.1", validation_alias="SERVICE015_HOST")

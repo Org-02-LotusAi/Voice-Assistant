@@ -284,6 +284,7 @@ class AdminIdentity(IdentitySummary):
 
 class IdentityOwnerPatch(_Strict):
     owner_user_id: str | None
+    clear_voice: bool = False  # detach the persona's voice when the new owner cannot use it
 
 
 class TemplatePatch(_Strict):

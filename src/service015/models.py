@@ -25,6 +25,7 @@ _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 FACT_PLACEHOLDERS: tuple[str, ...] = ("name", "company", "role")
 
 TEMPLATE_ID_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+STORED_TEMPLATE_ID_PATTERN = r"^([a-z0-9][a-z0-9_.-]{2,31}\.)?[a-z0-9]+(-[a-z0-9]+)*$"
 
 
 class _Strict(BaseModel):
@@ -55,7 +56,8 @@ class VoiceDefaults(_Strict):
 
 
 class _TemplateFields(_Strict):
-    template_id: str = Field(pattern=TEMPLATE_ID_PATTERN, max_length=64)
+    # Stored ids: a shared slug, or `<owner_username>.<slug>` for a private family (the dot is reserved for that namespace).
+    template_id: str = Field(pattern=STORED_TEMPLATE_ID_PATTERN, max_length=100)
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     default_self_facts: SelfFacts = Field(default_factory=SelfFacts)
@@ -94,7 +96,10 @@ class _TemplateFields(_Strict):
 
 
 class TemplateCreate(_TemplateFields):
-    """Request body for creating a template (v1) or a new version of an existing one."""
+    """Request body for creating a template (v1) or a new version of an existing one. The slug has no dot: a private
+    template is stored by the server as `<owner_username>.<slug>`."""
+
+    template_id: str = Field(pattern=TEMPLATE_ID_PATTERN, max_length=64)
 
 
 class TemplateBody(_TemplateFields):

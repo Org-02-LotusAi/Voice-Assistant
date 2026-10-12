@@ -189,6 +189,17 @@ def list_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM users ORDER BY username").fetchall()
 
 
+def require_assignable_owner(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row:
+    """Target of an owner hand-over: an existing, enabled account with role `user` (404 `user_not_found`, 422 `invalid_owner`)."""
+    user = get_user(conn, user_id)
+    if user["disabled"] or user["role"] != "user":
+        raise ValidationFailed(
+            "invalid_owner", "resources can only be assigned to an active account with role 'user'",
+            details={"field": "owner_user_id", "user_id": user_id},
+        )
+    return user
+
+
 def admin_create_user(conn: sqlite3.Connection, username: str, temporary_password: str, role: str) -> sqlite3.Row:
     """Admin-created account: temporary password (policy-checked), `must_change_password` set. Never creates admins."""
     if role not in ADMIN_MANAGED_ROLES:

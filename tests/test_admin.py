@@ -230,47 +230,69 @@ def test_admin_identities_listing_and_owner_assignment(c, db_file):
 
 # ---------------------------------------------------------------- templates: private authoring
 
-def test_user_creates_private_template_and_versions_it(c, db_file):
+def test_user_creates_namespaced_private_template_and_versions_it(c, db_file):
     uma_id = add_user(db_file, "uma")
     add_user(db_file, "wes")
     uma, wes = login_headers(c, "uma"), login_headers(c, "wes")
-    r = c.post("/templates", headers=uma, json=template_body("uma-helper"))
-    assert r.status_code == 201 and r.json()["version"] == 1, r.text
-    summary = {t["template_id"]: t for t in c.get("/templates", headers=uma).json()}["uma-helper"]
+    r = c.post("/templates", headers=uma, json=template_body("helper"))
+    assert r.status_code == 201 and r.json()["version"] == 1 and r.json()["template_id"] == "uma.helper", r.text
+    summary = {t["template_id"]: t for t in c.get("/templates", headers=uma).json()}["uma.helper"]
     assert summary["shared"] is False and summary["owner_user_id"] == uma_id
-    assert "uma-helper" not in {t["template_id"] for t in c.get("/templates", headers=wes).json()}
-    r = c.post("/templates", headers=uma, json=template_body("uma-helper", instructions="Be even more helpful."))
-    assert r.status_code == 201 and r.json()["version"] == 2
-    assert c.get("/templates/uma-helper/versions", headers=uma).json() == [1, 2]
-    # other users cannot see, version, or even learn that the id exists
-    r = c.post("/templates", headers=wes, json=template_body("uma-helper", instructions="Hijack."))
-    assert r.status_code == 409 and code(r) == "template_id_taken"
-    assert c.get("/templates/uma-helper/versions", headers=wes).status_code == 404
-    assert c.get("/templates/uma-helper/versions", headers=uma).json() == [1, 2]
-    # the owner instantiates it; its voice rules still apply
-    assert persona(c, uma, template="uma-helper")
-    r = c.post("/templates/uma-helper/instantiate", headers=wes, json={"overrides": {"name": "X"}})
-    assert r.status_code == 404
+    assert "uma.helper" not in {t["template_id"] for t in c.get("/templates", headers=wes).json()}
+    r = c.post("/templates", headers=uma, json=template_body("helper", instructions="Be even more helpful."))
+    assert r.status_code == 201 and r.json()["version"] == 2 and r.json()["template_id"] == "uma.helper"
+    assert c.get("/templates/uma.helper/versions", headers=uma).json() == [1, 2]
+    # other users: the id is invisible (404, same as missing), and a dotted id is not a valid slug
+    assert c.get("/templates/uma.helper/versions", headers=wes).status_code == 404
+    assert c.get("/templates/wes.helper/versions", headers=wes).status_code == 404
+    assert c.post("/templates", headers=wes, json={**template_body("x"), "template_id": "uma.helper"}).status_code == 422
+    assert persona(c, uma, template="uma.helper")
+    r = c.post("/templates/uma.helper/instantiate", headers=wes, json={"overrides": {"name": "X"}})
+    assert r.status_code == 404 and code(r) == "template_not_found"
 
 
-def test_user_cannot_touch_shared_templates_and_admin_cannot_version_private_ones(c, db_file):
+def test_two_users_can_both_create_the_same_slug_without_learning_about_each_other(c, db_file):
+    add_user(db_file, "uma")
+    add_user(db_file, "wes")
+    uma, wes = login_headers(c, "uma"), login_headers(c, "wes")
+    a = c.post("/templates", headers=uma, json=template_body("sales"))
+    b = c.post("/templates", headers=wes, json=template_body("sales", instructions="Wes version."))
+    assert (a.status_code, b.status_code) == (201, 201)
+    assert (a.json()["template_id"], b.json()["template_id"]) == ("uma.sales", "wes.sales")
+    assert a.json()["version"] == b.json()["version"] == 1  # independent families, no 409 / 403 either way
+    assert {t["template_id"] for t in c.get("/templates", headers=uma).json()} >= {"uma.sales"}
+    assert "wes.sales" not in {t["template_id"] for t in c.get("/templates", headers=uma).json()}
+    assert c.get("/templates/wes.sales", headers=uma).status_code == 404
+    assert c.get("/templates/uma.sales", headers=wes).status_code == 404
+    assert c.get("/templates/wes.sales", headers=wes).json()["persona"]["instructions"] == "Wes version."
+    # a user's slug equal to a shared id creates their own private family, never touching the shared one
+    r = c.post("/templates", headers=uma, json=template_body("customer-support"))
+    assert r.status_code == 201 and r.json()["template_id"] == "uma.customer-support"
+    assert c.get("/templates/customer-support/versions", headers=uma).json() == [1]
+    # an admin can still create a shared template with a slug users already used privately (no squatting)
+    ada = c.post("/templates", headers=H["admin"], json=template_body("sales"))
+    assert ada.status_code == 201 and ada.json()["template_id"] == "sales"
+
+
+def test_admin_shared_versioning_and_ownership_of_converted_families(c, db_file):
     add_user(db_file, "uma")
     add_user(db_file, "ada", "admin")
     uma, ada = login_headers(c, "uma"), login_headers(c, "ada")
-    shared = {k: v for k, v in c.get("/templates/customer-support", headers=uma).json().items() if k not in ("version", "created_at")}
-    r = c.post("/templates", headers=uma, json=shared)
-    assert r.status_code == 403 and code(r) == "forbidden"
-    assert c.get("/templates/customer-support/versions", headers=uma).json() == [1]
-    assert c.post("/templates", headers=uma, json=template_body("uma-helper")).status_code == 201
-    r = c.post("/templates", headers=ada, json=template_body("uma-helper", instructions="Admin edit."))
-    assert r.status_code == 403 and code(r) == "template_not_owned"
-    assert c.get("/templates/uma-helper/versions", headers=ada).json() == [1]  # admin can still see it
-    # admin-created templates are shared by default, and the admin can version them
+    assert c.post("/templates", headers=uma, json=template_body("helper")).status_code == 201
+    # admins cannot version a user's private family (and cannot even address it: dotted ids are not slugs)
+    assert c.post("/templates", headers=ada, json={**template_body("x"), "template_id": "uma.helper"}).status_code == 422
+    assert c.get("/templates/uma.helper/versions", headers=ada).json() == [1]  # but they can see it
+    # admin-created templates are shared by default and versioned by the admin
     assert c.post("/templates", headers=ada, json=template_body("shared-new")).status_code == 201
-    summary = {t["template_id"]: t for t in c.get("/templates", headers=uma).json()}["shared-new"]
-    assert summary["shared"] is True
+    assert {t["template_id"]: t for t in c.get("/templates", headers=uma).json()}["shared-new"]["shared"] is True
     assert c.post("/templates", headers=ada, json=template_body("shared-new", instructions="v2")).json()["version"] == 2
-    assert c.post("/templates", headers=uma, json=template_body("shared-new", instructions="v3")).status_code == 403
+    # a user posting the same slug gets their own family; shared-new stays at v2
+    assert c.post("/templates", headers=uma, json=template_body("shared-new", instructions="mine")).json()["template_id"] == "uma.shared-new"
+    assert c.get("/templates/shared-new/versions", headers=uma).json() == [1, 2]
+    # if an admin converts a user's family to shared, the user can no longer version it
+    assert c.patch("/templates/uma.helper", headers=H["admin"], json={"shared": True}).status_code == 200
+    r = c.post("/templates", headers=uma, json=template_body("helper", instructions="v2"))
+    assert r.status_code == 403 and code(r) == "forbidden"
     env = c.post("/templates", headers=H["admin"], json=template_body("env-shared"))
     assert env.status_code == 201
     assert {t["template_id"]: t for t in c.get("/templates", headers=uma).json()}["env-shared"]["shared"] is True
@@ -300,24 +322,30 @@ def test_admin_disables_and_reassigns_templates(c, db_file):
     uma_id = add_user(db_file, "uma")
     wes_id = add_user(db_file, "wes")
     uma, wes = login_headers(c, "uma"), login_headers(c, "wes")
-    c.post("/templates", headers=uma, json=template_body("uma-helper"))
-    aid = persona(c, uma, template="uma-helper")
-    r = c.patch("/templates/uma-helper", headers=H["admin"], json={"disabled": True})
+    c.post("/templates", headers=uma, json=template_body("helper"))
+    aid = persona(c, uma, template="uma.helper")
+    r = c.patch("/templates/uma.helper", headers=H["admin"], json={"disabled": True})
     assert r.status_code == 200 and r.json()["disabled"] is True
-    r = c.post("/templates/uma-helper/instantiate", headers=uma, json={"overrides": {"name": "B"}})
+    r = c.post("/templates/uma.helper/instantiate", headers=uma, json={"overrides": {"name": "B"}})
     assert r.status_code == 409 and code(r) == "template_disabled"
     assert c.get(f"/identities/{aid}", headers=uma).status_code == 200  # existing persona unaffected
-    assert c.patch("/templates/uma-helper", headers=H["admin"], json={"disabled": False}).json()["disabled"] is False
-    r = c.patch("/templates/uma-helper", headers=H["admin"], json={"owner_user_id": wes_id})
+    assert c.patch("/templates/uma.helper", headers=H["admin"], json={"disabled": False}).json()["disabled"] is False
+    r = c.patch("/templates/uma.helper", headers=H["admin"], json={"owner_user_id": wes_id})
     assert r.json()["owner_user_id"] == wes_id and r.json()["shared"] is False
-    assert c.get("/templates/uma-helper", headers=uma).status_code == 404
-    assert c.post("/templates", headers=wes, json=template_body("uma-helper", instructions="v2")).status_code == 201
-    r = c.patch("/templates/uma-helper", headers=H["admin"], json={"shared": True})
-    assert r.json()["shared"] is True and c.get("/templates/uma-helper", headers=uma).status_code == 200
-    assert code(c.patch("/templates/uma-helper", headers=H["admin"], json={})) == "empty_patch"
-    assert code(c.patch("/templates/uma-helper", headers=H["admin"], json={"owner_user_id": "usr_x"})) == "user_not_found"
+    assert c.get("/templates/uma.helper", headers=uma).status_code == 404
+    assert c.get("/templates/uma.helper", headers=wes).status_code == 200  # the new owner sees (and can instantiate) it
+    viewer_id, off_id = add_user(db_file, "vic", "viewer"), add_user(db_file, "off")
+    admin_id = accounts.find_user(connect(db_file), "admin")["user_id"]
+    c.patch(f"/admin/users/{off_id}", headers=H["admin"], json={"disabled": True})
+    for target in (viewer_id, off_id, admin_id):  # hand-over targets must be active `user` accounts
+        r = c.patch("/templates/uma.helper", headers=H["admin"], json={"owner_user_id": target})
+        assert r.status_code == 422 and code(r) == "invalid_owner", r.text
+    r = c.patch("/templates/uma.helper", headers=H["admin"], json={"shared": True})
+    assert r.json()["shared"] is True and c.get("/templates/uma.helper", headers=uma).status_code == 200
+    assert code(c.patch("/templates/uma.helper", headers=H["admin"], json={})) == "empty_patch"
+    assert code(c.patch("/templates/uma.helper", headers=H["admin"], json={"owner_user_id": "usr_x"})) == "user_not_found"
     assert code(c.patch("/templates/nope", headers=H["admin"], json={"disabled": True})) == "template_not_found"
-    assert code(c.patch("/templates/uma-helper", headers=H["admin"], json={"disabled": None})) == "invalid_request"
+    assert code(c.patch("/templates/uma.helper", headers=H["admin"], json={"disabled": None})) == "invalid_request"
     assert uma_id != wes_id
 
 
@@ -333,7 +361,7 @@ def test_private_template_cannot_remove_or_forge_the_guardrails(c, db_file):
     add_user(db_file, "uma")
     uma = login_headers(c, "uma")
     assert c.post("/templates", headers=uma, json=template_body("hostile", instructions=HOSTILE, objective=HOSTILE)).status_code == 201
-    aid = persona(c, uma, template="hostile")
+    aid = persona(c, uma, template="uma.hostile")
     ctx = c.get(f"/identities/{aid}/self-context", headers=uma).json()
     text = ctx["instructions"]
     assert text.count(selfcontext.GUARDRAILS_HEADER) == 1  # the forged header was defanged, the real one is there once
@@ -355,7 +383,7 @@ def test_every_template_kind_gets_the_identical_guardrail_block(c, db_file):
     c.post("/templates", headers=uma, json=template_body("plain"))
     blocks = set()
     for template, headers, who in (("sales-representative", H["operator"], "Nia"), ("customer-support", H["operator"], "Omar"),
-                                   ("plain", uma, "Pia")):
+                                   ("uma.plain", uma, "Pia")):
         aid = persona(c, headers, template=template, name=who)
         text = c.get(f"/identities/{aid}/self-context", headers=H["admin"]).json()["instructions"]
         blocks.add(text[text.index(selfcontext.GUARDRAILS_HEADER):text.index("SPOKEN CONVERSATION RULES")])

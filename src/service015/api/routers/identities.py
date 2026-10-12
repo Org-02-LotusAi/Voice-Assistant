@@ -28,6 +28,7 @@ from service015.resolver import ResolvedIdentity
 from service015.runtime import latency
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
 from service015.selfcontext import build_instructions, build_self_context
+from service015.voice import authz
 from service015.voice.authz import ensure_identity_voice_ready, ensure_voice_usable
 from service015.voice.voicebox import VoiceboxClient
 
@@ -119,7 +120,9 @@ async def launch(
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ) -> Any:
     identity = scoped_identity(conn, principal, identity_id)  # 404 before touching the runtime
-    await ensure_identity_voice_ready(conn, voicebox, identity)  # 422/503 before the supervisor is involved
+    owner = identities_repo.owner_map(conn).get(identity_id)
+    # 422/503 before the supervisor is involved; the voice must still be usable by the persona's OWNER
+    await ensure_identity_voice_ready(conn, voicebox, identity, authz.owner_visibility(conn, owner))
     return await sup.launch(identity_id)
 
 

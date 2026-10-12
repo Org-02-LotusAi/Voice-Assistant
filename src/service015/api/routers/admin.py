@@ -24,12 +24,16 @@ from service015.api.schemas import (
     ServiceTokenInfo,
 )
 from service015.auth import Principal, require_principal
-from service015.errors import ValidationFailed
+from service015.errors import Conflict, ValidationFailed
 from service015.voice import authz
 from service015.voice.voicebox import VoiceboxClient
 
 log = logging.getLogger("service015.api")
 router = APIRouter(tags=["admin"])
+
+
+def _actor(principal: Principal) -> str:
+    return principal.user_id or principal.token_id or principal.kind
 
 
 def _user(row: sqlite3.Row) -> AdminUser:
@@ -55,7 +59,7 @@ def create_user(
 ):
     """Creates an account with a temporary password; the user must change it at first sign-in."""
     row = accounts.admin_create_user(conn, body.username, body.temporary_password, body.role)
-    log.info("admin created user=%s role=%s", row["user_id"], row["role"])
+    log.info("admin created user=%s role=%s actor=%s", row["user_id"], row["role"], _actor(principal))
     return _user(row)
 
 
@@ -69,10 +73,13 @@ def patch_user(
     """Disable/enable, change role (user/viewer) and/or reset the temporary password. Sessions are revoked at once."""
     if not body.model_fields_set:
         raise ValidationFailed("empty_patch", "give at least one of disabled, role, temporary_password")
+    for field in body.model_fields_set:
+        if getattr(body, field) is None:
+            raise ValidationFailed("invalid_request", f"{field} must not be null", details={"field": field})
     row = accounts.admin_update_user(
         conn, user_id, disabled=body.disabled, role=body.role, temporary_password=body.temporary_password
     )
-    log.info("admin updated user=%s fields=%s", user_id, sorted(body.model_fields_set))
+    log.info("admin updated user=%s fields=%s actor=%s", user_id, sorted(body.model_fields_set), _actor(principal))
     return _user(row)
 
 
@@ -87,7 +94,7 @@ def create_token(
 ):
     """The secret is in this response only; only its sha256 is stored."""
     row, secret = accounts.create_service_token(conn, body.label.strip(), body.role, principal.user_id)
-    log.info("service token created token=%s role=%s", row["token_id"], row["role"])
+    log.info("service token created token=%s role=%s actor=%s", row["token_id"], row["role"], _actor(principal))
     return {**_token(row), "token": secret}
 
 
@@ -96,7 +103,7 @@ def revoke_token(
     token_id: str, principal: Principal = Depends(require_principal("admin")), conn: sqlite3.Connection = Depends(get_conn)
 ):
     accounts.revoke_service_token(conn, token_id)
-    log.info("service token revoked token=%s", token_id)
+    log.info("service token revoked token=%s actor=%s", token_id, _actor(principal))
     return Response(status_code=204)
 
 
@@ -121,10 +128,24 @@ def assign_identity_owner(
     conn: sqlite3.Connection = Depends(get_conn),
 ):
     """Hand a persona (also an archived or machine-created one) to a user; null makes it unowned."""
+    current = identities_repo.get_scoped(conn, identity_id, None, include_archived=True)
     if body.owner_user_id is not None:
-        accounts.get_user(conn, body.owner_user_id)  # 404 user_not_found
+        accounts.require_assignable_owner(conn, body.owner_user_id)  # 404 user_not_found / 422 invalid_owner
+    voice_id = current.voice.profile_id
+    clear = False
+    if voice_id is not None and not authz.voice_usable_by(conn, voice_id, body.owner_user_id):
+        if not body.clear_voice:
+            raise Conflict(
+                "voice_not_accessible",
+                f"the persona's voice {voice_id!r} is private to someone else and not usable by the new owner; "
+                "send clear_voice=true to detach it (the persona then needs a voice before it can launch)",
+                details={"voice_profile_id": voice_id, "owner_user_id": body.owner_user_id},
+            )
+        clear = True
+    if clear:
+        identities_repo.patch_identity(conn, identity_id, {"voice.profile_id": None})
     identities_repo.set_owner(conn, identity_id, body.owner_user_id)
-    log.info("identity owner set identity=%s owner=%s", identity_id, body.owner_user_id)
+    log.info("identity owner set identity=%s owner=%s actor=%s", identity_id, body.owner_user_id, _actor(principal))
     resolved = identities_repo.get_scoped(conn, identity_id, None, include_archived=True)
     return AdminIdentity(
         **_summary(resolved, body.owner_user_id).model_dump(),

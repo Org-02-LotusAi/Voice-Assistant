@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from service015.api.deps import get_conn, get_expert_llm
 from service015.api.schemas import (
@@ -20,19 +20,32 @@ from service015.expert.llm import Llm
 router = APIRouter(tags=["expert"])
 
 
+def expert_root(request: Request) -> Path:
+    """The checkout whose documents the Expert ingests and whose git state is the provenance: `SERVICE015_REPO_ROOT`, else the
+    repository containing this installed package. Never the process working directory. Must be a git checkout."""
+    configured = request.app.state.settings.repo_root
+    root = Path(configured).resolve() if configured else Path(__file__).resolve().parents[4]
+    if not (root / ".git").exists():
+        raise ValidationFailed(
+            "provenance_unresolved",
+            f"the Service Expert root {str(root)!r} is not a git checkout; set SERVICE015_REPO_ROOT to the repository",
+        )
+    return root
+
+
 @router.post(
     "/expert/experience",
     status_code=201,
     response_model=ExpertKnowledgeItem,
     dependencies=[Depends(require_role("admin"))],
 )
-def add_experience(body: ExperienceCreate, response: Response, conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+def add_experience(body: ExperienceCreate, request: Request, response: Response, conn: sqlite3.Connection = Depends(get_conn)) -> Any:
     if body.repo and body.branch and body.sha:
         prov = store.Provenance(body.repo, body.branch, body.sha)
     elif body.repo or body.branch or body.sha:
         raise ValidationFailed("invalid_request", "give repo, branch and sha together, or none of them to resolve via git")
     else:
-        prov = store.resolve_provenance(Path.cwd())
+        prov = store.resolve_provenance(expert_root(request))
     item, created = store.add_experience(conn, body.title, body.body, body.source, prov, body.min_role)
     response.status_code = 201 if created else 200  # idempotent on (title, sha)
     return item
@@ -43,9 +56,9 @@ def add_experience(body: ExperienceCreate, response: Response, conn: sqlite3.Con
     response_model=ReingestResult,
     dependencies=[Depends(require_role("admin"))],
 )
-def reingest(conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    """Re-ingest the manifest documents from the service's working directory. Verified experience is never touched."""
-    return store.ingest_manifest(conn, Path.cwd())
+def reingest(request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Re-ingest the manifest documents from the service's repository root. Verified experience is never touched."""
+    return store.ingest_manifest(conn, expert_root(request))
 
 
 def _scope(principal: Principal) -> str | None:

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from service015.errors import NotFound, ValidationFailed
-from service015.scope import Visibility
+from service015.scope import UNRESTRICTED, Visibility
 from service015.voice.voicebox import VoiceboxClient
 
 
@@ -105,6 +105,22 @@ def set_voice_owner(conn: sqlite3.Connection, voice_profile_id: str, owner_user_
         )
 
 
+def owner_visibility(conn: sqlite3.Connection, owner_user_id: str | None) -> Visibility:
+    """What an identity's owner may use: unowned (machine) and admin-owned personas are unrestricted, others see shared + own."""
+    if owner_user_id is None:
+        return UNRESTRICTED
+    row = conn.execute("SELECT role FROM users WHERE user_id = ?", (owner_user_id,)).fetchone()
+    if row is None or row["role"] == "admin":
+        return UNRESTRICTED
+    return Visibility(True, owner_user_id)
+
+
+def voice_usable_by(conn: sqlite3.Connection, voice_profile_id: str, owner_user_id: str | None) -> bool:
+    """False when the voice has an authorization record that the owner may not use (private to someone else)."""
+    meta = voice_index(conn).get(voice_profile_id)
+    return meta is None or owner_visibility(conn, owner_user_id).allows(meta["owner_user_id"], meta["shared"])
+
+
 async def ensure_voice_usable(
     conn: sqlite3.Connection, voicebox: VoiceboxClient, profile_id: Any, vis: Visibility | None = None
 ) -> None:
@@ -144,7 +160,9 @@ async def ensure_voice_usable(
         )
 
 
-async def ensure_identity_voice_ready(conn: sqlite3.Connection, voicebox: VoiceboxClient, resolved: Any) -> None:
+async def ensure_identity_voice_ready(
+    conn: sqlite3.Connection, voicebox: VoiceboxClient, resolved: Any, vis: Visibility | None = None
+) -> None:
     """Launch-time preflight: the Identity must have a voice, and it must still exist and be authorized.
 
     Instantiate/PATCH may leave `voice.profile_id` null (a draft Identity); launching may not, so the runtime
@@ -158,4 +176,4 @@ async def ensure_identity_voice_ready(conn: sqlite3.Connection, voicebox: Voiceb
             "this identity has no voice; attach an authorized voice (voice.profile_id) before launching",
             details={"identity_id": resolved.identity_id},
         )
-    await ensure_voice_usable(conn, voicebox, profile_id)
+    await ensure_voice_usable(conn, voicebox, profile_id, vis)

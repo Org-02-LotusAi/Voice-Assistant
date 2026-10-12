@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from service015.api.deps import get_conn, get_voice_engine, get_voicebox
 from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePatch, VoicePreviewRequest, VoiceProfile
 from service015 import accounts
-from service015.auth import Principal, ensure_author, require_principal
+from service015.auth import Principal, require_author, require_principal
 from service015.errors import DomainError, NotFound, ValidationFailed
 from service015.voice import authz
 from service015.voice.engine import VoiceEngineClient
@@ -102,7 +102,7 @@ async def create_voice(
     subject_name: _Short,
     authorized_by: _Short,
     file: UploadFile = File(...),
-    principal: Principal = Depends(require_principal("operator")),
+    principal: Principal = Depends(require_author()),
     language: Annotated[str, Form(min_length=2, max_length=20, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")] = "en",
     description: Annotated[str, Form(max_length=1000)] = "",
     conn: sqlite3.Connection = Depends(get_conn),
@@ -110,7 +110,6 @@ async def create_voice(
 ):
     """Admin: a shared voice. User account: a voice owned by (and usable only for the personas of) the uploader. Consent
     statement, subject name and authorizing person are mandatory in both cases."""
-    ensure_author(principal)
     sample = await file.read(MAX_SAMPLE_BYTES + 1)
     if not sample:
         raise ValidationFailed("empty_sample", "the reference audio file is empty")
@@ -232,7 +231,7 @@ async def patch_voice(
         raise ValidationFailed("invalid_request", "disabled must be true or false", details={"field": "disabled"})
     profile = await _existing_profile(voicebox, voice_profile_id)
     if changes.get("owner_user_id") is not None:
-        accounts.get_user(conn, changes["owner_user_id"])  # 404 user_not_found
+        accounts.require_assignable_owner(conn, changes["owner_user_id"])  # 404 user_not_found / 422 invalid_owner
     if "owner_user_id" in changes:
         authz.set_voice_owner(conn, voice_profile_id, changes["owner_user_id"])
     if "disabled" in changes:

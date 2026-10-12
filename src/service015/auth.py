@@ -142,14 +142,27 @@ def _check_rank(principal: Principal, role: str) -> None:
 
 
 def ensure_author(principal: Principal) -> None:
-    """Creating templates / voices: human accounts (`user`, `admin`) and admin machine credentials. Operator keys and tokens
-    keep their Phase-1 inability to author shared content."""
-    if principal.kind != "user" and principal.effective_role != "admin":
+    """Creating templates / voices: admin credentials (accounts, keys, tokens) and signed-in `user` accounts.
+    Operator keys/tokens and `viewer` accounts are refused."""
+    if principal.effective_role != "admin" and not (principal.kind == "user" and principal.role == "user"):
         raise Forbidden(
             "forbidden",
             f"this operation requires role 'admin' or a signed-in user account; your {principal.describe()} has role {principal.role!r}",
             details={"required_role": "admin", "role": principal.role},
         )
+
+
+def require_author() -> Callable[..., Principal]:
+    """Dependency for author operations. Declared `admin` in the contract with `x-also-allowed: [user-session]`."""
+
+    def dependency(request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+        principal = resolve_principal(request, conn)
+        ensure_author(principal)
+        return principal
+
+    dependency.required_role = "admin"  # type: ignore[attr-defined]
+    dependency.also_allowed = ("user-session",)  # type: ignore[attr-defined]
+    return dependency
 
 
 def require_principal(role: str, allow_password_change_pending: bool = False) -> Callable[..., Principal]:

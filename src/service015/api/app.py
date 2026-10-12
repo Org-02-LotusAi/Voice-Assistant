@@ -17,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from service015 import accounts
 from service015.api.routers import accounts as accounts_routes
 from service015.api.routers import admin, expert, health, identities, meeting, phone, templates, ui, voices
-from service015.auth import RANK, Forbidden, ensure_author, resolve_principal
+from service015.auth import ensure_author, resolve_principal
 from service015.config import Settings, check_api_keys_for_deployment, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
@@ -127,12 +127,6 @@ def create_app(
             finally:
                 conn.close()
             try:
-                if RANK[principal.effective_role] < RANK["operator"]:
-                    raise Forbidden(
-                        "forbidden",
-                        f"this operation requires role 'operator'; your {principal.describe()} has role {principal.role!r}",
-                        details={"required_role": "operator", "role": principal.role},
-                    )
                 ensure_author(principal)
             except DomainError as exc:
                 return error_response(exc.status, exc.code, exc.message, exc.details)
