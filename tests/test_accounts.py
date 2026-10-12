@@ -153,7 +153,7 @@ def test_migration_assigns_existing_rows_to_the_bootstrap_admin(tmp_path):
         "INSERT INTO voice_authorizations (voice_profile_id, authorized_by, subject_name, consent_statement, source, created_at) "
         "VALUES ('vp-old', 'a', 's', 'c', 'x', 'n')")
     conn.commit()
-    assert migrate(conn) == ["006_accounts.sql"]
+    assert migrate(conn)[0] == "006_accounts.sql"
     row = conn.execute("SELECT owner_user_id, shared, disabled FROM templates").fetchone()
     assert (row["owner_user_id"], row["shared"], row["disabled"]) == (None, 1, 0)  # pre-existing templates become shared
     assert accounts.bootstrap_admin(conn, ADMIN_PW, "http://localhost:8015")
@@ -435,16 +435,19 @@ def test_viewer_account_reads_everything_but_writes_nothing(c, db_file):
 def test_user_cannot_use_admin_operations(c, db_file):
     add_user(db_file, "uma")
     uma = login_headers(c, "uma")
-    assert c.post("/templates", headers=uma, json={}).status_code == 403
     assert c.post("/voices/vp-ava/authorizations", headers=uma, json=VOICE_AUTH).status_code == 403
     assert c.post("/expert/experience", headers=uma, json={"title": "t", "body": "b", "source": "s"}).status_code == 403
 
 
-def test_voice_upload_is_admin_only_before_the_body_is_read(c, db_file):
+def test_voice_upload_gate_runs_before_the_body_is_read(c, db_file):
     add_user(db_file, "uma")
+    add_user(db_file, "vic", "viewer")
     uma = login_headers(c, "uma")
+    vic = login_headers(c, "vic")
     files = {"file": ("a.wav", b"x" * 1000, "audio/wav")}
-    assert c.post("/voices", files=files, data={"name": "n"}, headers=uma).status_code == 403
+    assert c.post("/voices", files=files, data={"name": "n"}, headers=vic).status_code == 403  # viewer accounts never upload
+    assert c.post("/voices", files=files, data={"name": "n"}, headers=H["operator"]).status_code == 403  # nor operator keys
+    assert c.post("/voices", files=files, data={"name": "n"}, headers=uma).status_code == 422  # a user passes the gate: form incomplete
     assert c.post("/voices", files=files, data={"name": "n"}, headers={"Cookie": uma["Cookie"]}).status_code == 403  # csrf_failed
     assert c.post("/voices", files=files, data={"name": "n"}).status_code == 401
 

@@ -9,8 +9,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Response
 
 from service015.api.deps import get_conn, get_expert_llm
-from service015.api.schemas import AskRequest, AskResponse, ExperienceCreate, ExpertKnowledgeItem, ExpertKnowledgeList, ExpertSession
-from service015.auth import require_role
+from service015.api.schemas import (
+    AskRequest, AskResponse, ExperienceCreate, ExpertKnowledgeItem, ExpertKnowledgeList, ExpertSession, ReingestResult,
+)
+from service015.auth import Principal, require_principal, require_role
 from service015.errors import ValidationFailed
 from service015.expert import qa, store
 from service015.expert.llm import Llm
@@ -36,22 +38,42 @@ def add_experience(body: ExperienceCreate, response: Response, conn: sqlite3.Con
     return item
 
 
+@router.post(
+    "/expert/reingest",
+    response_model=ReingestResult,
+    dependencies=[Depends(require_role("admin"))],
+)
+def reingest(conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Re-ingest the manifest documents from the service's working directory. Verified experience is never touched."""
+    return store.ingest_manifest(conn, Path.cwd())
+
+
+def _scope(principal: Principal) -> str | None:
+    """Human sessions are private to their creator (admins see all); machine credentials stay global as in Phase 1."""
+    return f"user:{principal.user_id}" if principal.kind == "user" and principal.role != "admin" else None
+
+
 @router.get("/expert/knowledge", response_model=ExpertKnowledgeList)
-def list_knowledge(role: str = Depends(require_role("viewer")), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    return {"items": store.list_metadata(conn, role), "missing_required": store.missing_required(conn)}
+def list_knowledge(
+    principal: Principal = Depends(require_principal("viewer")), conn: sqlite3.Connection = Depends(get_conn)
+) -> Any:
+    return {"items": store.list_metadata(conn, principal.effective_role), "missing_required": store.missing_required(conn)}
 
 
 @router.post("/expert/sessions", status_code=201, response_model=ExpertSession)
-def create_session(role: str = Depends(require_role("viewer")), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    return {"session_id": store.create_session(conn, role)}
+def create_session(
+    principal: Principal = Depends(require_principal("viewer")), conn: sqlite3.Connection = Depends(get_conn)
+) -> Any:
+    owner_key = f"user:{principal.user_id}" if principal.kind == "user" else None
+    return {"session_id": store.create_session(conn, principal.effective_role, owner_key)}
 
 
 @router.post("/expert/sessions/{session_id}/ask", response_model=AskResponse)
 def ask(
     session_id: str,
     body: AskRequest,
-    role: str = Depends(require_role("viewer")),
+    principal: Principal = Depends(require_principal("viewer")),
     conn: sqlite3.Connection = Depends(get_conn),
     llm: Llm = Depends(get_expert_llm),
 ) -> Any:
-    return qa.ask(conn, session_id, body.question, role, llm=llm)
+    return qa.ask(conn, session_id, body.question, principal.effective_role, llm=llm, scope=_scope(principal))

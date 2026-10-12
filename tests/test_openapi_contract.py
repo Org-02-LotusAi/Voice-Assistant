@@ -124,6 +124,7 @@ def test_error_body_is_spec_shaped_for_every_status(client):
 
 
 def _concrete(path):
+    path = re.sub(r"\{user_id\}", "usr_unknown", re.sub(r"\{token_id\}", "tok_unknown", path))
     path = re.sub(r"\{session_id\}", "no-such-session", path)
     path = re.sub(r"\{voice_profile_id\}", "vp-ava", path)
     return re.sub(r"\{identity_id\}", "ava-001", re.sub(r"\{template_id\}", "sales-representative", path))
@@ -141,10 +142,18 @@ BODIES = {
     ("/expert/experience", "post"): {"title": "t", "body": "b", "source": "s", "repo": "r", "branch": "main", "sha": "abcdef1"},
     ("/expert/sessions/{session_id}/ask", "post"): {"question": "What is Service 015?"},
     ("/auth/login", "post"): {"username": "nobody", "password": "not-the-password"},
+    ("/admin/users", "post"): {"username": "newbie", "temporary_password": "Temp-Password-2026", "role": "user"},
+    ("/admin/users/{user_id}", "patch"): {"disabled": True},
+    ("/admin/tokens", "post"): {"label": "ci", "role": "viewer"},
+    ("/admin/identities/{identity_id}", "patch"): {"owner_user_id": None},
+    ("/templates/{template_id}", "patch"): {"disabled": False},
+    ("/voices/{voice_profile_id}", "patch"): {"disabled": False},
     ("/auth/change-password", "post"): {"current_password": "whatever-it-was", "new_password": "A-brand-new-pass-77"},
 }
 
 SESSION_ONLY = {("/auth/change-password", "post")}  # Bearer callers are refused with 403 session_required
+# Declared `operator`, but authoring is for human accounts and admin credentials: operator keys/tokens get 403 `forbidden`.
+AUTHORING = {("/templates", "post"), ("/voices", "post")}
 
 
 @pytest.mark.parametrize("path,method,op", OPS, ids=[f"{m.upper()} {p}" for p, m, _ in OPS])
@@ -188,6 +197,12 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
         assert r.status_code == 403 and r.json()["error"]["code"] == "session_required"
         assert_conforms(path, method, r)
         return
+    if (path, method) in AUTHORING:
+        r = client.request(method, url, headers=H[required], **kw)
+        assert r.status_code == 403 and r.json()["error"]["code"] == "forbidden", r.text
+        assert r.json()["error"]["details"]["required_role"] == "admin"
+        assert_conforms(path, method, r)
+        required = "admin"  # the env key that may author
     # exactly the declared role is accepted (proves app role is not higher than spec)
     r = client.request(method, url, headers=H[required], **kw)
     assert r.status_code not in (401, 403), r.text
@@ -380,6 +395,8 @@ def test_operation_session_rbac_and_response_conformance(session_client, path, m
     declared = {int(c) for c in op["responses"]}
     for who, rank in SESSION_ROLES.items():
         headers = uma if who == "uma" else login_headers(client, who)
+        if (path, method) == ("/templates", "post"):  # one private/shared family per signer: nobody versions another's
+            kw = {"json": {**body, "template_id": f"contract-{who}"}}
         r = client.request(method, url, headers=headers, **kw)
         if RANKS[rank] < RANKS[required]:
             assert r.status_code == 403 and r.json()["error"]["code"] == "forbidden", (who, r.text)

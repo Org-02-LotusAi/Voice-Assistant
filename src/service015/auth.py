@@ -141,6 +141,17 @@ def _check_rank(principal: Principal, role: str) -> None:
         )
 
 
+def ensure_author(principal: Principal) -> None:
+    """Creating templates / voices: human accounts (`user`, `admin`) and admin machine credentials. Operator keys and tokens
+    keep their Phase-1 inability to author shared content."""
+    if principal.kind != "user" and principal.effective_role != "admin":
+        raise Forbidden(
+            "forbidden",
+            f"this operation requires role 'admin' or a signed-in user account; your {principal.describe()} has role {principal.role!r}",
+            details={"required_role": "admin", "role": principal.role},
+        )
+
+
 def require_principal(role: str, allow_password_change_pending: bool = False) -> Callable[..., Principal]:
     """Dependency returning the authenticated Principal, 401/403 otherwise."""
     if role not in RANK:

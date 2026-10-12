@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from service015.auth import Forbidden
+from service015.errors import NotFound
 from service015.expert.bm25 import BM25
 from service015.expert.llm import Llm
 from service015.expert.store import ROLE_RANK, get_session
@@ -68,13 +69,18 @@ def build_context(items: list[dict[str, Any]], token: str) -> str:
     return "\n\n".join(parts)
 
 
-def ask(conn: sqlite3.Connection, session_id: str, question: str, role: str, *, llm: Llm) -> dict[str, Any]:
+def ask(
+    conn: sqlite3.Connection, session_id: str, question: str, role: str, *, llm: Llm, scope: str | None = None
+) -> dict[str, Any]:
     """Answer `question` in `session_id` for a caller with `role`.
 
     Knowledge comes only from the store; the session contributes only its own prior messages.
-    Raises NotFound (unknown session), Forbidden (session belongs to a higher role) or LlmUnavailable.
+    With `scope` set (a non-admin human's 'user:<id>' key) the session must have been created by that principal; a foreign
+    session is reported exactly like an unknown one. Raises NotFound (unknown session), Forbidden (session belongs to a higher role) or LlmUnavailable.
     """
     session = get_session(conn, session_id)
+    if scope is not None and session["owner_key"] != scope:
+        raise NotFound("session_not_found", f"no expert session {session_id!r}")
     if ROLE_RANK[role] < ROLE_RANK[session["role"]]:
         raise Forbidden(
             "forbidden",

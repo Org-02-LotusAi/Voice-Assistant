@@ -233,3 +233,90 @@ class Me(_Strict):
 class ArchivedIdentity(_Strict):
     identity_id: str
     archived_at: str
+
+
+# ---- Phase 2 / P2: admin management -----------------------------------------------------------------------------------
+
+class AdminUser(_Strict):
+    user_id: str
+    username: str
+    role: Literal["admin", "user", "viewer"]
+    must_change_password: bool
+    disabled: bool
+    created_at: str
+    updated_at: str
+    last_login_at: str | None
+
+
+class AdminUserCreate(_Strict):
+    username: str = Field(min_length=1, max_length=64)
+    temporary_password: str = Field(min_length=1, max_length=256)
+    role: Literal["user", "viewer"] = "user"
+
+
+class AdminUserPatch(_Strict):
+    disabled: bool | None = None
+    role: Literal["user", "viewer"] | None = None
+    temporary_password: str | None = Field(default=None, min_length=1, max_length=256)
+
+
+class ServiceTokenCreate(_Strict):
+    label: str = Field(min_length=1, max_length=80, pattern=r"\S")
+    role: Literal["viewer", "operator"]
+
+
+class ServiceTokenInfo(_Strict):
+    token_id: str
+    label: str
+    role: Literal["viewer", "operator"]
+    created_at: str
+    last_used_at: str | None
+    revoked_at: str | None
+
+
+class ServiceTokenCreated(ServiceTokenInfo):
+    token: str
+
+
+class AdminIdentity(IdentitySummary):
+    archived_at: str | None
+
+
+class IdentityOwnerPatch(_Strict):
+    owner_user_id: str | None
+
+
+class TemplatePatch(_Strict):
+    disabled: bool | None = None
+    shared: bool | None = None
+    owner_user_id: str | None = None  # present-and-null = unowned; absent = unchanged (see model_fields_set)
+
+
+class VoicePatch(_Strict):
+    disabled: bool | None = None
+    owner_user_id: str | None = None
+
+
+class VoiceConsent(_Strict):
+    authorized_by: str
+    subject_name: str
+    consent_statement: str
+    source: str
+    created_at: str
+
+
+class AdminVoice(VoiceProfile):
+    owner_user_id: str | None
+    shared: bool
+    disabled: bool
+    consent: VoiceConsent | None
+
+
+class ReingestResult(_Strict):
+    repo: str
+    branch: str
+    sha: str
+    dirty: bool
+    ingested: dict[str, int]
+    skipped: list[dict[str, str]]
+    missing_required: list[str]

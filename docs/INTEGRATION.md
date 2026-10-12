@@ -17,7 +17,9 @@ Keys are configured on the server in `SERVICE015_API_KEYS="key1:admin,key2:opera
 |---|---|
 | `viewer` | every GET (roster, status, identity, latency, phone info, templates), expert questions |
 | `operator` (includes viewer) | instantiate, PATCH, launch, stop, join-token, phone dial |
-| `admin` (includes both) | create templates/versions, register voices, record voice authorizations, ingest expert experience |
+| `admin` (includes both) | create shared templates/versions, register shared voices, record voice authorizations, ingest expert experience, `/admin/*` (users, service tokens, all-owner personas and voices), disable templates/voices, assign owners, `POST /expert/reingest` |
+
+Admin-issued **service tokens** (`POST /admin/tokens`, secret shown once, revocable) carry role `viewer` or `operator` and are used exactly like env keys. Operator keys/tokens cannot author templates or voices (403).
 
 The platform backend should hold an **operator** key (and a viewer key for read-only dashboards). Keep keys server-side;
 never ship them to browsers. 401 `unauthorized` = missing/unknown key, 403 `forbidden` = role too low.

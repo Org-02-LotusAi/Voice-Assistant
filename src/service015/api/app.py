@@ -16,8 +16,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from service015 import accounts
 from service015.api.routers import accounts as accounts_routes
-from service015.api.routers import expert, health, identities, meeting, phone, templates, ui, voices
-from service015.auth import RANK, resolve_principal
+from service015.api.routers import admin, expert, health, identities, meeting, phone, templates, ui, voices
+from service015.auth import RANK, Forbidden, ensure_author, resolve_principal
 from service015.config import Settings, check_api_keys_for_deployment, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
@@ -126,12 +126,16 @@ def create_app(
                 return error_response(exc.status, exc.code, exc.message, exc.details, getattr(exc, "headers", None))
             finally:
                 conn.close()
-            if RANK[principal.effective_role] < RANK["admin"]:
-                return error_response(
-                    403, "forbidden",
-                    f"this operation requires role 'admin'; your {principal.describe()} has role {principal.role!r}",
-                    {"required_role": "admin", "role": principal.role},
-                )
+            try:
+                if RANK[principal.effective_role] < RANK["operator"]:
+                    raise Forbidden(
+                        "forbidden",
+                        f"this operation requires role 'operator'; your {principal.describe()} has role {principal.role!r}",
+                        details={"required_role": "operator", "role": principal.role},
+                    )
+                ensure_author(principal)
+            except DomainError as exc:
+                return error_response(exc.status, exc.code, exc.message, exc.details)
             length = request.headers.get("content-length", "")
             if not length.isdigit() or int(length) > voices.MAX_BODY_BYTES:
                 return error_response(
@@ -162,7 +166,7 @@ def create_app(
         return error_response(500, "internal_error", "internal server error")
 
     app.state.routers = (
-        health.router, accounts_routes.router, templates.router, identities.router, meeting.router, phone.router,
+        health.router, accounts_routes.router, admin.router, templates.router, identities.router, meeting.router, phone.router,
         expert.router, voices.router,
     )
     for router in app.state.routers:

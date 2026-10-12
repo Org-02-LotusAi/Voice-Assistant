@@ -11,8 +11,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 
 from service015.api.deps import get_conn, get_voice_engine, get_voicebox
-from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePreviewRequest, VoiceProfile
-from service015.auth import Principal, require_principal
+from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePatch, VoicePreviewRequest, VoiceProfile
+from service015 import accounts
+from service015.auth import Principal, ensure_author, require_principal
 from service015.errors import DomainError, NotFound, ValidationFailed
 from service015.voice import authz
 from service015.voice.engine import VoiceEngineClient
@@ -101,12 +102,15 @@ async def create_voice(
     subject_name: _Short,
     authorized_by: _Short,
     file: UploadFile = File(...),
-    principal: Principal = Depends(require_principal("admin")),
+    principal: Principal = Depends(require_principal("operator")),
     language: Annotated[str, Form(min_length=2, max_length=20, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")] = "en",
     description: Annotated[str, Form(max_length=1000)] = "",
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
+    """Admin: a shared voice. User account: a voice owned by (and usable only for the personas of) the uploader. Consent
+    statement, subject name and authorizing person are mandatory in both cases."""
+    ensure_author(principal)
     sample = await file.read(MAX_SAMPLE_BYTES + 1)
     if not sample:
         raise ValidationFailed("empty_sample", "the reference audio file is empty")
@@ -210,3 +214,28 @@ async def preview_voice(
     text = (body.text if body is not None and body.text else None) or DEFAULT_PREVIEW_TEXT
     wav = await engine.preview(voice_profile_id, text)
     return Response(wav, media_type="audio/wav")
+
+
+@router.patch("/voices/{voice_profile_id}", response_model=VoiceProfile)
+async def patch_voice(
+    voice_profile_id: str,
+    body: VoicePatch,
+    principal: Principal = Depends(require_principal("admin")),
+    conn: sqlite3.Connection = Depends(get_conn),
+    voicebox: VoiceboxClient = Depends(get_voicebox),
+):
+    """Admin: disable/enable (blocks new attachment and launch; running personas are not interrupted) or hand the voice to a user."""
+    changes = {k: getattr(body, k) for k in body.model_fields_set}
+    if not changes:
+        raise ValidationFailed("empty_patch", "give at least one of disabled, owner_user_id")
+    if "disabled" in changes and changes["disabled"] is None:
+        raise ValidationFailed("invalid_request", "disabled must be true or false", details={"field": "disabled"})
+    profile = await _existing_profile(voicebox, voice_profile_id)
+    if changes.get("owner_user_id") is not None:
+        accounts.get_user(conn, changes["owner_user_id"])  # 404 user_not_found
+    if "owner_user_id" in changes:
+        authz.set_voice_owner(conn, voice_profile_id, changes["owner_user_id"])
+    if "disabled" in changes:
+        authz.set_voice_disabled(conn, voice_profile_id, changes["disabled"])
+    log.info("voice updated profile=%s fields=%s", voice_profile_id, sorted(changes))
+    return _profile(profile, True)

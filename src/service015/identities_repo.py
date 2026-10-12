@@ -262,3 +262,16 @@ def heartbeat(conn: sqlite3.Connection, identity_id: str) -> RuntimeStatus:
     conn.execute("UPDATE runtime_status SET heartbeat_at = ? WHERE identity_id = ?", (_now(), identity_id))
     conn.commit()
     return get_status(conn, identity_id)
+
+
+def set_owner(conn: sqlite3.Connection, identity_id: str, owner_user_id: str | None) -> None:
+    """Admin hand-over of an identity (archived ones included) to another owner; None leaves it unowned."""
+    _get_row(conn, identity_id)
+    conn.execute(
+        "UPDATE identities SET owner_user_id = ?, updated_at = ? WHERE identity_id = ?", (owner_user_id, _now(), identity_id)
+    )
+    conn.commit()
+
+
+def archived_map(conn: sqlite3.Connection) -> dict[str, str | None]:
+    return {r["identity_id"]: r["archived_at"] for r in conn.execute("SELECT identity_id, archived_at FROM identities")}

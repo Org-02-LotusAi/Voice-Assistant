@@ -81,6 +81,30 @@ def set_voice_disabled(conn: sqlite3.Connection, voice_profile_id: str, disabled
         )
 
 
+def consent_index(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    """profile_id -> the first (original) consent record: authorized_by, subject_name, consent_statement, source, created_at."""
+    index: dict[str, dict[str, Any]] = {}
+    for r in conn.execute(
+        "SELECT voice_profile_id, authorized_by, subject_name, consent_statement, source, created_at "
+        "FROM voice_authorizations ORDER BY id"
+    ):
+        index.setdefault(r["voice_profile_id"], {k: r[k] for k in r.keys() if k != "voice_profile_id"})
+    return index
+
+
+def set_voice_owner(conn: sqlite3.Connection, voice_profile_id: str, owner_user_id: str | None) -> None:
+    """Hand the voice (every authorization row of it) to `owner_user_id`; None makes it unowned (shared)."""
+    cur = conn.execute(
+        "UPDATE voice_authorizations SET owner_user_id = ? WHERE voice_profile_id = ?", (owner_user_id, voice_profile_id)
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        raise NotFound(
+            "voice_profile_not_found", f"voice profile {voice_profile_id!r} has no authorization record",
+            details={"voice_profile_id": voice_profile_id},
+        )
+
+
 async def ensure_voice_usable(
     conn: sqlite3.Connection, voicebox: VoiceboxClient, profile_id: Any, vis: Visibility | None = None
 ) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from datetime import datetime, timezone
 from importlib import resources
 
@@ -49,8 +50,12 @@ def _insert_version(
     only_if_absent: bool = False,
     owner_user_id: str | None = None,
     shared: bool = True,
+    authorize: Callable[[sqlite3.Row | None], None] | None = None,
 ) -> TemplateBody | None:
     """Insert v1 or the next version in one transaction; prior version rows are never touched.
+
+    `authorize` is called inside the write transaction with the family's metadata row (None for a new family); it raises to
+    refuse, so the ownership check cannot race with a concurrent creation of the same template_id.
 
     With only_if_absent the existence check happens inside the write transaction and None is
     returned when the template already exists. Requires no transaction open on `conn`.
@@ -63,6 +68,13 @@ def _insert_version(
         ).fetchone():
             conn.rollback()
             return None
+        if authorize is not None:
+            authorize(
+                conn.execute(
+                    "SELECT template_id, owner_user_id, shared, disabled FROM templates WHERE template_id = ?",
+                    (template.template_id,),
+                ).fetchone()
+            )
         row = conn.execute(
             "SELECT MAX(version) AS v FROM template_versions WHERE template_id = ?", (template.template_id,)
         ).fetchone()
@@ -94,10 +106,14 @@ def seed_starter_templates(conn: sqlite3.Connection) -> list[str]:
 
 
 def create_template(
-    conn: sqlite3.Connection, template: TemplateCreate, owner_user_id: str | None = None, shared: bool = True
+    conn: sqlite3.Connection,
+    template: TemplateCreate,
+    owner_user_id: str | None = None,
+    shared: bool = True,
+    authorize: Callable[[sqlite3.Row | None], None] | None = None,
 ) -> TemplateBody:
     """New template_id -> v1 (owned by `owner_user_id`, shared or private); existing template_id -> next version, ownership kept."""
-    body = _insert_version(conn, template, owner_user_id=owner_user_id, shared=shared)
+    body = _insert_version(conn, template, owner_user_id=owner_user_id, shared=shared, authorize=authorize)
     assert body is not None  # only_if_absent=False always inserts or raises
     return body
 
@@ -180,3 +196,22 @@ def list_versions(conn: sqlite3.Connection, template_id: str) -> list[int]:
     if not rows:
         raise NotFound("template_not_found", f"template {template_id!r} not found", details={"template_id": template_id})
     return [r["version"] for r in rows]
+
+
+def patch_template(
+    conn: sqlite3.Connection, template_id: str, changes: dict[str, bool | str | None]
+) -> TemplateSummary:
+    """Admin metadata changes on a template family: `disabled`, `shared`, `owner_user_id` (only keys present are applied)."""
+    template_meta(conn, template_id)
+    sets, params = [], []
+    for key in ("disabled", "shared"):
+        if key in changes:
+            sets.append(f"{key} = ?")
+            params.append(int(bool(changes[key])))
+    if "owner_user_id" in changes:
+        sets.append("owner_user_id = ?")
+        params.append(changes["owner_user_id"])
+    if sets:
+        conn.execute(f"UPDATE templates SET {', '.join(sets)} WHERE template_id = ?", (*params, template_id))
+        conn.commit()
+    return next(t for t in list_templates(conn) if t.template_id == template_id)

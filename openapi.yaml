@@ -28,6 +28,14 @@ info:
     attach only shared voices plus their own; a disabled voice cannot be attached or launched (422 `voice_disabled`).
     Archived identities are hidden from every listing and answer 404.
 
+    **Authoring.** `POST /templates` and `POST /voices` need rank `operator` and an *author*: a signed-in `user` or `admin`
+    account, or an admin key / token (an `operator` key or token gets 403 `forbidden`). An admin authors shared templates
+    and voices; a `user` authors private ones (owned by them, visible and usable only to them and to admins). Private
+    templates obey exactly the same validation, and every template's runtime instructions get a non-removable
+    `LOCKED GUARDRAILS` block appended by the service (see `GET /identities/{identity_id}/self-context`).
+    **Expert sessions** created by a human account are private to that account (admins see all); other sessions answer
+    404 `session_not_found`.
+
     Every non-2xx JSON body is an `ErrorBody`, including 404 `not_found` / 405 `method_not_allowed`
     for unknown routes or methods. `error.details` conventions: `field` names the offending override
     (with `allowed` or `required` lists where relevant); 403 carries `required_role` and `role`.
@@ -39,6 +47,7 @@ security:
   - cookieAuth: []
 tags:
   - name: auth
+  - name: admin
   - name: health
   - name: templates
   - name: identities
@@ -201,10 +210,13 @@ paths:
       tags: [templates]
       summary: Create a template (v1) or a new version of an existing template
       description: |
-        The template is shared (visible to everyone) and owned by the creating admin account, if any.
-        A new `template_id` creates version 1; an existing `template_id` creates the next version.
-        Earlier versions and the identities bound to them are never modified.
-      x-required-role: admin
+        An admin creates a shared template (visible to everyone, owned by the creating admin account, if any); a `user`
+        creates a private template owned by them. A new `template_id` creates version 1; an existing `template_id`
+        creates the next version: shared families only by an admin (403 `forbidden`), private families only by their
+        owner (403 `template_not_owned`). A `template_id` that exists but is not visible to the caller answers 409
+        `template_id_taken`. Earlier versions and the identities bound to them are never modified. The same validation
+        applies to every template; guardrails are not part of a template and cannot be edited or removed by one.
+      x-required-role: operator
       requestBody:
         required: true
         content:
@@ -219,6 +231,7 @@ paths:
               schema: {$ref: "#/components/schemas/TemplateBody"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/Unprocessable"}
 
   /templates/{template_id}:
@@ -240,6 +253,34 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/TemplateBody"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+    patch:
+      operationId: patchTemplate
+      tags: [templates, admin]
+      summary: Disable / enable a template, change sharing, or assign its owner
+      description: |
+        Admin only. Only the fields present are changed. `disabled: true` blocks new instantiation (409
+        `template_disabled`); identities already created from it are unaffected. `owner_user_id` hands the template to a
+        user (404 `user_not_found` for an unknown user) or, when null, leaves it unowned. An empty body is 422 `empty_patch`.
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/TemplateId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TemplatePatch"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The updated template summary.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TemplateSummary"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -690,7 +731,9 @@ paths:
         Only cloned profiles exist for this engine: Chatterbox Turbo has no presets in Voicebox, so preset voices
         cannot be created, authorized or attached.
         Voicebox down: 503 `voicebox_unavailable`; Voicebox rejecting the sample: 502 `voicebox_rejected`.
-      x-required-role: admin
+        An admin creates a shared voice; a `user` account creates a voice they own, usable only for their own personas.
+        The consent statement, subject name and authorizing person are mandatory for everyone.
+      x-required-role: operator
       requestBody:
         required: true
         content:
@@ -715,6 +758,37 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorBody"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /voices/{voice_profile_id}:
+    patch:
+      operationId: patchVoice
+      tags: [voices, admin]
+      summary: Disable / enable a voice or assign its owner
+      description: |
+        Admin only. `disabled: true` blocks new attachment (422 `voice_disabled`), preview and launch preflight; a persona that
+        is already running is not interrupted. `owner_user_id` hands the voice to a user (it is then private to them) or, when
+        null, makes it unowned (shared). The voice must have a recorded authorization (404 `voice_profile_not_found`).
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/VoiceProfileId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VoicePatch"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The voice profile.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VoiceProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/Unprocessable"}
         "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
@@ -816,6 +890,27 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/Unprocessable"}
 
+  /expert/reingest:
+    post:
+      operationId: reingestExpert
+      tags: [expert, admin]
+      summary: Re-ingest the Service Expert manifest documents
+      description: |
+        Replaces the `document` chunks of every manifest source found under the server's working directory. Verified
+        experience is never touched. Missing required sources are reported in `missing_required`, not as an error.
+        Provenance (repo, branch, sha) is resolved with git in the working directory (422 `provenance_unresolved`).
+      x-required-role: admin
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: What was ingested.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ReingestResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
   /expert/knowledge:
     get:
       operationId: listExpertKnowledge
@@ -840,7 +935,9 @@ paths:
       operationId: createExpertSession
       tags: [expert]
       summary: Start a fresh Service Expert chat session
-      description: A new session has an empty history. Knowledge comes only from the store, never from other sessions.
+      description: |
+        A new session has an empty history. Knowledge comes only from the store, never from other sessions. A session
+        created by a human account is private to that account (admins may use any session).
       x-required-role: viewer
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
@@ -860,7 +957,8 @@ paths:
       description: |
         Retrieves the top role-visible knowledge (BM25, verified experience preferred) and answers from it with
         the configured LLM, citing `[source@sha]`. Errors: 404 `session_not_found`; 403 `forbidden` when the
-        session was created by a higher role; 503 `llm_unavailable` when the LLM is not configured or
+        session was created by a higher role; 404 also when a human `user` / `viewer` account asks in a session it did not
+        create; 503 `llm_unavailable` when the LLM is not configured or
         unreachable (no answer is ever fabricated).
       x-required-role: viewer
       parameters:
@@ -884,6 +982,211 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/Unprocessable"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List accounts
+      x-required-role: admin
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: All accounts ordered by username (never password material).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createUser
+      tags: [admin]
+      summary: Create an account with a temporary password
+      description: |
+        The password must satisfy the password policy (422 `weak_password`) and is temporary: the account has
+        `must_change_password` and is limited to `/auth/change-password` until it changes it. Roles `user` and `viewer` only
+        (admin accounts exist only through the bootstrap). Duplicate username: 409 `username_taken`.
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AdminUserCreate"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The new account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /admin/users/{user_id}:
+    patch:
+      operationId: patchUser
+      tags: [admin]
+      summary: Disable / enable an account, change its role, or reset its temporary password
+      description: |
+        Only the fields present are changed; an empty body is 422 `empty_patch`. Disabling, a role change and a password
+        reset all revoke the account's sessions immediately; a reset also sets `must_change_password`. `role` is `user` or
+        `viewer`. Admin accounts cannot be modified here (409 `admin_account_protected`). Unknown user: 404 `user_not_found`.
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/UserId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AdminUserPatch"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /admin/tokens:
+    get:
+      operationId: listServiceTokens
+      tags: [admin]
+      summary: List service tokens
+      description: Id, label, role and timestamps of every token, revoked ones included. Never the secret.
+      x-required-role: admin
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Service tokens in creation order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/ServiceTokenInfo"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      operationId: createServiceToken
+      tags: [admin]
+      summary: Create a service token
+      description: |
+        Returns the secret (`s015_...`) exactly once; only its sha256 is stored, so it cannot be shown again. Send it as
+        `Authorization: Bearer <token>`. Roles `viewer` and `operator`.
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ServiceTokenCreate"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "201":
+          description: The token, including its one-time secret.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ServiceTokenCreated"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /admin/tokens/{token_id}:
+    delete:
+      operationId: revokeServiceToken
+      tags: [admin]
+      summary: Revoke a service token
+      description: "The token stops authenticating immediately. Unknown or already revoked: 404 `token_not_found`."
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/TokenId"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "204": {description: Revoked.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /admin/identities:
+    get:
+      operationId: listAllIdentities
+      tags: [admin]
+      summary: List every persona of every owner
+      description: With `include_archived=true` archived personas are listed too (with `archived_at`).
+      x-required-role: admin
+      parameters:
+        - name: include_archived
+          in: query
+          required: false
+          schema: {type: boolean, default: false}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Personas ordered by identity_id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/AdminIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /admin/identities/{identity_id}:
+    patch:
+      operationId: assignIdentityOwner
+      tags: [admin]
+      summary: Assign a persona to a user
+      description: |
+        Hands a persona (also an archived or machine-created one) to the given user; null leaves it unowned. Unknown user:
+        404 `user_not_found`; unknown identity: 404 `identity_not_found`.
+      x-required-role: admin
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/IdentityOwnerPatch"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The persona with its new owner.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /admin/voices:
+    get:
+      operationId: listAllVoices
+      tags: [admin]
+      summary: List every cloned voice with owner, flags and consent record
+      description: "Voicebox down: 503 `voicebox_unavailable`."
+      x-required-role: admin
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Cloned profiles with ownership and consent.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/AdminVoice"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
 components:
@@ -915,6 +1218,16 @@ components:
       in: path
       required: true
       schema: {type: string}
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: {type: string}
+    TokenId:
+      name: token_id
+      in: path
+      required: true
+      schema: {type: string}
 
   responses:
     Unauthorized:
@@ -935,7 +1248,7 @@ components:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     NotFound:
       description: |
-        Resource not found (`template_not_found`, `identity_not_found`, `voice_profile_not_found`). Also the answer for
+        Resource not found (`template_not_found`, `identity_not_found`, `voice_profile_not_found`, `user_not_found`, `token_not_found`, `session_not_found`). Also the answer for
         resources the caller is not allowed to see (another user's identity, a private template, a voice they do not own).
       content:
         application/json:
@@ -945,13 +1258,13 @@ components:
         Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
         `invalid_override`, `voice_profile_not_found` / `voice_not_authorized` (the resolved `voice.profile_id` must
         exist in Voicebox and have a cloning authorization), `voice_profile_not_cloned`, `empty_sample`,
-        `voice_required` (launch), `reference_too_short`.
+        `voice_required` (launch), `reference_too_short`, `weak_password`, `invalid_username`, `role_not_allowed`, `empty_patch`.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     Conflict:
       description: |
-        The request conflicts with current state (`template_disabled`, `capacity_exceeded`, `identity_not_ready`,
+        The request conflicts with current state (`template_disabled`, `template_id_taken`, `username_taken`, `admin_account_protected`, `capacity_exceeded`, `identity_not_ready`,
         `dial_in_progress`).
       content:
         application/json:
@@ -1623,3 +1936,170 @@ components:
         citations:
           type: array
           items: {$ref: "#/components/schemas/Citation"}
+
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [user_id, username, role, must_change_password, disabled, created_at, updated_at, last_login_at]
+      properties:
+        user_id: {type: string}
+        username: {type: string}
+        role: {type: string, enum: [admin, user, viewer]}
+        must_change_password: {type: boolean}
+        disabled: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        last_login_at: {type: [string, "null"], format: date-time}
+
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, temporary_password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 64, description: "3-32 characters: lowercase letters, digits, `_`, `.`, `-`, starting with a letter or digit."}
+        temporary_password: {type: string, minLength: 1, maxLength: 256, description: "Password policy applies; the user must change it at first sign-in."}
+        role: {type: string, enum: [user, viewer], default: user}
+
+    AdminUserPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        disabled: {type: [boolean, "null"]}
+        role: {type: [string, "null"], enum: [user, viewer, null]}
+        temporary_password: {type: [string, "null"], minLength: 1, maxLength: 256}
+
+    ServiceTokenCreate:
+      type: object
+      additionalProperties: false
+      required: [label, role]
+      properties:
+        label: {type: string, minLength: 1, maxLength: 80, pattern: '\S'}
+        role: {type: string, enum: [viewer, operator]}
+
+    ServiceTokenInfo:
+      type: object
+      additionalProperties: false
+      required: [token_id, label, role, created_at, last_used_at, revoked_at]
+      properties:
+        token_id: {type: string}
+        label: {type: string}
+        role: {type: string, enum: [viewer, operator]}
+        created_at: {type: string, format: date-time}
+        last_used_at: {type: [string, "null"], format: date-time}
+        revoked_at: {type: [string, "null"], format: date-time}
+
+    ServiceTokenCreated:
+      type: object
+      additionalProperties: false
+      required: [token_id, label, role, created_at, last_used_at, revoked_at, token]
+      properties:
+        token_id: {type: string}
+        label: {type: string}
+        role: {type: string, enum: [viewer, operator]}
+        created_at: {type: string, format: date-time}
+        last_used_at: {type: [string, "null"], format: date-time}
+        revoked_at: {type: [string, "null"], format: date-time}
+        token: {type: string, pattern: "^s015_", description: "The secret. Returned only in this response."}
+
+    AdminIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - identity_id
+        - name
+        - template_id
+        - template_version
+        - company
+        - role
+        - language
+        - voice_profile_id
+        - participant_identity
+        - default_room
+        - resolved_hash
+        - owner_user_id
+        - archived_at
+      properties:
+        identity_id: {type: string}
+        name: {type: string}
+        template_id: {type: string}
+        template_version: {type: integer, minimum: 1}
+        company: {type: [string, "null"]}
+        role: {type: [string, "null"]}
+        language: {type: string}
+        voice_profile_id: {type: [string, "null"]}
+        participant_identity: {type: string}
+        default_room: {type: string}
+        resolved_hash: {type: string}
+        owner_user_id: {type: [string, "null"]}
+        archived_at: {type: [string, "null"], format: date-time}
+
+    IdentityOwnerPatch:
+      type: object
+      additionalProperties: false
+      required: [owner_user_id]
+      properties:
+        owner_user_id: {type: [string, "null"]}
+
+    TemplatePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        disabled: {type: [boolean, "null"]}
+        shared: {type: [boolean, "null"]}
+        owner_user_id: {type: [string, "null"]}
+
+    VoicePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        disabled: {type: [boolean, "null"]}
+        owner_user_id: {type: [string, "null"]}
+
+    VoiceConsent:
+      type: object
+      additionalProperties: false
+      required: [authorized_by, subject_name, consent_statement, source, created_at]
+      properties:
+        authorized_by: {type: string}
+        subject_name: {type: string}
+        consent_statement: {type: string}
+        source: {type: string}
+        created_at: {type: string, format: date-time}
+
+    AdminVoice:
+      type: object
+      additionalProperties: false
+      required: [voice_profile_id, name, language, engine, authorized, owner_user_id, shared, disabled, consent]
+      properties:
+        voice_profile_id: {type: string}
+        name: {type: string}
+        language: {type: string}
+        engine: {type: string, enum: [chatterbox-turbo]}
+        authorized: {type: boolean}
+        owner_user_id: {type: [string, "null"]}
+        shared: {type: boolean}
+        disabled: {type: boolean}
+        consent:
+          anyOf:
+            - {$ref: "#/components/schemas/VoiceConsent"}
+            - {type: "null"}
+
+    ReingestResult:
+      type: object
+      additionalProperties: false
+      required: [repo, branch, sha, dirty, ingested, skipped, missing_required]
+      properties:
+        repo: {type: string}
+        branch: {type: string}
+        sha: {type: string}
+        dirty: {type: boolean}
+        ingested: {type: object, additionalProperties: {type: integer}}
+        skipped:
+          type: array
+          items: {type: object, additionalProperties: {type: string}}
+        missing_required:
+          type: array
+          items: {type: string}

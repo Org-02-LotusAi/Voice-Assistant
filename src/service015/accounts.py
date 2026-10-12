@@ -182,6 +182,69 @@ def set_password(
     conn.commit()
 
 
+ADMIN_MANAGED_ROLES = ("user", "viewer")  # roles an administrator may assign; `admin` exists only through the bootstrap
+
+
+def list_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM users ORDER BY username").fetchall()
+
+
+def admin_create_user(conn: sqlite3.Connection, username: str, temporary_password: str, role: str) -> sqlite3.Row:
+    """Admin-created account: temporary password (policy-checked), `must_change_password` set. Never creates admins."""
+    if role not in ADMIN_MANAGED_ROLES:
+        raise ValidationFailed(
+            "role_not_allowed", f"role must be one of {list(ADMIN_MANAGED_ROLES)}; admin accounts are not created through the API",
+            details={"field": "role"},
+        )
+    return create_user(conn, username, temporary_password, role, must_change_password=True)
+
+
+def admin_update_user(
+    conn: sqlite3.Connection,
+    user_id: str,
+    disabled: bool | None = None,
+    role: str | None = None,
+    temporary_password: str | None = None,
+) -> sqlite3.Row:
+    """Disable/enable, change role (user<->viewer) and/or reset to a temporary password, atomically.
+
+    Disabling, a role change and a password reset all revoke the account's sessions at once. Admin accounts are protected:
+    they cannot be modified here (no lock-out of the last administrator, no promotion path to admin).
+    """
+    user = get_user(conn, user_id)
+    if user["role"] == "admin":
+        raise Conflict("admin_account_protected", "admin accounts cannot be modified through this API", details={"user_id": user_id})
+    if role is not None and role not in ADMIN_MANAGED_ROLES:
+        raise ValidationFailed(
+            "role_not_allowed", f"role must be one of {list(ADMIN_MANAGED_ROLES)}", details={"field": "role"}
+        )
+    if temporary_password is not None:
+        validate_password(temporary_password, user["username"])
+    sets, params = [], []
+    if disabled is not None:
+        sets.append("disabled = ?")
+        params.append(int(disabled))
+    if role is not None and role != user["role"]:
+        sets.append("role = ?")
+        params.append(role)
+    if temporary_password is not None:
+        sets += ["password_hash = ?", "must_change_password = 1"]
+        params.append(hash_password(temporary_password))
+    if sets:
+        sets.append("updated_at = ?")
+        params.append(_now_iso())
+        revoke = disabled is True or role is not None or temporary_password is not None
+        try:
+            conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE user_id = ?", (*params, user_id))
+            if revoke:
+                conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+    return get_user(conn, user_id)
+
+
 # -- login throttling --------------------------------------------------------------------------------------------------
 
 def _over_limit(conn: sqlite3.Connection, username: str, ip: str, now: float) -> int | None:
@@ -332,6 +395,13 @@ def lookup_service_token(conn: sqlite3.Connection, token: str) -> sqlite3.Row | 
             conn.execute("UPDATE service_tokens SET last_used_at = ? WHERE token_id = ?", (_now_iso(), row["token_id"]))
             conn.commit()
     return row
+
+
+def list_service_tokens(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Every token (revoked ones included, with revoked_at); never the secret or its hash."""
+    return conn.execute(
+        "SELECT token_id, label, role, created_by, created_at, last_used_at, revoked_at FROM service_tokens ORDER BY created_at, token_id"
+    ).fetchall()
 
 
 def revoke_service_token(conn: sqlite3.Connection, token_id: str) -> None:

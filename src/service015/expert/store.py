@@ -228,10 +228,14 @@ def list_metadata(conn: sqlite3.Connection, role: str) -> list[dict[str, Any]]:
     return [_meta(r) for r in rows if ROLE_RANK[r["min_role"]] <= ROLE_RANK[role]]
 
 
-def create_session(conn: sqlite3.Connection, role: str) -> str:
+def create_session(conn: sqlite3.Connection, role: str, owner_key: str | None = None) -> str:
+    """New session; `owner_key` ('user:<id>' for a human, None for a machine principal) scopes who may ask in it."""
     session_id = uuid.uuid4().hex
     with conn:
-        conn.execute("INSERT INTO expert_sessions (session_id, role, created_at) VALUES (?, ?, ?)", (session_id, role, _now()))
+        conn.execute(
+            "INSERT INTO expert_sessions (session_id, role, created_at, owner_key) VALUES (?, ?, ?, ?)",
+            (session_id, role, _now(), owner_key),
+        )
     return session_id
 
 
