@@ -1,0 +1,38 @@
+# Service 015 — Phase 2 Plan: Accounts, Ownership, Admin Console
+
+Extends the finished Service 015 (acceptance evidence at c806c9e, main 1c3e3c9). Phase 1 constraints in docs/PLAN.md "Global Constraints" still bind. Phase 2 must NOT change behavior exercised by the acceptance run (runtime turn-taking, STT/TTS, self-context) and must keep the machine/token API backward compatible (docs/INTEGRATION.md stays valid).
+
+## Global Constraints (Phase 2)
+
+- **Two authentication paths, one authorization model.**
+  - Humans: username + password → server-side session (HttpOnly, Secure-when-https, SameSite=Strict cookie `s015_session`; opaque random id; sessions table; idle timeout 12 h, absolute 7 d). CSRF: double-submit token header `X-CSRF-Token` required on every cookie-authenticated non-GET request.
+  - Machines: bearer tokens (`Authorization: Bearer ...`). Existing `SERVICE015_API_KEYS` env keys keep working unchanged. NEW: admin-managed service tokens stored hashed (sha256 of the random token) in DB, shown once at creation, revocable, with role `viewer` or `operator` and a label.
+- **Principals and roles.** Every request resolves to a Principal {kind: user|token|envkey, user_id?, username?, role}. Roles: `admin` ⊃ `user` (owner-scoped operator) ; `viewer` (read-only, all owners) ; tokens keep `admin|operator|viewer` semantics from Phase 1. Env-key/token `operator` = Phase-1 global operator (backward compatible).
+- **Accounts.** Table `users(user_id PK, username UNIQUE COLLATE NOCASE, role CHECK IN ('admin','user','viewer'), password_hash, must_change_password INT, disabled INT, created_at, updated_at, last_login_at)`. Passwords hashed with argon2id (`argon2-cffi`, pinned, ≥2 weeks old). Username `^[a-z0-9][a-z0-9_.-]{2,31}$`. Password policy: ≥ 12 chars, not equal to username, not in a small built-in common list.
+- **Bootstrap.** On startup, if no admin user exists, create `admin` from env `SERVICE015_ADMIN_PASSWORD` (refuse to start if unset or weak when SERVICE015_PUBLIC_URL is non-local; on localhost allow but still require ≥12 chars) with `must_change_password=1`. Never hardcode passwords. Admin creates other users with a temporary password → `must_change_password=1` → forced change on first login (all other endpoints return 403 `password_change_required` until changed).
+- **Login hardening.** Constant-time verification; generic error `invalid_credentials`; per-username + per-IP throttling (e.g. 5 failures / 15 min → 429 `too_many_attempts`); never log passwords, tokens, session ids.
+- **Ownership.** `owner_user_id` (nullable FK users) added to identities, templates (template families), and voice_authorizations/voice ownership. Migration assigns all existing rows to the bootstrap admin. Scoping rules:
+  - Personas (identities): a `user` sees/edits/launches/stops/archives only their own; `admin` and global env/token `operator` see all; `viewer` reads all.
+  - Templates: shared templates (`owner_user_id` NULL or admin-owned with `shared=1`) are visible to all and editable/versioned only by admin; private templates visible/editable only by their owner (and admin can view/disable any). Admin can `disable` any template (blocks new instantiation; existing personas unaffected — SOW: template changes never mutate identities).
+  - Voices: seed/admin voices are shared; a user may upload a cloned voice WITH consent statement + subject name (Phase-1 POST /voices flow), owned by them and usable only by their personas; admin sees all and can disable any voice (blocks new attachment and launch preflight).
+- **Locked guardrails.** Every template — shared or private — gets a non-removable guardrail block injected by selfcontext (authoritative self-facts, spoken-reply rules, never invent prices/account data, honest "I'm an AI voice assistant" when asked). Private template bodies cannot weaken it (it is appended by the builder, not stored in the template). Existing Phase-1 tests for self-context must keep passing.
+- **Archive (delete).** `DELETE /identities/{id}` = archive: stop runtime if running, set `archived_at`, hide from owner lists and roster; identity_id never reused; record retained. Admin can list archived. No hard delete.
+- **API contract.** All new endpoints in openapi.yaml (both copies byte-identical, conformance tests extended). Cookie auth documented as a second security scheme. Machine/token behavior of existing endpoints unchanged except owner scoping for `user` principals.
+- **UI.** Plain HTML/JS as in Phase 1 (no framework, CSP stays strict, no innerHTML with data). Pages: `/login`, forced `/change-password`, Workbench scoped to "My personas" (existing UI adapted to session auth; API-key mode kept as an advanced fallback), My templates, My voices, Admin console (users, shared templates + version history, all templates with disable, voices + consent records, service tokens create/revoke (show once), Service Expert: add verified experience + re-ingest, live roster of all personas with stop). Viewer login → read-only roster/status/latency view.
+- **Deliverable at end:** README/INTEGRATION/ACCEPTANCE updated; credentials handover: admin login (username `admin`, password set in .env), a created viewer human account, and a viewer service token — written to a git-ignored `CREDENTIALS.local.md`, never committed.
+
+### Task P1: Accounts, sessions, principals, ownership migration (backend core)
+
+Migration `0NN_accounts.sql` (next free number): users, sessions, service_tokens, login_attempts; add `owner_user_id`, `archived_at` to identities; `owner_user_id`, `shared`, `disabled` to templates; `owner_user_id`, `disabled` to voice_authorizations (or a voices ownership table if cleaner). Bootstrap admin; argon2 hashing; Principal resolution (session cookie OR bearer env key OR DB service token) replacing `require_role`; CSRF for cookie requests; login/logout/me/change-password endpoints (`POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password`); throttling; must-change-password gate; owner scoping applied to existing identity/template/voice/meeting endpoints; `DELETE /identities/{id}` archive. openapi + conformance + tests for every rule above (including backward compatibility: all Phase-1 tests still pass with env keys).
+
+### Task P2: Admin + owner management APIs
+
+Admin: `GET/POST /admin/users`, `PATCH /admin/users/{id}` (disable/enable, role, reset temp password), `GET/POST /admin/tokens`, `DELETE /admin/tokens/{id}` (revoke), `PATCH /templates/{id}` (disable; admin), `PATCH /voices/{id}` (disable; admin), `GET /admin/identities?include_archived=` , expert: existing experience endpoint + `POST /expert/reingest` (admin). Users: private template create/version (`POST /templates` with private default for `user`, shared only for admin), `GET /voices` scoped (shared + own), voice upload by `user` with consent → owned. openapi + tests.
+
+### Task P3: Login, change-password, scoped Workbench, My templates, My voices (UI)
+
+Session-based UI using the APIs above; CSRF header; logout; forced password change flow; Workbench "My personas" with archive (confirmation built into page), My templates editor (guardrails shown read-only), My voices upload with consent form + preview; viewer read-only view. Browser-verified with screenshots in evidence/ui-phase2/.
+
+### Task P4: Admin console UI + handover
+
+Admin console pages per Global Constraints; credentials handover file (git-ignored); docs updates (README, INTEGRATION, ACCEPTANCE Phase-2 section); full offline suite + a short live smoke (login as a user → create persona → launch → READY → stop → archive) with evidence.
