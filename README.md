@@ -170,7 +170,7 @@ on EC2. See `deploy/EC2.md` for the GPU deployment and `docker-compose.yml` for 
 ## Accounts, login and roles (Phase 2)
 
 Humans sign in at `/login` with a username and password (argon2id hashes; HttpOnly `s015_session` cookie, 12 h idle / 7 d
-absolute; every cookie-authenticated write also sends the `X-CSRF-Token` header that `GET /auth/me` returns). Machines keep
+absolute; every cookie-authenticated write also sends the `X-CSRF-Token` header, whose value comes from the `POST /auth/login` response or `GET /auth/me`). Machines keep
 using `Authorization: Bearer` (env `SERVICE015_API_KEYS`, or admin-issued service tokens). On first start the account `admin` is
 created from `SERVICE015_ADMIN_PASSWORD` and must change it at first login; the admin then creates users with a temporary
 password they must change at first sign-in. Failed logins are throttled (5 per 15 minutes per username and IP, then 429).
@@ -186,6 +186,20 @@ Pages: `/` My personas (Workbench, with archive), `/templates.html`, `/voices.ht
 roster of all personas with Stop), `/talk.html`. Guardrails shown on the template pages are read from `GET /guardrails`.
 The Workbench keeps an advanced "API key mode" for machine debugging. A local handover file `CREDENTIALS.local.md` (git-ignored,
 never commit or share it) holds the admin and viewer logins and the `monitoring-bot` viewer token created at setup.
+
+### Recovering admin access
+
+If nobody can sign in as `admin` (or any account), use the console script on the host; it needs shell access to the database and
+works with the API stopped or running:
+
+1. Pick a new strong password (at least 12 characters), for example `python -c "import secrets; print(secrets.token_urlsafe(18))"`.
+2. Run `service015-admin reset-password admin` (from the repo: `uv run service015-admin reset-password admin`). It prompts twice
+   without echo, or reads `SERVICE015_NEW_PASSWORD` from the environment if set. The password is never printed.
+3. The account is re-enabled, flagged `must_change_password`, and all its sessions are revoked. Sign in with the new password
+   and change it at the prompt. The same command resets any other account. Clear `SERVICE015_NEW_PASSWORD` from your shell afterwards.
+
+`SERVICE015_ADMIN_PASSWORD` only seeds the very first `admin`; it does nothing once an admin exists. If `uv run` cannot find the
+new script, run `uv sync` (stop the API first, see Known limits) or `uv pip install -e .`.
 
 ## Configuration
 
@@ -218,13 +232,21 @@ contract is `openapi.yaml`.
 - **Phase 2 account limits.** After an admin reassigns a private template family, the new owner can instantiate it but cannot
   create new versions (their `POST /templates` goes to their own namespace). No per-user quota on templates or voice uploads;
   un-sharing an owner-less shared template is not supported; service tokens do not expire (revoke them); homoglyph spoofing of
-  guardrail markers in persona text is not normalized; there is no in-product admin password recovery (see
-  `CREDENTIALS.local.md` for the out-of-band procedure); the CSRF token is stored in plaintext in the sessions table; an archive
+  guardrail markers in persona text is not normalized; there is no in-product admin password recovery (use the out-of-band `service015-admin reset-password`, see "Recovering admin access"); the CSRF token is stored in plaintext in the sessions table; an archive
   racing a launch can leave the runtime up until the next stop; there is no per-user session cap; Service Expert sessions
   created with machine credentials are global; symlinks under the Expert root are followed. A shared voice owned by the admin
   appears under "My voices" for the admin account (it is both owned and shared). Browser-verified: forced password change, 429
-  login message, voice upload and preview, session Talk page load, every admin console tab. Not browser-verified: the Talk page
+  login message, voice upload and preview, session Talk page load, and every admin console tab (the admin tabs against a throwaway
+  database and API, not the real data DB). Not browser-verified: the Talk page
   microphone connect and the 429 path for an existing account.
+- **More deferred minors (P1/P3).** `uv sync` fails with a file lock while the API (or runtime worker) is running from the same
+  `.venv`: stop it first, or use `uv pip install`. Template editor page hard-codes `voice.engine: chatterbox-turbo` on a new
+  version, and an admin sees an editable "New version" on other users' private templates on `/templates.html` (the server decides;
+  the admin console only offers it for shared templates). Header nav lacks `aria-label` / `aria-current`; the confirmation dialogs
+  have no focus trap; tab panels on the Workbench have no arrow-key support; the UI tests check the backend contract the pages
+  rely on, not the page JavaScript itself. The flaky-test report for the namespaced private-template test could not be reproduced.
+- **Demo data in the real database.** The live smoke left a disabled `demo` account and its archived persona `demo-ava-001`
+  (hard delete is out of scope); the handover also created the `viewer` account and the `monitoring-bot` viewer token.
 - Voicebox's full requirements do not install on Windows (pyopenjtalk); the scripts use the minimal Chatterbox set.
 
 ## Release

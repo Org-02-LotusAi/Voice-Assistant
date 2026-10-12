@@ -106,10 +106,12 @@
             async () => { await api("PATCH", "/admin/users/" + encodeURIComponent(u.user_id), { disabled: !u.disabled }); await loadUsers(); })));
           const sel = el("select", { "aria-label": "Role of " + u.username }, ["user", "viewer"].map((r) => el("option", { value: r, textContent: r })));
           sel.value = u.role;
-          sel.onchange = () => guarded(async () => {
-            try { await api("PATCH", "/admin/users/" + encodeURIComponent(u.user_id), { role: sel.value }); }
-            finally { await loadUsers(); }
-          });
+          sel.onchange = () => {
+            const wanted = sel.value;
+            sel.value = u.role;  // revert until confirmed
+            ask("Change the role of " + u.username + " from " + u.role + " to " + wanted + "? Their sessions end immediately.",
+              async () => { await api("PATCH", "/admin/users/" + encodeURIComponent(u.user_id), { role: wanted }); await loadUsers(); });
+          };
           actions.push(sel);
           actions.push(btn("Reset password", () => ask(
             "Reset the password of " + u.username + "? A new temporary password is generated; their sessions end and they must change it at next sign-in.",

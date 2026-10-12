@@ -21,7 +21,7 @@ Keys are configured on the server in `SERVICE015_API_KEYS="key1:admin,key2:opera
 
 Admin-issued **service tokens** (`POST /admin/tokens`, secret shown once, revocable) carry role `viewer` or `operator` and are used exactly like env keys. Operator keys/tokens cannot author templates or voices (403).
 
-**Machine tokens and cookies.** Integrations must use Bearer credentials: an env key, or a service token an administrator creates in the Admin console (`/admin.html` > Service tokens; pick role `viewer` for dashboards or `operator`; copy the secret at creation, it is shown once; revoke it there). Cookie sessions (`/login`, `s015_session` plus `X-CSRF-Token`) are for humans in a browser only; a Bearer header, when present, wins over any cookie. Human accounts scope what they see by owner (`user`) or are read-only (`viewer`); tokens and env keys keep Phase-1 semantics.
+**Machine tokens and cookies.** Integrations must use Bearer credentials: an env key, or a service token an administrator creates in the Admin console (`/admin.html` > Service tokens; pick role `viewer` for dashboards or `operator`; copy the secret at creation, it is shown once; revoke it there). Cookie sessions (`/login`, `s015_session` plus `X-CSRF-Token`; the CSRF token is returned by `POST /auth/login` and `GET /auth/me`) are for humans in a browser only; a Bearer header, when present, wins over any cookie. Human accounts scope what they see by owner (`user`) or are read-only (`viewer`); tokens and env keys keep Phase-1 semantics.
 
 The platform backend should hold an **operator** key (and a viewer key for read-only dashboards). Keep keys server-side;
 never ship them to browsers. 401 `unauthorized` = missing/unknown key, 403 `forbidden` = role too low.
