@@ -189,17 +189,17 @@ async def preview_voice(
     engine: VoiceEngineClient = Depends(get_voice_engine),
 ):
     await _existing_profile(voicebox, voice_profile_id)
-    if not authz.is_authorized(conn, voice_profile_id):
+    meta = authz.voice_index(conn).get(voice_profile_id)
+    if principal.visibility.restricted and not authz.voice_visible(meta, principal.visibility):
+        raise NotFound(  # same answer as a missing profile: no probing of other users' voice ids
+            "voice_profile_not_found",
+            f"voice profile {voice_profile_id!r} does not exist in Voicebox",
+            details={"voice_profile_id": voice_profile_id},
+        )
+    if meta is None:
         raise ValidationFailed(
             "voice_not_authorized",
             f"voice profile {voice_profile_id!r} has no recorded cloning authorization",
-            details={"voice_profile_id": voice_profile_id},
-        )
-    meta = authz.voice_index(conn).get(voice_profile_id)
-    if principal.visibility.restricted and not authz.voice_visible(meta, principal.visibility):
-        raise NotFound(
-            "voice_profile_not_found",
-            f"voice profile {voice_profile_id!r} does not exist in Voicebox",
             details={"voice_profile_id": voice_profile_id},
         )
     if meta is not None and meta["disabled"]:

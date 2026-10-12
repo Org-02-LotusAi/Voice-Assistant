@@ -64,6 +64,7 @@ def create_app(
         conn = connect(settings.db_path)
         try:
             migrate(conn)
+            accounts.warm_up()
             accounts.bootstrap_admin(conn, settings.admin_password, settings.public_url)  # adopts pre-existing rows
             seed_starter_templates(conn)
             purged = purge_old_text(conn, settings.transcript_retention_days)

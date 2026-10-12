@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -48,6 +49,9 @@ THROTTLE_IP_FAILURES = 20  # higher than per-user: an office behind one NAT must
 
 _hasher = PasswordHasher()  # argon2id with the library's current defaults
 _dummy_hash: str | None = None
+# Process-wide bound on concurrent argon2 verifications (each holds ~64 MiB): a burst of logins queues instead of exhausting RAM.
+MAX_CONCURRENT_VERIFY = 4
+_verify_slots = threading.BoundedSemaphore(MAX_CONCURRENT_VERIFY)
 
 
 class TooManyAttempts(DomainError):
@@ -99,21 +103,34 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+def warm_up() -> None:
+    """Build the unknown-user dummy hash now (startup) so the first unknown-user login is not measurably slower."""
+    global _dummy_hash
+    _dummy_hash = _hasher.hash(secrets.token_urlsafe(16))
+
+
 def verify_password(password_hash: str | None, password: str) -> bool:
     """Constant-work check: an unknown user is verified against a dummy hash so timing does not reveal existence."""
-    global _dummy_hash
     if password_hash is None:
         if _dummy_hash is None:
-            _dummy_hash = _hasher.hash(secrets.token_urlsafe(16))
+            warm_up()
+        password_hash, expected = _dummy_hash, False
+    else:
+        expected = True
+    with _verify_slots:
         try:
-            _hasher.verify(_dummy_hash, password)
-        except VerificationError:
-            pass
+            return _hasher.verify(password_hash, password) and expected
+        except (VerificationError, InvalidHashError):
+            return False
+
+
+def rehash_if_needed(conn: sqlite3.Connection, user_id: str, password_hash: str, password: str) -> bool:
+    """After a successful verify, upgrade a hash made with older argon2 parameters. True if the stored hash was replaced."""
+    if not _hasher.check_needs_rehash(password_hash):
         return False
-    try:
-        return _hasher.verify(password_hash, password)
-    except (VerificationError, InvalidHashError):
-        return False
+    conn.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", (hash_password(password), user_id))
+    conn.commit()
+    return True
 
 
 # -- users -------------------------------------------------------------------------------------------------------------
@@ -167,18 +184,73 @@ def set_password(
 
 # -- login throttling --------------------------------------------------------------------------------------------------
 
-def check_throttle(conn: sqlite3.Connection, username: str, ip: str, now: float | None = None) -> None:
-    """Raise TooManyAttempts (429) once the username or the IP has too many failures inside the window."""
-    now = time.time() if now is None else now
+def _over_limit(conn: sqlite3.Connection, username: str, ip: str, now: float) -> int | None:
+    """Seconds until a slot frees up when the username or the IP is over its failure limit inside the window, else None.
+
+    The `admin` username is counted per (username, IP), not globally: otherwise anyone could lock the real administrator out
+    of password login from anywhere with five bad guesses. Every other username is counted globally.
+    """
     since = now - THROTTLE_WINDOW_S
-    for column, value, limit in (("username", username, THROTTLE_USER_FAILURES), ("ip", ip, THROTTLE_IP_FAILURES)):
-        rows = conn.execute(
-            f"SELECT at_epoch FROM login_attempts WHERE {column} = ? AND success = 0 AND at_epoch > ? ORDER BY at_epoch",
-            (value, since),
-        ).fetchall()
+    checks = [
+        ("SELECT at_epoch FROM login_attempts WHERE username = ? AND success = 0 AND at_epoch > ? ORDER BY at_epoch",
+         (username, since), THROTTLE_USER_FAILURES),
+        ("SELECT at_epoch FROM login_attempts WHERE ip = ? AND success = 0 AND at_epoch > ? ORDER BY at_epoch",
+         (ip, since), THROTTLE_IP_FAILURES),
+    ]
+    if username == "admin":
+        checks[0] = (
+            "SELECT at_epoch FROM login_attempts WHERE username = ? AND ip = ? AND success = 0 AND at_epoch > ? ORDER BY at_epoch",
+            (username, ip, since), THROTTLE_USER_FAILURES,
+        )
+    for sql, params, limit in checks:
+        rows = conn.execute(sql, params).fetchall()
         if len(rows) >= limit:
-            oldest_relevant = rows[len(rows) - limit]["at_epoch"]
-            raise TooManyAttempts(max(1, int(oldest_relevant + THROTTLE_WINDOW_S - now) + 1))
+            return max(1, int(rows[len(rows) - limit]["at_epoch"] + THROTTLE_WINDOW_S - now) + 1)
+    return None
+
+
+def check_throttle(conn: sqlite3.Connection, username: str, ip: str, now: float | None = None) -> None:
+    """Raise TooManyAttempts (429) once the username or the IP has too many failures inside the window (read-only)."""
+    now = time.time() if now is None else now
+    wait = _over_limit(conn, username, ip, now)
+    if wait is not None:
+        raise TooManyAttempts(wait)
+
+
+def reserve_attempt(conn: sqlite3.Connection, username: str, ip: str, now: float | None = None) -> int:
+    """Atomically check the limits and record a pending failure BEFORE the password is verified.
+
+    Count and insert happen under one write lock (`BEGIN IMMEDIATE`), so concurrent guesses cannot all pass the check: at most
+    the limit ever reach the verify. Returns the reservation id; call `release_attempt` on success (a failure just keeps it).
+    """
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        wait = _over_limit(conn, username, ip, now)
+        if wait is not None:
+            conn.rollback()
+            raise TooManyAttempts(wait)
+        conn.execute("DELETE FROM login_attempts WHERE at_epoch < ?", (now - 24 * 3600,))
+        cur = conn.execute(
+            "INSERT INTO login_attempts (username, ip, success, at_epoch) VALUES (?, ?, 0, ?)", (username, ip, now)
+        )
+        conn.commit()
+        return cur.lastrowid
+    except TooManyAttempts:
+        raise
+    except BaseException:
+        conn.rollback()
+        raise
+
+
+def release_attempt(conn: sqlite3.Connection, reservation_id: int, username: str, ip: str) -> None:
+    """The password was right: drop the reservation and that username's failure streak (for `admin`, from this IP only)."""
+    conn.execute("DELETE FROM login_attempts WHERE id = ?", (reservation_id,))
+    if username == "admin":
+        conn.execute("DELETE FROM login_attempts WHERE username = ? AND ip = ? AND success = 0", (username, ip))
+    else:
+        conn.execute("DELETE FROM login_attempts WHERE username = ? AND success = 0", (username,))
+    conn.commit()
 
 
 def record_attempt(conn: sqlite3.Connection, username: str, ip: str, success: bool, now: float | None = None) -> None:
@@ -187,8 +259,6 @@ def record_attempt(conn: sqlite3.Connection, username: str, ip: str, success: bo
     conn.execute(
         "INSERT INTO login_attempts (username, ip, success, at_epoch) VALUES (?, ?, ?, ?)", (username, ip, int(success), now)
     )
-    if success:  # a good sign-in clears that username's failure streak
-        conn.execute("DELETE FROM login_attempts WHERE username = ? AND success = 0", (username,))
     conn.commit()
 
 

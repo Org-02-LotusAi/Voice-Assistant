@@ -99,17 +99,18 @@ async def ensure_voice_usable(
             f"voice profile {profile_id!r} does not exist in Voicebox",
             details={"voice_profile_id": profile_id},
         )
-    if not is_authorized(conn, profile_id):
-        raise ValidationFailed(
-            "voice_not_authorized",
-            f"voice profile {profile_id!r} has no recorded cloning authorization",
-            details={"voice_profile_id": profile_id},
-        )
     meta = voice_index(conn).get(profile_id)
     if vis is not None and vis.restricted and not voice_visible(meta, vis):
+        # same answer as a missing profile: a restricted caller cannot probe which ids exist or are authorized
         raise ValidationFailed(
             "voice_profile_not_found",
             f"voice profile {profile_id!r} does not exist in Voicebox",
+            details={"voice_profile_id": profile_id},
+        )
+    if meta is None:
+        raise ValidationFailed(
+            "voice_not_authorized",
+            f"voice profile {profile_id!r} has no recorded cloning authorization",
             details={"voice_profile_id": profile_id},
         )
     if meta is not None and meta["disabled"]:

@@ -7,6 +7,8 @@ from typing import Annotated, Literal, get_args
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
+
+from service015.clientip import Network, parse_networks
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Role = Literal["admin", "operator", "viewer"]
@@ -78,6 +80,8 @@ class Settings(BaseSettings):
     api_keys: Annotated[dict[str, Role], NoDecode] = Field(default_factory=dict, validation_alias="SERVICE015_API_KEYS", repr=False)
     # Bootstrap password for the first `admin` account (created only when no admin exists; forced change on first login).
     admin_password: str = Field("", validation_alias="SERVICE015_ADMIN_PASSWORD", repr=False)
+    # Peers (IPs / CIDRs, comma-separated) whose X-Forwarded-For is believed when deriving the client IP for login throttling.
+    trusted_proxies: Annotated[tuple[Network, ...], NoDecode] = Field((), validation_alias="SERVICE015_TRUSTED_PROXIES")
     db_path: str = Field("./data/service015.db", validation_alias="SERVICE015_DB_PATH")
     host: str = Field("127.0.0.1", validation_alias="SERVICE015_HOST")
     port: int = Field(8015, validation_alias="SERVICE015_PORT")
@@ -135,6 +139,16 @@ class Settings(BaseSettings):
     def livekit_client_url(self) -> str:
         """The LiveKit URL a human's browser or SIP-less client should connect to."""
         return self.livekit_public_url or self.livekit_url
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def _parse_trusted_proxies(cls, value: object) -> object:
+        if isinstance(value, str):
+            try:
+                return parse_networks(value)
+            except ValueError as exc:
+                raise ValueError("SERVICE015_TRUSTED_PROXIES entries must be IP addresses or CIDR networks") from exc
+        return value
 
     @field_validator("service014_allowed_destinations", mode="before")
     @classmethod

@@ -118,10 +118,28 @@ LIVEKIT_API_SECRET=<from the generator, >= 32 chars>
 LIVEKIT_NODE_IP=<the Elastic IP>
 LIVEKIT_PUBLIC_URL=wss://lk.example.com
 SERVICE015_PUBLIC_URL=https://app.example.com
+SERVICE015_ADMIN_PASSWORD=<strong, >= 12 chars; required off-localhost; first login forces a change>
+SERVICE015_TRUSTED_PROXIES=<see "Client IP behind Caddy" below>
 SERVICE015_DOMAIN=app.example.com
 LIVEKIT_DOMAIN=lk.example.com
 COMPOSE_PROFILES=gpu,tls             # add ,sip for phones
 ```
+
+### Client IP behind Caddy (login throttling)
+
+Sign-in throttling counts failures per username and per client IP (5 per username, 20 per IP, per 15 minutes; the `admin`
+username is counted per username AND IP, so a stranger cannot lock the real administrator out from another address). Behind
+Caddy every request reaches the API from Caddy's address, so without help all users would share one IP bucket. Set
+`SERVICE015_TRUSTED_PROXIES` to the address(es) or CIDR(s) the API sees Caddy at, e.g. the compose network:
+
+```
+docker network inspect <project>_default --format '{{(index .IPAM.Config 0).Subnet}}'    # e.g. 172.18.0.0/16
+SERVICE015_TRUSTED_PROXIES=172.18.0.0/16
+```
+
+Only when the TCP peer is in that list is `X-Forwarded-For` believed, and then the rightmost address that is not itself a
+trusted proxy is used (Caddy appends the real client address). Leave it empty if the API is reached directly. Never list a
+network that untrusted clients can connect from, or they can forge their IP and dodge the per-IP limit.
 
 Start (the first start builds the images: the CUDA engine image takes a long time, plan 20+ minutes; unmeasured):
 

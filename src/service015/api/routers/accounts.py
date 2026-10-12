@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from service015 import accounts
 from service015.api.deps import get_conn
 from service015.api.schemas import ChangePasswordRequest, LoginRequest, LoginResponse, Me
+from service015.clientip import client_ip
 from service015.auth import SESSION_COOKIE, Forbidden, Principal, require_principal
 from service015.errors import DomainError, ValidationFailed
 
@@ -19,7 +20,7 @@ router = APIRouter(tags=["auth"])
 
 
 def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    return client_ip(request, request.app.state.settings.trusted_proxies)
 
 
 def _secure_cookie(request: Request) -> bool:
@@ -34,13 +35,13 @@ def _invalid_credentials() -> DomainError:
 def login(body: LoginRequest, request: Request, response: Response, conn: sqlite3.Connection = Depends(get_conn)):
     username = body.username.strip().lower()
     ip = _client_ip(request)
-    accounts.check_throttle(conn, username, ip)  # 429 before any password work
+    reservation = accounts.reserve_attempt(conn, username, ip)  # 429 before any password work; counts this guess atomically
     user = accounts.find_user(conn, username)
     ok = accounts.verify_password(user["password_hash"] if user else None, body.password)
     if not ok or user is None or user["disabled"]:
-        accounts.record_attempt(conn, username, ip, success=False)
-        raise _invalid_credentials()
-    accounts.record_attempt(conn, username, ip, success=True)
+        raise _invalid_credentials()  # the reservation stays as a recorded failure
+    accounts.release_attempt(conn, reservation, username, ip)
+    accounts.rehash_if_needed(conn, user["user_id"], user["password_hash"], body.password)
     raw, csrf = accounts.create_session(conn, user["user_id"], ip)
     response.set_cookie(SESSION_COOKIE, raw, httponly=True, samesite="strict", secure=_secure_cookie(request), path="/")
     log.info("login ok user=%s", user["user_id"])
@@ -94,10 +95,10 @@ def change_password(
         raise Forbidden("session_required", "only a signed-in account can change its password")
     user = accounts.get_user(conn, principal.user_id)
     ip = _client_ip(request)
-    accounts.check_throttle(conn, user["username"], ip)
+    reservation = accounts.reserve_attempt(conn, user["username"], ip)
     if not accounts.verify_password(user["password_hash"], body.current_password):
-        accounts.record_attempt(conn, user["username"], ip, success=False)
         raise ValidationFailed("invalid_credentials", "the current password is incorrect", details={"field": "current_password"})
+    accounts.release_attempt(conn, reservation, user["username"], ip)
     if body.new_password == body.current_password:
         raise ValidationFailed(
             "password_unchanged", "the new password must differ from the current one", details={"field": "new_password"}
