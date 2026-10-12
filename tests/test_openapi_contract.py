@@ -11,7 +11,9 @@ from openapi_spec_validator import validate
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-from tests.conftest import H, FakeSupervisor, make_app, make_settings, voiced_identity
+from tests.conftest import (
+    ADMIN_PW, H, USER_PW, FakeSupervisor, add_user, login_headers, make_app, make_settings, voiced_identity,
+)
 from tests.voice_fakes import make_wav
 from service015.api.app import create_app, package_version
 
@@ -54,6 +56,9 @@ def _response_schema(path, method, status):
 
 def assert_conforms(path, method, response):
     resp = SPEC["paths"][path][method]["responses"][str(response.status_code)]
+    if response.status_code == 204:
+        assert response.content == b"", (path, method)
+        return
     if "$ref" not in resp and "application/json" not in resp.get("content", {}):
         # binary success response (audio/wav): the declared media type must be what was sent
         ctype = response.headers["content-type"].split(";")[0]
@@ -91,6 +96,9 @@ def test_spec_is_valid_openapi_31():
     assert SPEC["openapi"].startswith("3.1")
     assert SPEC["info"]["version"] == package_version()
     assert SPEC["servers"] and "bearerAuth" in SPEC["components"]["securitySchemes"]
+    cookie = SPEC["components"]["securitySchemes"]["cookieAuth"]
+    assert (cookie["type"], cookie["in"], cookie["name"]) == ("apiKey", "cookie", "s015_session")
+    assert {"bearerAuth": []} in SPEC["security"] and {"cookieAuth": []} in SPEC["security"]
 
 
 def test_every_operation_declares_role():
@@ -132,7 +140,11 @@ BODIES = {
     ("/voices/{voice_profile_id}/preview", "post"): {"text": "Hello there."},
     ("/expert/experience", "post"): {"title": "t", "body": "b", "source": "s", "repo": "r", "branch": "main", "sha": "abcdef1"},
     ("/expert/sessions/{session_id}/ask", "post"): {"question": "What is Service 015?"},
+    ("/auth/login", "post"): {"username": "nobody", "password": "not-the-password"},
+    ("/auth/change-password", "post"): {"current_password": "whatever-it-was", "new_password": "A-brand-new-pass-77"},
 }
+
+SESSION_ONLY = {("/auth/change-password", "post")}  # Bearer callers are refused with 403 session_required
 
 
 @pytest.mark.parametrize("path,method,op", OPS, ids=[f"{m.upper()} {p}" for p, m, _ in OPS])
@@ -156,7 +168,7 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
 
     if required == "none":
         r = client.request(method, url, **kw)
-        assert r.status_code in (200, 503)
+        assert r.status_code in (200, 503, 401)  # 401: login with an unknown user
         if r.headers["content-type"].startswith("application/json"):
             assert_conforms(path, method, r)
         return
@@ -171,6 +183,11 @@ def test_operation_rbac_and_response_conformance(client, path, method, op):
         r = client.request(method, url, headers=H[LOWER[required]], **kw)
         assert r.status_code == 403
         assert_conforms(path, method, r)
+    if (path, method) in SESSION_ONLY:
+        r = client.request(method, url, headers=H[required], **kw)
+        assert r.status_code == 403 and r.json()["error"]["code"] == "session_required"
+        assert_conforms(path, method, r)
+        return
     # exactly the declared role is accepted (proves app role is not higher than spec)
     r = client.request(method, url, headers=H[required], **kw)
     assert r.status_code not in (401, 403), r.text
@@ -321,3 +338,57 @@ def test_500_matches_error_body(db_file, voice_stack):
         assert r.status_code == 500 and r.json()["error"]["code"] == "internal_error"
         assert_conforms("/identities/{identity_id}/launch", "post", r)
         assert "boom" not in r.text
+
+
+# ---- session (cookie) principals: a `user` ranks as operator but is owner-scoped; a `viewer` account is read-only ----
+
+@pytest.fixture
+def session_client(db_file, voice_stack, fast_hash):
+    with TestClient(make_app(db_file, voice_stack, SERVICE015_ADMIN_PASSWORD=ADMIN_PW)) as c:
+        add_user(db_file, "uma", "user")
+        add_user(db_file, "vic", "viewer")
+        add_user(db_file, "ada", "admin")
+        yield c
+
+
+SESSION_ROLES = {"uma": "operator", "vic": "viewer", "ada": "admin"}
+RANKS = {"viewer": 1, "operator": 2, "admin": 3}
+
+
+@pytest.mark.parametrize("path,method,op", OPS, ids=[f"{m.upper()} {p}" for p, m, _ in OPS])
+def test_operation_session_rbac_and_response_conformance(session_client, path, method, op):
+    required = op["x-required-role"]
+    if required == "none" or (path, method) in SESSION_ONLY | {("/auth/logout", "post")}:
+        pytest.skip("no role gate to exercise with a session (login, logout and change-password have dedicated tests)")
+    client = session_client
+    uma = login_headers(client, "uma")
+    # uma owns ava-001; the voice is authorized by an admin key (shared)
+    assert client.post("/templates/sales-representative/instantiate", headers=uma,
+                       json={"overrides": {"name": "Ava", "company": "Safi"}}).status_code == 201
+    client.post("/voices/vp-ava/authorizations", json=BODIES[("/voices/{voice_profile_id}/authorizations", "post")],
+                headers=H["admin"])
+    url = _concrete(path)
+    body = BODIES.get((path, method))
+    if (path, method) == ("/templates", "post"):
+        body = client.get("/templates/customer-support", headers=H["viewer"]).json()
+        body = {k: v for k, v in body.items() if k not in ("version", "created_at", "shared", "disabled")}
+    kw = {"json": body} if body is not None else {}
+    if (path, method) == ("/voices", "post"):
+        kw = {"data": {"name": "Ben", "language": "en", "description": "", "reference_text": "hello there",
+                       "consent_statement": "I consent.", "subject_name": "Ben", "authorized_by": "Ops"},
+              "files": {"file": ("ref.wav", make_wav(6.0), "audio/wav")}}
+    declared = {int(c) for c in op["responses"]}
+    for who, rank in SESSION_ROLES.items():
+        headers = uma if who == "uma" else login_headers(client, who)
+        r = client.request(method, url, headers=headers, **kw)
+        if RANKS[rank] < RANKS[required]:
+            assert r.status_code == 403 and r.json()["error"]["code"] == "forbidden", (who, r.text)
+            assert r.json()["error"]["details"]["required_role"] == required
+        else:
+            assert r.status_code not in (401, 403), (who, r.status_code, r.text)
+            assert r.status_code in declared, (who, r.status_code, declared)
+        assert_conforms(path, method, r)
+        if method == "delete" and who == "uma" and r.status_code == 200:
+            # the archived persona is gone for the rest of the loop; put it back for the other roles
+            client.post("/templates/sales-representative/instantiate", headers=uma,
+                        json={"overrides": {"name": "Ava", "company": "Safi"}})

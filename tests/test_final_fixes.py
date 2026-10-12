@@ -275,7 +275,7 @@ def test_empty_allowlist_allows_on_localhost_and_denies_on_public_url(db_file, t
     backend = RecordingBackend()
     c2 = _dial_client(
         tmp_path / "pub.db", Service014Client("livekit_sip", backend), SERVICE015_PUBLIC_URL="https://app.example.com",
-        LIVEKIT_API_KEY=LK_KEY, LIVEKIT_API_SECRET=LK_SECRET,
+        LIVEKIT_API_KEY=LK_KEY, LIVEKIT_API_SECRET=LK_SECRET, SERVICE015_ADMIN_PASSWORD="Pub1ic-bootstrap-pass-77",  # Phase 2: required off-localhost
     )
     r = c2.post("/identities/ava-001/phone/dial", json={"to": NUMBER}, headers=OP_H)
     assert r.status_code == 403 and r.json()["error"]["code"] == "destination_not_allowed" and backend.calls == []

@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     )
 
     api_keys: Annotated[dict[str, Role], NoDecode] = Field(default_factory=dict, validation_alias="SERVICE015_API_KEYS", repr=False)
+    # Bootstrap password for the first `admin` account (created only when no admin exists; forced change on first login).
+    admin_password: str = Field("", validation_alias="SERVICE015_ADMIN_PASSWORD", repr=False)
     db_path: str = Field("./data/service015.db", validation_alias="SERVICE015_DB_PATH")
     host: str = Field("127.0.0.1", validation_alias="SERVICE015_HOST")
     port: int = Field(8015, validation_alias="SERVICE015_PORT")

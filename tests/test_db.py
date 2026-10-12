@@ -7,7 +7,8 @@ from service015.config import Settings
 from service015.db import connect, migrate
 
 TABLES = {"templates", "template_versions", "identities", "runtime_status", "voice_authorizations",
-          "expert_knowledge", "expert_sessions", "expert_messages", "runtime_sessions", "turn_metrics"}
+          "expert_knowledge", "expert_sessions", "expert_messages", "runtime_sessions", "turn_metrics",
+          "users", "sessions", "service_tokens", "login_attempts"}
 
 
 def _tables(conn: sqlite3.Connection) -> list[str]:
@@ -25,24 +26,26 @@ def test_connect_sets_pragmas_and_creates_parent_dir(tmp_path):
 
 def test_migrate_is_idempotent(tmp_path):
     conn = connect(tmp_path / "t.db")
-    assert migrate(conn) == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql"]
+    assert migrate(conn) == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql", "006_accounts.sql"]
     assert migrate(conn) == []
     names = _tables(conn)
     assert sorted(names) == sorted(TABLES | {"schema_migrations"})
     assert len(names) == len(set(names))
     rows = conn.execute("SELECT name, applied_at FROM schema_migrations").fetchall()
-    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql"]
+    assert [r["name"] for r in rows] == ["001_init.sql", "003_expert.sql", "004_expert_dirty.sql", "005_runtime.sql", "006_accounts.sql"]
     assert rows[0]["applied_at"]
 
 
 def _seed_template_version(conn):
-    conn.execute("INSERT INTO templates VALUES ('t', 'now')")
+    conn.execute("INSERT INTO templates (template_id, created_at) VALUES ('t', 'now')")
     conn.execute("INSERT INTO template_versions VALUES ('t', 1, '{}', 'now')")
 
 
 def _insert_identity(conn, template_id, version):
     conn.execute(
-        "INSERT INTO identities VALUES ('ava-001', ?, ?, '{}', '{}', 'h', 'ava-001', 'ava-001', 'now', 'now')",
+        "INSERT INTO identities (identity_id, template_id, template_version, overrides_json, resolved_json, resolved_hash, "
+        "participant_identity, default_room, created_at, updated_at) "
+        "VALUES ('ava-001', ?, ?, '{}', '{}', 'h', 'ava-001', 'ava-001', 'now', 'now')",
         (template_id, version),
     )
 

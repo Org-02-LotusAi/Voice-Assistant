@@ -5,9 +5,28 @@ info:
   description: |
     REST contract used by the Workbench UI and by an external Meeting Manager platform.
 
-    Every operation except `GET /health` and `GET /openapi.yaml` requires
-    `Authorization: Bearer <key>`. Roles are hierarchical: admin includes operator includes viewer.
-    The minimum role for each operation is given in `x-required-role` (`none` = unauthenticated).
+    Every operation except `GET /health`, `GET /openapi.yaml` and `POST /auth/login` requires authentication, by one of
+    two paths that share one authorization model:
+
+    * **Machines** send `Authorization: Bearer <token>`: an env API key (`SERVICE015_API_KEYS`) or an admin-managed
+      service token. Their roles are `admin`, `operator`, `viewer` (hierarchical: admin includes operator includes viewer).
+      An `operator` token acts on every owner's resources, exactly as before accounts existed.
+    * **Humans** sign in with `POST /auth/login` and then carry the HttpOnly `s015_session` cookie. Every non-GET request
+      made with the cookie must also send the `X-CSRF-Token` header (value returned by login / `GET /auth/me`), else 403
+      `csrf_failed`. Roles are `admin` (ranks as admin), `user` (ranks as operator but is **owner-scoped**) and `viewer`
+      (read-only). An account flagged `must_change_password` gets 403 `password_change_required` everywhere except
+      `/auth/change-password`, `/auth/me` and `/auth/logout`. A Bearer header, when present, wins over the cookie.
+
+    The minimum rank for each operation is given in `x-required-role` (`none` = unauthenticated); a `user` session
+    satisfies `operator`, never `admin`.
+
+    **Owner scoping.** Identities (personas) carry an owner. A `user` lists, reads, edits, launches, stops, archives and
+    dials only their own; for any other identity they get 404 `identity_not_found`, indistinguishable from a missing one.
+    `admin`, `viewer` accounts and token / env-key principals see all owners. Templates are visible when shared or owned
+    by the caller (admin, tokens and env keys see all); a disabled template cannot be instantiated (409
+    `template_disabled`). A voice is shared when unowned or owned by an admin; a `user` or `viewer` account sees and may
+    attach only shared voices plus their own; a disabled voice cannot be attached or launched (422 `voice_disabled`).
+    Archived identities are hidden from every listing and answer 404.
 
     Every non-2xx JSON body is an `ErrorBody`, including 404 `not_found` / 405 `method_not_allowed`
     for unknown routes or methods. `error.details` conventions: `field` names the offending override
@@ -17,7 +36,9 @@ servers:
     description: Local development
 security:
   - bearerAuth: []
+  - cookieAuth: []
 tags:
+  - name: auth
   - name: health
   - name: templates
   - name: identities
@@ -62,11 +83,107 @@ paths:
             application/yaml:
               schema: {type: string}
 
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in with username and password
+      description: |
+        Sets the HttpOnly `s015_session` cookie (SameSite=Strict, `Secure` on https) and returns the CSRF token to send
+        as `X-CSRF-Token` on later writes. Sessions expire after 12 h idle or 7 d absolute. Failures answer a generic 401
+        `invalid_credentials` whether the username exists or not; after 5 failures per username (or 20 per IP) within
+        15 minutes the answer is 429 `too_many_attempts` with a `Retry-After` header.
+      security: []
+      x-required-role: none
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Signed in; the session cookie is set.
+          headers:
+            Set-Cookie:
+              schema: {type: string}
+              description: "`s015_session=<opaque id>; HttpOnly; SameSite=Strict; Path=/`"
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoginResponse"}
+        "401":
+          description: Wrong username or password (`invalid_credentials`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorBody"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyAttempts"}
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      description: Revokes the session and clears the cookie. A no-op for Bearer callers. Needs the CSRF header like any session write.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "204":
+          description: Signed out.
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Who am I
+      description: Describes the authenticated principal (account, service token or env key). Allowed while a password change is pending.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The principal.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the signed-in account's password
+      description: |
+        Session callers only (Bearer callers get 403 `session_required`). Verifies the current password (wrong ones count
+        toward throttling, 429 `too_many_attempts`), applies the password policy (12-128 characters, not the username,
+        not a common password: 422 `weak_password`), clears `must_change_password` and revokes the account's other
+        sessions. Allowed while a password change is pending.
+      x-required-role: viewer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChangePasswordRequest"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: Password changed; the session stays valid.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/TooManyAttempts"}
+
   /templates:
     get:
       operationId: listTemplates
       tags: [templates]
       summary: List templates (latest version of each)
+      description: Shared templates plus, for a `user` or `viewer` account, their own private ones; admin, tokens and env keys see all.
       x-required-role: viewer
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
@@ -84,6 +201,7 @@ paths:
       tags: [templates]
       summary: Create a template (v1) or a new version of an existing template
       description: |
+        The template is shared (visible to everyone) and owned by the creating admin account, if any.
         A new `template_id` creates version 1; an existing `template_id` creates the next version.
         Earlier versions and the identities bound to them are never modified.
       x-required-role: admin
@@ -186,6 +304,7 @@ paths:
       operationId: listIdentities
       tags: [identities]
       summary: List identity summaries
+      description: A `user` account sees only their own identities; admin, viewer accounts and tokens see all. Archived identities are hidden.
       x-required-role: viewer
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
@@ -247,6 +366,32 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/Unprocessable"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+        "503": {$ref: "#/components/responses/DependencyUnavailable"}
+
+    delete:
+      operationId: archiveIdentity
+      tags: [identities]
+      summary: Archive an Identity
+      description: |
+        Stops the runtime when the Identity is not OFFLINE (a failure to stop leaves it unarchived and propagates, e.g.
+        503), then sets `archived_at`. The Identity disappears from lists, the roster and every per-identity route
+        (404); its record is retained and its `identity_id` is never reused. There is no hard delete. A `user` may
+        archive only their own.
+      x-required-role: operator
+      parameters:
+        - {$ref: "#/components/parameters/IdentityId"}
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The Identity is archived.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ArchivedIdentity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
 
@@ -746,7 +891,13 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: API key from SERVICE015_API_KEYS ("key:role" pairs).
+      description: API key from SERVICE015_API_KEYS ("key:role" pairs) or an admin-issued service token.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: s015_session
+      description: |
+        Session cookie set by `POST /auth/login`. Non-GET requests must also send `X-CSRF-Token` (403 `csrf_failed`).
 
   parameters:
     TemplateId:
@@ -767,7 +918,7 @@ components:
 
   responses:
     Unauthorized:
-      description: Missing or unknown API key (`unauthorized`).
+      description: Missing or unknown API key, or a missing / expired / revoked session (`unauthorized`).
       headers:
         WWW-Authenticate:
           schema: {type: string}
@@ -775,12 +926,17 @@ components:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     Forbidden:
-      description: The key's role is below the operation's `x-required-role` (`forbidden`).
+      description: |
+        The caller's role is below the operation's `x-required-role` (`forbidden`), a session write lacks a valid
+        `X-CSRF-Token` (`csrf_failed`), the account must change its password first (`password_change_required`), or a
+        Bearer caller used a session-only operation (`session_required`).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
     NotFound:
-      description: Resource not found (`template_not_found`, `identity_not_found`, `voice_profile_not_found`).
+      description: |
+        Resource not found (`template_not_found`, `identity_not_found`, `voice_profile_not_found`). Also the answer for
+        resources the caller is not allowed to see (another user's identity, a private template, a voice they do not own).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -790,6 +946,21 @@ components:
         `invalid_override`, `voice_profile_not_found` / `voice_not_authorized` (the resolved `voice.profile_id` must
         exist in Voicebox and have a cloning authorization), `voice_profile_not_cloned`, `empty_sample`,
         `voice_required` (launch), `reference_too_short`.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    Conflict:
+      description: |
+        The request conflicts with current state (`template_disabled`, `capacity_exceeded`, `identity_not_ready`,
+        `dial_in_progress`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorBody"}
+    TooManyAttempts:
+      description: Too many failed sign-in attempts (`too_many_attempts`); see the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 1}
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}
@@ -1076,6 +1247,9 @@ components:
         latest_version: {type: integer, minimum: 1}
         name: {type: string}
         description: {type: string}
+        shared: {type: boolean, description: "Shared templates are visible to everyone and managed by admins."}
+        disabled: {type: boolean, description: "A disabled template cannot be instantiated (409 `template_disabled`)."}
+        owner_user_id: {type: [string, "null"]}
 
     InstantiateRequest:
       type: object
@@ -1191,6 +1365,63 @@ components:
         participant_identity: {type: string}
         default_room: {type: string}
         resolved_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+        owner_user_id: {type: [string, "null"], description: "Owning account; null for machine-created identities."}
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 64}
+        password: {type: string, minLength: 1, maxLength: 256}
+
+    UserInfo:
+      type: object
+      additionalProperties: false
+      required: [user_id, username, role, must_change_password]
+      properties:
+        user_id: {type: string}
+        username: {type: string, pattern: "^[a-z0-9][a-z0-9_.-]{2,31}$"}
+        role: {type: string, enum: [admin, user, viewer]}
+        must_change_password: {type: boolean}
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [user, csrf_token]
+      properties:
+        user: {$ref: "#/components/schemas/UserInfo"}
+        csrf_token: {type: string, description: "Send as `X-CSRF-Token` on every non-GET session request."}
+
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 256}
+        new_password: {type: string, minLength: 1, maxLength: 256, description: "12-128 characters, not the username, not a common password."}
+
+    Me:
+      type: object
+      additionalProperties: false
+      required: [kind, role, effective_role, user_id, username, label, must_change_password, csrf_token]
+      properties:
+        kind: {type: string, enum: [user, token, envkey]}
+        role: {type: string, description: "Account role (admin|user|viewer) or key / token role (admin|operator|viewer)."}
+        effective_role: {type: string, enum: [admin, operator, viewer], description: "The rank used for x-required-role (`user` ranks as operator)."}
+        user_id: {type: [string, "null"]}
+        username: {type: [string, "null"]}
+        label: {type: [string, "null"], description: "Service token label."}
+        must_change_password: {type: boolean}
+        csrf_token: {type: [string, "null"], description: "Session callers only."}
+
+    ArchivedIdentity:
+      type: object
+      additionalProperties: false
+      required: [identity_id, archived_at]
+      properties:
+        identity_id: {type: string}
+        archived_at: {type: string, format: date-time}
 
     SelfContext:
       type: object

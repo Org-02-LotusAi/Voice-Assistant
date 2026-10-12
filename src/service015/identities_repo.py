@@ -72,7 +72,11 @@ def _store_json(resolved: ResolvedIdentity) -> str:
 
 
 def instantiate(
-    conn: sqlite3.Connection, template_id: str, overrides: dict[str, Any], template_version: int | None = None
+    conn: sqlite3.Connection,
+    template_id: str,
+    overrides: dict[str, Any],
+    template_version: int | None = None,
+    owner_user_id: str | None = None,
 ) -> ResolvedIdentity:
     """Create an identity bound to `template_version` (latest when None) plus an OFFLINE status row."""
     template = get_template(conn, template_id, template_version)
@@ -85,8 +89,9 @@ def instantiate(
         conn.execute(
             """
             INSERT INTO identities (identity_id, template_id, template_version, overrides_json, resolved_json,
-                                    resolved_hash, participant_identity, default_room, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    resolved_hash, participant_identity, default_room, created_at, updated_at,
+                                    owner_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 identity_id,
@@ -99,6 +104,7 @@ def instantiate(
                 resolved.participant.default_room,
                 now,
                 now,
+                owner_user_id,
             ),
         )
         conn.execute("INSERT INTO runtime_status (identity_id, presence) VALUES (?, 'OFFLINE')", (identity_id,))
@@ -120,9 +126,48 @@ def get_identity(conn: sqlite3.Connection, identity_id: str) -> ResolvedIdentity
     return _row_to_resolved(_get_row(conn, identity_id))
 
 
-def list_identities(conn: sqlite3.Connection) -> list[ResolvedIdentity]:
-    rows = conn.execute("SELECT * FROM identities ORDER BY identity_id").fetchall()
-    return [_row_to_resolved(r) for r in rows]
+def list_identities(
+    conn: sqlite3.Connection, owner_user_id: str | None = None, include_archived: bool = False
+) -> list[ResolvedIdentity]:
+    """Identities by id; archived ones are hidden unless asked for; `owner_user_id` limits to one owner's identities."""
+    where, params = [], []
+    if not include_archived:
+        where.append("archived_at IS NULL")
+    if owner_user_id is not None:
+        where.append("owner_user_id = ?")
+        params.append(owner_user_id)
+    sql = "SELECT * FROM identities" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY identity_id"
+    return [_row_to_resolved(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def get_scoped(
+    conn: sqlite3.Connection, identity_id: str, owner_user_id: str | None = None, include_archived: bool = False
+) -> ResolvedIdentity:
+    """`get_identity` for API callers: archived identities and (when `owner_user_id` is set) other owners' identities are
+    reported exactly like a missing one, so ids of other users' personas are not revealed."""
+    row = _get_row(conn, identity_id)
+    if (row["archived_at"] is not None and not include_archived) or (
+        owner_user_id is not None and row["owner_user_id"] != owner_user_id
+    ):
+        raise NotFound("identity_not_found", f"identity {identity_id!r} not found", details={"identity_id": identity_id})
+    return _row_to_resolved(row)
+
+
+def owner_map(conn: sqlite3.Connection) -> dict[str, str | None]:
+    return {r["identity_id"]: r["owner_user_id"] for r in conn.execute("SELECT identity_id, owner_user_id FROM identities")}
+
+
+def archive_identity(conn: sqlite3.Connection, identity_id: str) -> str:
+    """Hide the identity (record retained, id never reused). Returns archived_at; NotFound when absent or already archived."""
+    now = _now()
+    cur = conn.execute(
+        "UPDATE identities SET archived_at = ?, updated_at = ? WHERE identity_id = ? AND archived_at IS NULL",
+        (now, now, identity_id),
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        raise NotFound("identity_not_found", f"identity {identity_id!r} not found", details={"identity_id": identity_id})
+    return now
 
 
 def patch_identity(conn: sqlite3.Connection, identity_id: str, overrides_patch: dict[str, Any]) -> ResolvedIdentity:

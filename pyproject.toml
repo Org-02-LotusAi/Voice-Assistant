@@ -19,6 +19,7 @@ dependencies = [
     "numpy>=2.5.3",
     "psutil>=5.9",
     "aiohttp>=3.9",
+    "argon2-cffi==25.1.0",
 ]
 
 [project.scripts]

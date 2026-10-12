@@ -9,7 +9,7 @@ KEYS = {"adm": "admin", "ope": "operator", "vie": "viewer"}
 H = {role: {"Authorization": f"Bearer {key}"} for key, role in KEYS.items()}
 
 
-def make_settings(db_path) -> Settings:
+def make_settings(db_path, **extra) -> Settings:
     # Voicebox / engine point at a closed port: tests never reach the real services unless they inject a client.
     return Settings(
         SERVICE015_API_KEYS="adm:admin,ope:operator,vie:viewer",
@@ -17,12 +17,53 @@ def make_settings(db_path) -> Settings:
         VOICEBOX_URL="http://127.0.0.1:9",
         VOICE_ENGINE_URL="http://127.0.0.1:9",
         _env_file=None,
+        **extra,
     )
 
 
-def make_app(db_file, stack, supervisor=None):
+def make_app(db_file, stack, supervisor=None, **settings_extra):
     """App wired to the fake Voicebox/engine of `stack`."""
-    return create_app(make_settings(db_file), supervisor, voicebox=stack.voicebox.client, voice_engine=stack.engine.client)
+    return create_app(
+        make_settings(db_file, **settings_extra), supervisor, voicebox=stack.voicebox.client, voice_engine=stack.engine.client
+    )
+
+
+# ---- Phase 2 (accounts) helpers -------------------------------------------------------------------------------------
+
+ADMIN_PW = "Bootstrap-Pass-2026"
+USER_PW = "Correct-Horse-Battery-9"
+
+
+@pytest.fixture
+def fast_hash(monkeypatch):
+    """Cheap argon2id parameters so tests that create many accounts stay fast (production uses the library defaults)."""
+    from argon2 import PasswordHasher
+
+    from service015 import accounts
+
+    monkeypatch.setattr(accounts, "_hasher", PasswordHasher(time_cost=1, memory_cost=8, parallelism=1))
+
+
+def add_user(db_file, username, role="user", password=USER_PW, must_change=False):
+    """Create an account straight in the database; returns its user_id."""
+    from service015 import accounts
+    from service015.db import connect
+
+    conn = connect(db_file)
+    try:
+        return accounts.create_user(conn, username, password, role, must_change_password=must_change)["user_id"]
+    finally:
+        conn.close()
+
+
+def login_headers(client, username, password=USER_PW):
+    """Sign in and return explicit Cookie + X-CSRF-Token headers (the client's cookie jar is cleared so env-key requests
+    in the same test are not accidentally session-authenticated)."""
+    r = client.post("/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200, r.text
+    cookie = r.cookies.get("s015_session")
+    client.cookies.clear()
+    return {"Cookie": f"s015_session={cookie}", "X-CSRF-Token": r.json()["csrf_token"]}
 
 
 def voiced_identity(c, **extra):

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 
 from service015.api.deps import get_conn, get_voice_engine, get_voicebox
 from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePreviewRequest, VoiceProfile
-from service015.auth import require_role
+from service015.auth import Principal, require_principal
 from service015.errors import DomainError, NotFound, ValidationFailed
 from service015.voice import authz
 from service015.voice.engine import VoiceEngineClient
@@ -76,13 +76,24 @@ async def _existing_profile(voicebox: VoiceboxClient, voice_profile_id: str) -> 
     return profile
 
 
-@router.get("/voices", response_model=list[VoiceProfile], dependencies=[Depends(require_role("viewer"))])
-async def list_voices(conn: sqlite3.Connection = Depends(get_conn), voicebox: VoiceboxClient = Depends(get_voicebox)):
-    authorized = authz.authorized_ids(conn)
-    return [_profile(p, p["id"] in authorized) for p in await voicebox.list_profiles() if p.get("voice_type") == "cloned"]
+@router.get("/voices", response_model=list[VoiceProfile])
+async def list_voices(
+    principal: Principal = Depends(require_principal("viewer")),
+    conn: sqlite3.Connection = Depends(get_conn),
+    voicebox: VoiceboxClient = Depends(get_voicebox),
+):
+    """Admin, tokens and env keys see every cloned profile; a human `user` / `viewer` sees shared voices plus their own
+    (profiles without a recorded authorization are visible only to the unrestricted)."""
+    index = authz.voice_index(conn)
+    vis = principal.visibility
+    return [
+        _profile(p, p["id"] in index)
+        for p in await voicebox.list_profiles()
+        if p.get("voice_type") == "cloned" and (not vis.restricted or authz.voice_visible(index.get(p["id"]), vis))
+    ]
 
 
-@router.post("/voices", status_code=201, response_model=VoiceProfile, dependencies=[Depends(require_role("admin"))])
+@router.post("/voices", status_code=201, response_model=VoiceProfile)
 async def create_voice(
     name: _Name,
     reference_text: _Long,
@@ -90,6 +101,7 @@ async def create_voice(
     subject_name: _Short,
     authorized_by: _Short,
     file: UploadFile = File(...),
+    principal: Principal = Depends(require_principal("admin")),
     language: Annotated[str, Form(min_length=2, max_length=20, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")] = "en",
     description: Annotated[str, Form(max_length=1000)] = "",
     conn: sqlite3.Connection = Depends(get_conn),
@@ -124,7 +136,9 @@ async def create_voice(
         reference_text=reference_text,
     )
     try:
-        authz.record_authorization(conn, profile["id"], authorized_by, subject_name, consent_statement, "created_via_api")
+        authz.record_authorization(
+            conn, profile["id"], authorized_by, subject_name, consent_statement, "created_via_api", principal.owner_id_for_new
+        )
     except BaseException:  # includes CancelledError (client disconnect) - compensate, then re-raise
         conn.rollback()
         await asyncio.shield(voicebox.delete_profile(profile["id"]))  # never leave an unauthorized cloned voice behind
@@ -137,11 +151,11 @@ async def create_voice(
     "/voices/{voice_profile_id}/authorizations",
     status_code=201,
     response_model=VoiceAuthorization,
-    dependencies=[Depends(require_role("admin"))],
 )
 async def authorize_voice(
     voice_profile_id: str,
     body: VoiceAuthorizationCreate,
+    principal: Principal = Depends(require_principal("admin")),
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
@@ -152,8 +166,10 @@ async def authorize_voice(
             "only cloned voice profiles need (and can receive) a cloning authorization",
             details={"voice_profile_id": voice_profile_id},
         )
+    existing = authz.voice_index(conn).get(voice_profile_id)  # a later authorization keeps the voice's original owner
+    owner = existing["owner_user_id"] if existing is not None else principal.owner_id_for_new
     row = authz.record_authorization(
-        conn, voice_profile_id, body.authorized_by, body.subject_name, body.consent_statement, body.source
+        conn, voice_profile_id, body.authorized_by, body.subject_name, body.consent_statement, body.source, owner
     )
     log.info("voice authorization recorded profile=%s authorized_by=%s", voice_profile_id, body.authorized_by)
     return row
@@ -163,10 +179,10 @@ async def authorize_voice(
     "/voices/{voice_profile_id}/preview",
     response_class=Response,
     responses={200: {"content": {"audio/wav": {}}}},
-    dependencies=[Depends(require_role("operator"))],
 )
 async def preview_voice(
     voice_profile_id: str,
+    principal: Principal = Depends(require_principal("operator")),
     body: VoicePreviewRequest | None = None,
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
@@ -177,6 +193,18 @@ async def preview_voice(
         raise ValidationFailed(
             "voice_not_authorized",
             f"voice profile {voice_profile_id!r} has no recorded cloning authorization",
+            details={"voice_profile_id": voice_profile_id},
+        )
+    meta = authz.voice_index(conn).get(voice_profile_id)
+    if principal.visibility.restricted and not authz.voice_visible(meta, principal.visibility):
+        raise NotFound(
+            "voice_profile_not_found",
+            f"voice profile {voice_profile_id!r} does not exist in Voicebox",
+            details={"voice_profile_id": voice_profile_id},
+        )
+    if meta is not None and meta["disabled"]:
+        raise ValidationFailed(
+            "voice_disabled", f"voice profile {voice_profile_id!r} has been disabled by an administrator",
             details={"voice_profile_id": voice_profile_id},
         )
     text = (body.text if body is not None and body.text else None) or DEFAULT_PREVIEW_TEXT

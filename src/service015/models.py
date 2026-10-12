@@ -109,6 +109,9 @@ class TemplateSummary(_Strict):
     latest_version: int
     name: str
     description: str
+    shared: bool = True
+    disabled: bool = False
+    owner_user_id: str | None = None
 
 
 class ErrorDetail(_Strict):

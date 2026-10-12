@@ -7,10 +7,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-from service015 import identities_repo
 from service015.api.deps import get_conn, get_supervisor, get_telephony
 from service015.api.schemas import DialRequest, PhoneCall, PhoneInfo
-from service015.auth import require_role
+from service015.auth import Principal, require_principal
+from service015.api.routers.identities import scoped_identity
 from service015.config import is_local_public_url
 from service015.errors import Conflict, DomainError
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
@@ -36,21 +36,17 @@ def check_destination_allowed(settings: Any, to: str) -> None:
         raise DomainError("destination_not_allowed", "the destination is not in SERVICE014_ALLOWED_DESTINATIONS", status=403)
 
 
-@router.post(
-    "/identities/{identity_id}/phone/dial",
-    status_code=202,
-    response_model=PhoneCall,
-    dependencies=[Depends(require_role("operator"))],
-)
+@router.post("/identities/{identity_id}/phone/dial", status_code=202, response_model=PhoneCall)
 async def dial(
     request: Request,
     identity_id: str,
     body: DialRequest,
+    principal: Principal = Depends(require_principal("operator")),
     conn: sqlite3.Connection = Depends(get_conn),
     sup: RuntimeSupervisor = Depends(get_supervisor),
     tel: Service014Client = Depends(get_telephony),
 ) -> Any:
-    identity = identities_repo.get_identity(conn, identity_id)  # 404 first
+    identity = scoped_identity(conn, principal, identity_id)  # 404 first
     tel.ensure_configured()  # 503 before touching the runtime
     check_destination_allowed(request.app.state.settings, body.to)
     presence = (await sup.status(identity_id))["presence"]
@@ -70,13 +66,14 @@ async def dial(
         dialing.discard(identity_id)
 
 
-@router.get(
-    "/identities/{identity_id}/phone", response_model=PhoneInfo, dependencies=[Depends(require_role("viewer"))]
-)
+@router.get("/identities/{identity_id}/phone", response_model=PhoneInfo)
 def phone_info(
-    identity_id: str, conn: sqlite3.Connection = Depends(get_conn), tel: Service014Client = Depends(get_telephony)
+    identity_id: str,
+    principal: Principal = Depends(require_principal("viewer")),
+    conn: sqlite3.Connection = Depends(get_conn),
+    tel: Service014Client = Depends(get_telephony),
 ) -> Any:
-    identity = identities_repo.get_identity(conn, identity_id)
+    identity = scoped_identity(conn, principal, identity_id)
     return {
         "mode": tel.mode,
         "default_room": identity.participant.default_room,

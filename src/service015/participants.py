@@ -59,5 +59,6 @@ def participant_status(conn: sqlite3.Connection, resolved: ResolvedIdentity) -> 
     })
 
 
-def roster(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    return [participant_status(conn, r) for r in list_identities(conn)]
+def roster(conn: sqlite3.Connection, owner_user_id: str | None = None) -> list[dict[str, Any]]:
+    """Non-archived identities (optionally one owner's)."""
+    return [participant_status(conn, r) for r in list_identities(conn, owner_user_id)]

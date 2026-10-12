@@ -9,8 +9,9 @@ from importlib import resources
 import yaml
 from pydantic import ValidationError
 
-from service015.errors import CorruptTemplate, NotFound, ValidationFailed
+from service015.errors import Conflict, CorruptTemplate, NotFound, ValidationFailed
 from service015.models import TemplateBody, TemplateCreate, TemplateSummary
+from service015.scope import Visibility
 
 
 def _now() -> str:
@@ -42,7 +43,13 @@ def _parse_body(raw: str, template_id: str) -> TemplateBody:
         ) from exc
 
 
-def _insert_version(conn: sqlite3.Connection, template: TemplateCreate, only_if_absent: bool = False) -> TemplateBody | None:
+def _insert_version(
+    conn: sqlite3.Connection,
+    template: TemplateCreate,
+    only_if_absent: bool = False,
+    owner_user_id: str | None = None,
+    shared: bool = True,
+) -> TemplateBody | None:
     """Insert v1 or the next version in one transaction; prior version rows are never touched.
 
     With only_if_absent the existence check happens inside the write transaction and None is
@@ -61,7 +68,10 @@ def _insert_version(conn: sqlite3.Connection, template: TemplateCreate, only_if_
         ).fetchone()
         version = (row["v"] or 0) + 1
         if version == 1:
-            conn.execute("INSERT INTO templates (template_id, created_at) VALUES (?, ?)", (template.template_id, now))
+            conn.execute(
+                "INSERT INTO templates (template_id, created_at, owner_user_id, shared) VALUES (?, ?, ?, ?)",
+                (template.template_id, now, owner_user_id, int(shared)),
+            )
         body = TemplateBody(**template.model_dump(), version=version, created_at=now)
         conn.execute(
             "INSERT INTO template_versions (template_id, version, body_json, created_at) VALUES (?, ?, ?, ?)",
@@ -83,32 +93,69 @@ def seed_starter_templates(conn: sqlite3.Connection) -> list[str]:
     return seeded
 
 
-def create_template(conn: sqlite3.Connection, template: TemplateCreate) -> TemplateBody:
-    """New template_id -> v1; existing template_id -> next version."""
-    body = _insert_version(conn, template)
+def create_template(
+    conn: sqlite3.Connection, template: TemplateCreate, owner_user_id: str | None = None, shared: bool = True
+) -> TemplateBody:
+    """New template_id -> v1 (owned by `owner_user_id`, shared or private); existing template_id -> next version, ownership kept."""
+    body = _insert_version(conn, template, owner_user_id=owner_user_id, shared=shared)
     assert body is not None  # only_if_absent=False always inserts or raises
     return body
 
 
-def list_templates(conn: sqlite3.Connection) -> list[TemplateSummary]:
+def list_templates(conn: sqlite3.Connection, vis: Visibility | None = None) -> list[TemplateSummary]:
     rows = conn.execute(
         """
-        SELECT v.template_id, v.body_json
+        SELECT v.template_id, v.body_json, t.owner_user_id, t.shared, t.disabled
         FROM template_versions v
         JOIN (SELECT template_id, MAX(version) AS mv FROM template_versions GROUP BY template_id) m
           ON m.template_id = v.template_id AND m.mv = v.version
+        JOIN templates t ON t.template_id = v.template_id
         ORDER BY v.template_id
         """
     ).fetchall()
     summaries: list[TemplateSummary] = []
     for r in rows:
+        if vis is not None and not vis.allows(r["owner_user_id"], bool(r["shared"])):
+            continue
         body = _parse_body(r["body_json"], r["template_id"])
         summaries.append(
             TemplateSummary(
-                template_id=body.template_id, latest_version=body.version, name=body.name, description=body.description
+                template_id=body.template_id,
+                latest_version=body.version,
+                name=body.name,
+                description=body.description,
+                shared=bool(r["shared"]),
+                disabled=bool(r["disabled"]),
+                owner_user_id=r["owner_user_id"],
             )
         )
     return summaries
+
+
+def template_meta(conn: sqlite3.Connection, template_id: str) -> sqlite3.Row:
+    row = conn.execute(
+        "SELECT template_id, owner_user_id, shared, disabled FROM templates WHERE template_id = ?", (template_id,)
+    ).fetchone()
+    if row is None:
+        raise NotFound("template_not_found", f"template {template_id!r} not found", details={"template_id": template_id})
+    return row
+
+
+def ensure_visible(conn: sqlite3.Connection, template_id: str, vis: Visibility) -> sqlite3.Row:
+    """Template metadata, or NotFound when the principal may not see it (indistinguishable from a missing template)."""
+    meta = template_meta(conn, template_id)
+    if not vis.allows(meta["owner_user_id"], bool(meta["shared"])):
+        raise NotFound("template_not_found", f"template {template_id!r} not found", details={"template_id": template_id})
+    return meta
+
+
+def ensure_enabled(conn: sqlite3.Connection, template_id: str) -> None:
+    """Disabled templates cannot be instantiated (existing identities are unaffected)."""
+    if template_meta(conn, template_id)["disabled"]:
+        raise Conflict(
+            "template_disabled", f"template {template_id!r} is disabled and cannot be instantiated",
+            details={"template_id": template_id},
+        )
 
 
 def get_template(conn: sqlite3.Connection, template_id: str, version: int | None = None) -> TemplateBody:

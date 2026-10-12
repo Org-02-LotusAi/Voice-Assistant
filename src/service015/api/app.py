@@ -14,8 +14,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from service015 import accounts
+from service015.api.routers import accounts as accounts_routes
 from service015.api.routers import expert, health, identities, meeting, phone, templates, ui, voices
-from service015.auth import RANK, authenticate
+from service015.auth import RANK, resolve_principal
 from service015.config import Settings, check_api_keys_for_deployment, get_settings
 from service015.db import connect, migrate
 from service015.errors import DomainError
@@ -51,6 +53,7 @@ def create_app(
     voice_engine: VoiceEngineClient | None = None,
 ) -> FastAPI:
     check_api_keys_for_deployment(settings)
+    accounts.check_bootstrap_password(settings.admin_password)
     # Packaged copy of the repo-root openapi.yaml (a test keeps them byte-identical); raises if missing.
     openapi_yaml = resources.files("service015").joinpath("openapi.yaml").read_bytes()
     if not settings.api_keys:
@@ -61,6 +64,7 @@ def create_app(
         conn = connect(settings.db_path)
         try:
             migrate(conn)
+            accounts.bootstrap_admin(conn, settings.admin_password, settings.public_url)  # adopts pre-existing rows
             seed_starter_templates(conn)
             purged = purge_old_text(conn, settings.transcript_retention_days)
             if purged:
@@ -114,14 +118,18 @@ def create_app(
         # Starlette spools a multipart body before any handler runs, so the cap must be enforced on Content-Length here.
         if request.method == "POST" and request.url.path == "/voices":
             # Authenticate BEFORE any body is read, so an anonymous client cannot force a multipart spool (401/403 answer here).
+            conn = connect(settings.db_path)
             try:
-                role = authenticate(settings, request.headers.get("authorization"))
+                principal = resolve_principal(request, conn)
             except DomainError as exc:
                 return error_response(exc.status, exc.code, exc.message, exc.details, getattr(exc, "headers", None))
-            if RANK[role] < RANK["admin"]:
+            finally:
+                conn.close()
+            if RANK[principal.effective_role] < RANK["admin"]:
                 return error_response(
-                    403, "forbidden", f"this operation requires role 'admin'; your key has role {role!r}",
-                    {"required_role": "admin", "role": role},
+                    403, "forbidden",
+                    f"this operation requires role 'admin'; your {principal.describe()} has role {principal.role!r}",
+                    {"required_role": "admin", "role": principal.role},
                 )
             length = request.headers.get("content-length", "")
             if not length.isdigit() or int(length) > voices.MAX_BODY_BYTES:
@@ -152,7 +160,10 @@ def create_app(
         log.exception("unhandled error on %s %s", request.method, request.url.path)
         return error_response(500, "internal_error", "internal server error")
 
-    app.state.routers = (health.router, templates.router, identities.router, meeting.router, phone.router, expert.router, voices.router)
+    app.state.routers = (
+        health.router, accounts_routes.router, templates.router, identities.router, meeting.router, phone.router,
+        expert.router, voices.router,
+    )
     for router in app.state.routers:
         app.include_router(router)
     app.include_router(ui.router)  # static Workbench UI: unauthenticated, not part of openapi.yaml

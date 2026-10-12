@@ -38,6 +38,7 @@ class IdentitySummary(_Strict):
     participant_identity: str
     default_room: str
     resolved_hash: str
+    owner_user_id: str | None = None
 
 
 class SelfContext(_Strict):
@@ -194,3 +195,41 @@ class LatencyReport(_Strict):
     t2_t3: IntervalStats
     t3_t4: IntervalStats
     t4_t5: IntervalStats
+
+
+class LoginRequest(_Strict):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class UserInfo(_Strict):
+    user_id: str
+    username: str
+    role: Literal["admin", "user", "viewer"]
+    must_change_password: bool
+
+
+class LoginResponse(_Strict):
+    user: UserInfo
+    csrf_token: str
+
+
+class ChangePasswordRequest(_Strict):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class Me(_Strict):
+    kind: Literal["user", "token", "envkey"]
+    role: str
+    effective_role: Literal["admin", "operator", "viewer"]
+    user_id: str | None
+    username: str | None
+    label: str | None
+    must_change_password: bool
+    csrf_token: str | None
+
+
+class ArchivedIdentity(_Strict):
+    identity_id: str
+    archived_at: str
