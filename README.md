@@ -65,7 +65,7 @@ uv run python scripts/authorize_seed_voices.py
 # 5. Run the API (this also spawns the runtime worker because LIVEKIT_URL/KEY/SECRET are set in .env)
 uv run service015-api                                         # http://127.0.0.1:8015, GET /health shows runtime: ok
 
-# 6. Open the Workbench (paste an operator key from SERVICE015_API_KEYS) and the Talk page
+# 6. Open the Workbench and sign in (username `admin`, the password from SERVICE015_ADMIN_PASSWORD; you must change it at first login)
 start http://127.0.0.1:8015/
 ```
 
@@ -167,6 +167,26 @@ config` for every profile. Not verified: the full CPU stack start, the CUDA imag
 on EC2. See `deploy/EC2.md` for the GPU deployment and `docker-compose.yml` for the ports, volumes and the
 `LIVEKIT_PUBLIC_URL` split (server-side `ws://livekit:7880` vs the URL browsers receive).
 
+## Accounts, login and roles (Phase 2)
+
+Humans sign in at `/login` with a username and password (argon2id hashes; HttpOnly `s015_session` cookie, 12 h idle / 7 d
+absolute; every cookie-authenticated write also sends the `X-CSRF-Token` header that `GET /auth/me` returns). Machines keep
+using `Authorization: Bearer` (env `SERVICE015_API_KEYS`, or admin-issued service tokens). On first start the account `admin` is
+created from `SERVICE015_ADMIN_PASSWORD` and must change it at first login; the admin then creates users with a temporary
+password they must change at first sign-in. Failed logins are throttled (5 per 15 minutes per username and IP, then 429).
+
+| Role | Sees | Can do |
+|---|---|---|
+| `admin` | everything, incl. archived personas and all private templates/voices | everything below plus the Admin console: users, service tokens, shared templates, voice and template disable/enable, persona owner hand-over, Service Expert experience and re-ingest |
+| `user` | own personas; shared plus own templates and voices | create/edit/launch/stop/archive own personas, private templates, upload own voices (with consent record) |
+| `viewer` | roster, status and latency of all personas (read-only monitor) | nothing that changes state |
+
+Pages: `/` My personas (Workbench, with archive), `/templates.html`, `/voices.html` (My voices / Shared voices), `/monitor.html`
+(viewer landing page), `/admin.html` (admin only: Users, Service tokens, Templates, Voices, Personas, Service Expert and a live
+roster of all personas with Stop), `/talk.html`. Guardrails shown on the template pages are read from `GET /guardrails`.
+The Workbench keeps an advanced "API key mode" for machine debugging. A local handover file `CREDENTIALS.local.md` (git-ignored,
+never commit or share it) holds the admin and viewer logins and the `monitoring-bot` viewer token created at setup.
+
 ## Configuration
 
 Everything is environment-driven; `.env.example` lists every variable with comments. `.env` is git-ignored: never commit it.
@@ -195,6 +215,16 @@ contract is `openapi.yaml`.
   is blanked after `SERVICE015_TRANSCRIPT_RETENTION_DAYS` (default 30) at API startup; timings are kept.
 - Phone dialing: set `SERVICE014_ALLOWED_DESTINATIONS` (E.164 prefixes). Empty means deny all on a non-local
   `SERVICE015_PUBLIC_URL`, allow all on localhost.
+- **Phase 2 account limits.** After an admin reassigns a private template family, the new owner can instantiate it but cannot
+  create new versions (their `POST /templates` goes to their own namespace). No per-user quota on templates or voice uploads;
+  un-sharing an owner-less shared template is not supported; service tokens do not expire (revoke them); homoglyph spoofing of
+  guardrail markers in persona text is not normalized; there is no in-product admin password recovery (see
+  `CREDENTIALS.local.md` for the out-of-band procedure); the CSRF token is stored in plaintext in the sessions table; an archive
+  racing a launch can leave the runtime up until the next stop; there is no per-user session cap; Service Expert sessions
+  created with machine credentials are global; symlinks under the Expert root are followed. A shared voice owned by the admin
+  appears under "My voices" for the admin account (it is both owned and shared). Browser-verified: forced password change, 429
+  login message, voice upload and preview, session Talk page load, every admin console tab. Not browser-verified: the Talk page
+  microphone connect and the 429 path for an existing account.
 - Voicebox's full requirements do not install on Windows (pyopenjtalk); the scripts use the minimal Chatterbox set.
 
 ## Release

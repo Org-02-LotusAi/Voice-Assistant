@@ -39,10 +39,11 @@ def test_list_voices_returns_only_cloned_profiles_with_authorized_flag(client):
     r = client.get("/voices", headers=H["viewer"])
     assert r.status_code == 200
     assert r.json() == [{"voice_profile_id": "vp-ava", "name": "Ava Warm", "language": "en",
-                         "engine": "chatterbox-turbo", "authorized": False}]
+                         "engine": "chatterbox-turbo", "authorized": False, "shared": False, "owned_by_me": False}]
     assert_conforms("/voices", "get", r)
     authorize(client)
-    assert client.get("/voices", headers=H["viewer"]).json()[0]["authorized"] is True
+    listed = client.get("/voices", headers=H["viewer"]).json()[0]
+    assert listed["authorized"] is True and listed["shared"] is True and listed["owned_by_me"] is False  # unowned = shared
 
 
 def test_list_voices_voicebox_down_is_503(client, voice_stack):

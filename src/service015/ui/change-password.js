@@ -8,6 +8,7 @@
     ev.preventDefault();
     showError("globalError", null); $("msg").textContent = "";
     if ($("next").value !== $("again").value) { showError("globalError", new Error("The new passwords do not match.")); return; }
+    if (!me) { showError("globalError", new Error("Your session could not be loaded; reload the page.")); return; }
     $("submit").disabled = true;
     try {
       await api("POST", "/auth/change-password", { current_password: $("current").value, new_password: $("next").value });

@@ -21,6 +21,7 @@ _FILES: dict[str, tuple[str, str]] = {
     "/templates.html": ("templates.html", "text/html; charset=utf-8"),
     "/voices.html": ("voices.html", "text/html; charset=utf-8"),
     "/monitor.html": ("monitor.html", "text/html; charset=utf-8"),
+    "/admin.html": ("admin.html", "text/html; charset=utf-8"),
     "/ui/common.js": ("common.js", "text/javascript; charset=utf-8"),
     "/ui/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/ui/talk.js": ("talk.js", "text/javascript; charset=utf-8"),
@@ -29,6 +30,7 @@ _FILES: dict[str, tuple[str, str]] = {
     "/ui/templates.js": ("templates.js", "text/javascript; charset=utf-8"),
     "/ui/voices.js": ("voices.js", "text/javascript; charset=utf-8"),
     "/ui/monitor.js": ("monitor.js", "text/javascript; charset=utf-8"),
+    "/ui/admin.js": ("admin.js", "text/javascript; charset=utf-8"),
     "/ui/style.css": ("style.css", "text/css; charset=utf-8"),
 }
 
@@ -57,13 +59,27 @@ def content_security_policy(livekit_url: str) -> str:
     )
 
 
+# The credential pages talk to this origin only: no CDN scripts, no WebSocket endpoints.
+STRICT_CSP = "; ".join(
+    [
+        "default-src 'self'", "script-src 'self'", "style-src 'self'", "img-src 'self' data:", "connect-src 'self'",
+        "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
+    ]
+)
+_STRICT_PAGES = {"login.html", "change-password.html"}
+
+
 def _make_handler(filename: str, media_type: str):
     path = resources.files("service015").joinpath("ui", filename)
+    # HTML is no-store so the back button after logout cannot redisplay a signed-in page; scripts / styles revalidate.
+    cache = "no-store" if media_type.startswith("text/html") else "no-cache"
 
     async def handler(request: Request) -> Response:
         headers = {
-            "Cache-Control": "no-cache",
-            "Content-Security-Policy": content_security_policy(request.app.state.settings.livekit_client_url),
+            "Cache-Control": cache,
+            "Content-Security-Policy": STRICT_CSP
+            if filename in _STRICT_PAGES
+            else content_security_policy(request.app.state.settings.livekit_client_url),
         }
         return FileResponse(str(path), media_type=media_type, headers=headers)
 

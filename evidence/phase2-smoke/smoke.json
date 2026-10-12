@@ -1,0 +1,143 @@
+{
+  "identity_id": "demo-ava-001",
+  "steps": [
+    {
+      "step": "admin login",
+      "status": 200,
+      "note": "",
+      "at": "2026-10-12T11:06:22+00:00"
+    },
+    {
+      "step": "admin creates user demo",
+      "status": 201,
+      "note": "",
+      "at": "2026-10-12T11:06:22+00:00"
+    },
+    {
+      "step": "demo login (temp password)",
+      "status": 200,
+      "note": "must_change_password=True",
+      "at": "2026-10-12T11:06:24+00:00"
+    },
+    {
+      "step": "demo GET /identities before change",
+      "status": 403,
+      "note": "password_change_required",
+      "at": "2026-10-12T11:06:24+00:00"
+    },
+    {
+      "step": "demo forced password change",
+      "status": 200,
+      "note": "",
+      "at": "2026-10-12T11:06:25+00:00"
+    },
+    {
+      "step": "demo login (new password)",
+      "status": 200,
+      "note": "",
+      "at": "2026-10-12T11:06:27+00:00"
+    },
+    {
+      "step": "demo GET /templates",
+      "status": 200,
+      "note": "concierge, customer-support, generic-assistant, sales-representative",
+      "at": "2026-10-12T11:06:27+00:00"
+    },
+    {
+      "step": "demo GET /voices",
+      "status": 200,
+      "note": "James Calm shared=True owned_by_me=False authorized=True; Ava Warm shared=True owned_by_me=False authorized=True",
+      "at": "2026-10-12T11:06:27+00:00"
+    },
+    {
+      "step": "demo creates persona from shared template + shared voice",
+      "status": 201,
+      "note": "demo-ava-001",
+      "at": "2026-10-12T11:06:27+00:00"
+    },
+    {
+      "step": "demo launch",
+      "status": 200,
+      "note": "STARTING",
+      "at": "2026-10-12T11:06:47+00:00"
+    },
+    {
+      "step": "demo status poll",
+      "status": 200,
+      "note": "presence=READY after 3s",
+      "at": "2026-10-12T11:06:50+00:00"
+    },
+    {
+      "step": "viewer login",
+      "status": 200,
+      "note": "",
+      "at": "2026-10-12T11:06:52+00:00"
+    },
+    {
+      "step": "viewer GET /meeting/participants",
+      "status": 200,
+      "note": "sees demo persona: True presence=READY",
+      "at": "2026-10-12T11:06:52+00:00"
+    },
+    {
+      "step": "viewer POST stop (must be refused)",
+      "status": 403,
+      "note": "forbidden",
+      "at": "2026-10-12T11:06:52+00:00"
+    },
+    {
+      "step": "token GET /meeting/participants",
+      "status": 200,
+      "note": "7 personas",
+      "at": "2026-10-12T11:06:54+00:00"
+    },
+    {
+      "step": "token POST stop (must be 403)",
+      "status": 403,
+      "note": "forbidden",
+      "at": "2026-10-12T11:06:56+00:00"
+    },
+    {
+      "step": "token POST instantiate (must be 403)",
+      "status": 403,
+      "note": "forbidden",
+      "at": "2026-10-12T11:06:58+00:00"
+    },
+    {
+      "step": "demo stop",
+      "status": 200,
+      "note": "OFFLINE",
+      "at": "2026-10-12T11:07:01+00:00"
+    },
+    {
+      "step": "demo archive",
+      "status": 200,
+      "note": "{\"identity_id\":\"demo-ava-001\",\"archived_at\":\"2026-10-12T11:07:01.122590+00:00\"}",
+      "at": "2026-10-12T11:07:01+00:00"
+    },
+    {
+      "step": "demo list after archive",
+      "status": 200,
+      "note": "0 personas",
+      "at": "2026-10-12T11:07:01+00:00"
+    },
+    {
+      "step": "viewer roster after archive",
+      "status": 200,
+      "note": "demo persona present: False",
+      "at": "2026-10-12T11:07:03+00:00"
+    },
+    {
+      "step": "admin sees archived",
+      "status": 200,
+      "note": "archived_at set: True",
+      "at": "2026-10-12T11:07:05+00:00"
+    },
+    {
+      "step": "admin disables demo account (cleanup)",
+      "status": 200,
+      "note": "",
+      "at": "2026-10-12T11:07:05+00:00"
+    }
+  ]
+}

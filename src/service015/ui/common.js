@@ -45,11 +45,19 @@
       try { data = JSON.parse(text); } catch (e) { data = null; }
     }
     if (!res.ok) {
+      // Session ended mid-use, or a password change is pending: leave the page (pollers included) instead of showing raw errors.
+      const code = data && data.error ? data.error.code : "";
+      if (!opts.noAuth && !apiKeyMode()) {
+        if (res.status === 401) go("/login");
+        else if (res.status === 403 && code === "password_change_required") go("/change-password");
+      }
       if (data && data.error) throw new ApiError(res.status, data.error.code, data.error.message, data.error.details);
       throw new ApiError(res.status, "http_" + res.status, text || res.statusText, {});
     }
     return data;
   }
+
+  function go(path) { if (location.pathname !== path) location.assign(path); }
 
   function describe(e) {
     if (e instanceof ApiError) return e.format();
@@ -83,14 +91,14 @@
     return { stop };
   }
 
-  const NAV = [["/", "My personas"], ["/templates.html", "Templates"], ["/voices.html", "Voices"], ["/monitor.html", "Monitor"]];
+  const NAV = [["/", "My personas"], ["/templates.html", "Templates"], ["/voices.html", "Voices"], ["/monitor.html", "Monitor"], ["/admin.html", "Admin"]];
 
   function renderHeader(me) {
     const host = document.getElementById("hdr");
     if (!host) return;
     host.textContent = "";
     const who = me.username ? me.username : (me.label || me.kind);
-    const nav = el("nav", { class: "row grow" }, NAV.filter(([href]) => me.effective_role !== "viewer" || href === "/monitor.html")
+    const nav = el("nav", { class: "row grow" }, NAV.filter(([href]) => (me.effective_role !== "viewer" || href === "/monitor.html") && (href !== "/admin.html" || me.effective_role === "admin"))
       .map(([href, text]) => el("a", { href, textContent: text, class: location.pathname === href ? "cur" : "" })));
     const right = el("div", { class: "row" }, [
       el("span", { id: "whoami", class: "pill", textContent: who + " (" + me.role + ")" }),
@@ -108,11 +116,12 @@
     try { await api("POST", "/auth/logout"); }
     catch (e) { if (!(e instanceof ApiError) || e.status !== 401) { showError("globalError", e); return; } }
     state.csrf = null;
+    setApiKeyMode(false);  // never leave a stale Bearer-key mode behind for the next sign-in
     location.assign("/login");
   }
 
   // Resolve the caller, enforce redirects, render the header. Returns /auth/me, or null when navigation was triggered.
-  // opts.allowPasswordChange: the change-password page itself. opts.anyRole: pages open to viewers.
+  // opts.allowPasswordChange: the change-password page itself. opts.anyRole: pages open to viewers. opts.adminOnly: admin console.
   async function init(opts) {
     opts = opts || {};
     let me;
@@ -128,6 +137,7 @@
     }
     state.me = me; state.csrf = me.csrf_token;
     if (me.must_change_password && !opts.allowPasswordChange) { location.assign("/change-password"); return null; }
+    if (opts.adminOnly && me.effective_role !== "admin") { location.assign(me.effective_role === "viewer" ? "/monitor.html" : "/"); return null; }
     if (me.effective_role === "viewer" && !opts.anyRole) { location.assign("/monitor.html"); return null; }
     renderHeader(me);
     return me;

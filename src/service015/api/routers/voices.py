@@ -60,9 +60,12 @@ def safe_filename(name: str | None, ext: str) -> str:
     return base or f"reference.{ext}"
 
 
-def _profile(p: dict[str, Any], authorized: bool) -> VoiceProfile:
+def _profile(p: dict[str, Any], authorized: bool, meta: dict[str, Any] | None = None, user_id: str | None = None) -> VoiceProfile:
+    """`shared` / `owned_by_me` come from the authorization record (`meta`); a profile without one is neither."""
     return VoiceProfile(
-        voice_profile_id=p["id"], name=p["name"], language=p.get("language") or "en", engine=ENGINE, authorized=authorized
+        voice_profile_id=p["id"], name=p["name"], language=p.get("language") or "en", engine=ENGINE, authorized=authorized,
+        shared=bool(meta and meta["shared"]),
+        owned_by_me=bool(meta and user_id is not None and meta["owner_user_id"] == user_id),
     )
 
 
@@ -88,7 +91,7 @@ async def list_voices(
     index = authz.voice_index(conn)
     vis = principal.visibility
     return [
-        _profile(p, p["id"] in index)
+        _profile(p, p["id"] in index, index.get(p["id"]), principal.user_id)
         for p in await voicebox.list_profiles()
         if p.get("voice_type") == "cloned" and (not vis.restricted or authz.voice_visible(index.get(p["id"]), vis))
     ]
@@ -147,7 +150,7 @@ async def create_voice(
         await asyncio.shield(voicebox.delete_profile(profile["id"]))  # never leave an unauthorized cloned voice behind
         raise
     log.info("voice created profile=%s authorized_by=%s", profile["id"], authorized_by)
-    return _profile(profile, True)
+    return _profile(profile, True, authz.voice_index(conn).get(profile["id"]), principal.user_id)
 
 
 @router.post(
@@ -237,4 +240,4 @@ async def patch_voice(
     if "disabled" in changes:
         authz.set_voice_disabled(conn, voice_profile_id, changes["disabled"])
     log.info("voice updated profile=%s fields=%s", voice_profile_id, sorted(changes))
-    return _profile(profile, True)
+    return _profile(profile, True, authz.voice_index(conn).get(voice_profile_id), principal.user_id)

@@ -385,7 +385,7 @@
   $("save").onclick = save;
   $("launch").onclick = () => runtimeAction("launch");
   $("stop").onclick = () => runtimeAction("stop");
-  $("test").onclick = () => { if (state.identity) window.open("/talk.html?identity=" + encodeURIComponent(state.identity.identity_id), "_blank"); };
+  $("test").onclick = () => { if (state.identity) window.open("/talk.html?identity=" + encodeURIComponent(state.identity.identity_id), "_blank", "noopener"); };
   $("reset").onclick = resetForm;
   $("refresh").onclick = refreshIdentities;
   $("preview").onclick = preview;

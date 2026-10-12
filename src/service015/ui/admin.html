@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin console - Identity Workbench</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<main>
+  <div id="hdr"></div>
+  <h1>Admin console</h1>
+  <div id="globalError" class="error hidden" role="alert"></div>
+
+  <div id="confirm" class="confirm hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirmText">
+    <p id="confirmText"></p>
+    <div class="row">
+      <button id="confirmYes" type="button" class="danger">Confirm</button>
+      <button id="confirmNo" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <section id="rosterPanel" aria-labelledby="rosterTitle">
+    <div class="row"><h2 id="rosterTitle" class="grow">Live roster (all personas)</h2><button id="rosterRefresh" type="button">Refresh</button></div>
+    <div id="roster"></div>
+  </section>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+    <button type="button" role="tab" id="tab-users" aria-controls="pane-users" aria-selected="true">Users</button>
+    <button type="button" role="tab" id="tab-tokens" aria-controls="pane-tokens" aria-selected="false">Service tokens</button>
+    <button type="button" role="tab" id="tab-templates" aria-controls="pane-templates" aria-selected="false">Templates</button>
+    <button type="button" role="tab" id="tab-voices" aria-controls="pane-voices" aria-selected="false">Voices</button>
+    <button type="button" role="tab" id="tab-personas" aria-controls="pane-personas" aria-selected="false">Personas</button>
+    <button type="button" role="tab" id="tab-expert" aria-controls="pane-expert" aria-selected="false">Service Expert</button>
+  </div>
+
+  <div id="pane-users" role="tabpanel" aria-labelledby="tab-users">
+    <section>
+      <h2>Create a user</h2>
+      <form id="userForm" autocomplete="off">
+        <div class="row">
+          <div class="grow"><label for="u-name">Username (3-32 characters: a-z, 0-9, _ . -)</label><input id="u-name" type="text" maxlength="32" required></div>
+          <div><label for="u-role">Role</label><select id="u-role"><option value="user">user</option><option value="viewer">viewer</option></select></div>
+        </div>
+        <label for="u-pw">Temporary password (at least 12 characters; the user must change it at first sign-in)</label>
+        <div class="row"><input id="u-pw" class="grow" type="text" maxlength="256" autocomplete="off" required>
+          <button id="u-gen" type="button">Generate</button></div>
+        <div class="row spaced-sm"><button id="u-create" type="submit" class="primary">Create user</button></div>
+      </form>
+      <div id="userSecret" class="secret hidden" role="status"></div>
+      <div id="userError" class="error hidden" role="alert"></div>
+    </section>
+    <section>
+      <div class="row"><h2 class="grow">Users</h2><button id="usersRefresh" type="button">Refresh</button></div>
+      <div id="users" class="wrap-table"></div>
+    </section>
+  </div>
+
+  <div id="pane-tokens" role="tabpanel" aria-labelledby="tab-tokens" class="hidden">
+    <section>
+      <h2>Create a service token</h2>
+      <p class="notice">For machines (Meeting Manager, monitoring). Send it as <span class="mono">Authorization: Bearer ...</span>. The secret is shown once, here, right after creation.</p>
+      <form id="tokenForm" autocomplete="off">
+        <div class="row">
+          <div class="grow"><label for="t-label">Label</label><input id="t-label" type="text" maxlength="80" required></div>
+          <div><label for="t-role">Role</label><select id="t-role"><option value="viewer">viewer (read-only)</option><option value="operator">operator</option></select></div>
+        </div>
+        <div class="row spaced-sm"><button id="t-create" type="submit" class="primary">Create token</button></div>
+      </form>
+      <div id="tokenSecret" class="secret hidden" role="status"></div>
+      <div id="tokenError" class="error hidden" role="alert"></div>
+    </section>
+    <section>
+      <div class="row"><h2 class="grow">Service tokens</h2><button id="tokensRefresh" type="button">Refresh</button></div>
+      <div id="tokens" class="wrap-table"></div>
+    </section>
+  </div>
+
+  <div id="pane-templates" role="tabpanel" aria-labelledby="tab-templates" class="hidden">
+    <section>
+      <div class="row"><h2 class="grow">Shared templates</h2><button id="tplNew" type="button" class="primary">New shared template</button></div>
+      <div id="tplShared"></div>
+    </section>
+    <section>
+      <h2>Private templates (read-only)</h2>
+      <p class="notice">Owned by individual users. You can view them and disable or enable them; disabling blocks new personas only.</p>
+      <div id="tplPrivate"></div>
+    </section>
+    <section id="tplEditor" class="hidden">
+      <h2 id="tplEdTitle">Template</h2>
+      <p class="notice">Template JSON. The locked guardrails are appended by the service and cannot be edited; they are listed below.</p>
+      <div class="guard"><ul id="adminGuardrails" class="notice"></ul></div>
+      <label for="tplJson">Template body</label>
+      <textarea id="tplJson" class="mono" rows="18" spellcheck="false"></textarea>
+      <div class="row spaced-sm">
+        <button id="tplSave" type="button" class="primary">Save (creates the next version)</button>
+        <button id="tplClose" type="button">Close</button>
+      </div>
+      <div id="tplMsg" class="notice"></div>
+      <div id="tplError" class="error hidden" role="alert"></div>
+    </section>
+  </div>
+
+  <div id="pane-voices" role="tabpanel" aria-labelledby="tab-voices" class="hidden">
+    <section>
+      <div class="row"><h2 class="grow">Voices</h2><button id="voicesRefresh" type="button">Refresh</button></div>
+      <p class="notice">Consent records only; the reference audio is never stored or shown. Disabling a voice blocks new attachments and launches (running personas are not interrupted).</p>
+      <div id="voices"></div>
+    </section>
+  </div>
+
+  <div id="pane-personas" role="tabpanel" aria-labelledby="tab-personas" class="hidden">
+    <section>
+      <div class="row">
+        <h2 class="grow">All personas</h2>
+        <label for="p-archived"><input id="p-archived" type="checkbox"> Include archived</label>
+        <button id="personasRefresh" type="button">Refresh</button>
+      </div>
+      <div id="personas"></div>
+    </section>
+  </div>
+
+  <div id="pane-expert" role="tabpanel" aria-labelledby="tab-expert" class="hidden">
+    <section>
+      <div class="row"><h2 class="grow">Knowledge</h2><button id="expertReingest" type="button">Re-ingest documents</button><button id="expertRefresh" type="button">Refresh</button></div>
+      <div id="expertMissing"></div>
+      <div id="expertReingestResult" class="notice"></div>
+      <div id="expertItems" class="wrap-table"></div>
+    </section>
+    <section>
+      <h2>Add verified experience</h2>
+      <form id="expForm" autocomplete="off">
+        <label for="x-title">Title</label><input id="x-title" type="text" maxlength="200" required>
+        <label for="x-body">Body</label><textarea id="x-body" maxlength="8000" rows="6" required></textarea>
+        <label for="x-source">Source</label><input id="x-source" type="text" maxlength="500" required>
+        <label for="x-role">Visible to</label>
+        <select id="x-role"><option value="viewer">everyone (viewer and up)</option><option value="operator">operators and admins</option><option value="admin">admins only</option></select>
+        <div class="row spaced-sm"><button id="x-add" type="submit" class="primary">Add experience</button></div>
+      </form>
+      <div id="expMsg" class="notice"></div>
+      <div id="expError" class="error hidden" role="alert"></div>
+    </section>
+  </div>
+</main>
+<script src="/ui/common.js"></script>
+<script src="/ui/admin.js"></script>
+</body>
+</html>

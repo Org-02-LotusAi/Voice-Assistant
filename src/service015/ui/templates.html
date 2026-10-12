@@ -25,9 +25,8 @@
     <h2 id="edTitle">Template</h2>
     <div class="guard" id="guardrails">
       <strong>Guardrails - always applied, not editable.</strong>
-      <span class="notice">The service appends a locked guardrail block to every persona built from any template: authoritative self-facts,
-      spoken-reply rules, never inventing prices or account data, and honestly saying it is an AI voice assistant when asked.
-      A template body cannot weaken it.</span>
+      <span class="notice">The service appends this locked block to every persona built from any template. A template body cannot weaken it.</span>
+      <ul id="guardrailRules" class="notice"></ul>
     </div>
     <form id="form" autocomplete="off">
       <label for="t-id">Template id (lowercase letters, digits, hyphens)</label>
@@ -53,10 +52,8 @@
       <label for="t-speaking">Speaking style</label>
       <textarea id="t-speaking"></textarea>
       <label for="t-barge"><input id="t-barge" type="checkbox"> Barge-in (caller can interrupt)</label>
-      <label>Required when creating a persona</label>
-      <div id="required" class="checks"></div>
-      <label>Fields a persona may override</label>
-      <div id="allowed" class="checks"></div>
+      <fieldset><legend>Required when creating a persona</legend><div id="required" class="checks"></div></fieldset>
+      <fieldset><legend>Fields a persona may override</legend><div id="allowed" class="checks"></div></fieldset>
       <div class="row spaced">
         <button id="save" type="button" class="primary">Save</button>
         <button id="close" type="button">Close</button>

@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, Query
 
 from service015 import identities_repo, templates_repo
 from service015.api.deps import get_conn, get_voicebox
-from service015.api.schemas import InstantiateRequest, TemplatePatch
+from service015.api.schemas import Guardrails, InstantiateRequest, TemplatePatch
 from service015.auth import Forbidden, Principal, require_author, require_principal
-from service015 import accounts
+from service015 import accounts, selfcontext
 from service015.errors import ValidationFailed
 from service015.models import TemplateBody, TemplateCreate, TemplateSummary
 from service015.resolver import ResolvedIdentity
@@ -18,6 +18,12 @@ from service015.voice.authz import ensure_voice_usable
 from service015.voice.voicebox import VoiceboxClient
 
 router = APIRouter(tags=["templates"])
+
+
+@router.get("/guardrails", response_model=Guardrails)
+def get_guardrails(principal: Principal = Depends(require_principal("viewer"))):
+    """The locked guardrail block appended to every persona's runtime instructions, verbatim from the service (read-only)."""
+    return Guardrails(header=selfcontext.GUARDRAILS_HEADER, rules=list(selfcontext.GUARDRAILS[1:]))
 
 
 @router.get("/templates", response_model=list[TemplateSummary])

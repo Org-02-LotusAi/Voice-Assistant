@@ -144,6 +144,8 @@ class VoiceProfile(_Strict):
     language: str
     engine: Literal["chatterbox-turbo"]
     authorized: bool
+    shared: bool = False  # unowned or admin-owned (usable by everyone)
+    owned_by_me: bool = False  # uploaded by the calling account (false for tokens / env keys)
 
 
 class VoiceAuthorizationCreate(_Strict):
@@ -230,6 +232,11 @@ class Me(_Strict):
     csrf_token: str | None
 
 
+class Guardrails(_Strict):
+    header: str
+    rules: list[str]
+
+
 class ArchivedIdentity(_Strict):
     identity_id: str
     archived_at: str
@@ -308,7 +315,6 @@ class VoiceConsent(_Strict):
 
 class AdminVoice(VoiceProfile):
     owner_user_id: str | None
-    shared: bool
     disabled: bool
     consent: VoiceConsent | None
 

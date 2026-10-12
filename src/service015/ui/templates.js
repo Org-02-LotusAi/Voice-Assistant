@@ -113,8 +113,16 @@
     finally { $("save").disabled = false; }
   }
 
+  async function loadGuardrails() {
+    try {
+      const g = await api("GET", "/guardrails");
+      const ul = $("guardrailRules"); ul.textContent = "";
+      for (const r of g.rules) ul.append(el("li", { textContent: r }));
+    } catch (e) { showError("globalError", e); }
+  }
+
   $("newTpl").onclick = () => open(null, false, true);
   $("save").onclick = save;
   $("close").onclick = () => $("editor").classList.add("hidden");
-  init().then((me) => { if (me) load(); });
+  init().then((me) => { if (me) { load(); loadGuardrails(); } });
 })();

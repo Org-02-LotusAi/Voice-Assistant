@@ -172,6 +172,7 @@ async def list_all_voices(
                 authorized=meta is not None,
                 owner_user_id=meta["owner_user_id"] if meta else None,
                 shared=meta["shared"] if meta else False,
+                owned_by_me=bool(meta and principal.user_id is not None and meta["owner_user_id"] == principal.user_id),
                 disabled=meta["disabled"] if meta else False,
                 consent=consent.get(p["id"]),
             )

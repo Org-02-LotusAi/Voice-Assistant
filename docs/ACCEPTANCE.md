@@ -66,6 +66,15 @@ issue is **not excluded**; a human listen-through on the GPU host should confirm
 mismatch in the audio transcript as PASS-AUDIO-CAVEAT only when the LLM text is correct; Ava and James (names) and Northwind are
 heard correctly.
 
+## Phase 2: accounts, ownership, admin console
+
+| Check | Evidence | Result |
+|---|---|---|
+| Live smoke on the real DB (API on :8015, real Voicebox, engine, LiveKit): admin creates `demo`; demo forced password change; persona from shared template + shared voice; launch to READY; stop; archive; viewer roster; viewer token GET 200 / POST 403 | `evidence/phase2-smoke/smoke.json`, `evidence/phase2-smoke/README.md` | PASS (statuses only, no secrets) |
+| Admin console, every tab (users, tokens with show-once secret and revoke confirmation, templates new version, voices with consent, personas with owner hand-over, Service Expert re-ingest and add experience, live roster) | `evidence/ui-phase2/admin-*.jpg` (run against a throwaway database and API on :8017) | PASS |
+| Forced password change, archive confirmation, templates with server guardrails, voice upload, viewer monitor, 429 login message, session Talk page | `evidence/ui-phase2/01-..05-*.jpg`, `login-429.jpg`, `talk-session.jpg` | PASS (mic connect not exercised) |
+| Offline suite incl. ownership, throttling, CSRF, admin APIs, UI behavior, openapi conformance | `uv run pytest -q --ignore=tests/test_runtime_live.py --ignore=tests/e2e --ignore=tests/test_expert_live.py` and `tests/e2e/test_expectations.py` | PASS (see the P4 report for counts) |
+
 ## Evidence index
 
 | Evidence | What it proves | Result |

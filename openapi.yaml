@@ -190,6 +190,23 @@ paths:
         "422": {$ref: "#/components/responses/Unprocessable"}
         "429": {$ref: "#/components/responses/TooManyAttempts"}
 
+  /guardrails:
+    get:
+      operationId: getGuardrails
+      tags: [templates]
+      summary: The locked guardrail text
+      description: The non-removable guardrail block the service appends to every persona's instructions (shared and private templates alike), so UIs can show it read-only without hard-coding it.
+      x-required-role: viewer
+      responses:
+        "500": {$ref: "#/components/responses/InternalError"}
+        "200":
+          description: The guardrails.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Guardrails"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
   /templates:
     get:
       operationId: listTemplates
@@ -1352,6 +1369,8 @@ components:
         language: {type: string}
         engine: {type: string, enum: [chatterbox-turbo]}
         authorized: {type: boolean, description: "True when a voice_authorizations row exists for this profile."}
+        shared: {type: boolean, description: "Unowned or admin-owned: usable by every account. False for a profile without an authorization record."}
+        owned_by_me: {type: boolean, description: "Uploaded by the calling account. Always false for token / env-key callers."}
 
     VoiceCreateForm:
       type: object
@@ -1740,6 +1759,14 @@ components:
         must_change_password: {type: boolean}
         csrf_token: {type: [string, "null"], description: "Session callers only."}
 
+    Guardrails:
+      type: object
+      additionalProperties: false
+      required: [header, rules]
+      properties:
+        header: {type: string}
+        rules: {type: array, items: {type: string}}
+
     ArchivedIdentity:
       type: object
       additionalProperties: false
@@ -2094,6 +2121,7 @@ components:
         authorized: {type: boolean}
         owner_user_id: {type: [string, "null"]}
         shared: {type: boolean}
+        owned_by_me: {type: boolean}
         disabled: {type: boolean}
         consent:
           anyOf:

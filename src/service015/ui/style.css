@@ -50,3 +50,10 @@ header nav a.cur { font-weight:600; text-decoration:none; color:var(--fg); }
 .checks label { display:inline-block; margin-right:12px; }
 input[type=file] { max-width:100%; }
 details { margin:8px 0; }
+fieldset { border:1px solid var(--line); border-radius:6px; margin:8px 0; padding:4px 8px 8px; }
+legend { font-size:.85rem; color:var(--muted); padding:0 4px; }
+.tabs button:focus-visible, button:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.pill.disabled, .pill.archived { color:var(--muted); }
+.secret { border:1px solid var(--warn); border-radius:6px; padding:8px; margin:8px 0; }
+.wrap-table { overflow-x:auto; }
+td.l, th.l { text-align:left; }

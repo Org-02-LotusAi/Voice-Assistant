@@ -140,6 +140,13 @@ def create_app(
                 )
         return await call_next(request)
 
+    @app.middleware("http")
+    async def _no_store(request: Request, call_next):
+        # Authenticated JSON (including the CSRF token in /auth/me) must never be cached or replayed from bfcache.
+        response = await call_next(request)
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     @app.exception_handler(DomainError)
     async def _domain(request: Request, exc: DomainError) -> JSONResponse:
         return error_response(exc.status, exc.code, exc.message, exc.details, getattr(exc, "headers", None))

@@ -3,21 +3,26 @@
   const { api, el, showError, init } = window.S015;
   const $ = (id) => document.getElementById(id);
 
+  function renderVoices(boxId, list, emptyText) {
+    const box = $(boxId); box.textContent = "";
+    if (!list.length) box.append(el("div", { class: "notice", textContent: emptyText }));
+    for (const v of list) {
+      box.append(el("div", { class: "ident" }, [
+        el("div", { class: "row" }, [
+          el("strong", { textContent: v.name }), el("span", { class: "pill", textContent: v.language }),
+          el("span", { class: "pill " + (v.authorized ? "READY" : "ERROR"), textContent: v.authorized ? "authorized" : "not authorized" }),
+          el("button", { type: "button", textContent: "Preview", disabled: !v.authorized, onclick: () => preview(v) }),
+        ]),
+        el("div", { class: "mono notice", textContent: v.voice_profile_id }),
+      ]));
+    }
+  }
+
   async function load() {
     try {
       const list = await api("GET", "/voices");
-      const box = $("voices"); box.textContent = "";
-      if (!list.length) box.append(el("div", { class: "notice", textContent: "No voices yet." }));
-      for (const v of list) {
-        box.append(el("div", { class: "ident" }, [
-          el("div", { class: "row" }, [
-            el("strong", { textContent: v.name }), el("span", { class: "pill", textContent: v.language }),
-            el("span", { class: "pill " + (v.authorized ? "READY" : "ERROR"), textContent: v.authorized ? "authorized" : "not authorized" }),
-            el("button", { type: "button", textContent: "Preview", disabled: !v.authorized, onclick: () => preview(v) }),
-          ]),
-          el("div", { class: "mono notice", textContent: v.voice_profile_id }),
-        ]));
-      }
+      renderVoices("mine", list.filter((v) => v.owned_by_me), "You have not uploaded a voice yet.");
+      renderVoices("shared", list.filter((v) => !v.owned_by_me), "No shared voices.");
       showError("globalError", null);
     } catch (e) { showError("globalError", e); }
   }
@@ -25,7 +30,7 @@
   async function preview(v) {
     showError("globalError", null);
     $("previewState").textContent = "Synthesizing preview for " + v.name + " - this takes 15-40 s on CPU...";
-    document.querySelectorAll("#voices button").forEach((b) => { b.disabled = true; });
+    document.querySelectorAll("#mine button, #shared button").forEach((b) => { b.disabled = true; });
     try {
       const blob = await api("POST", "/voices/" + encodeURIComponent(v.voice_profile_id) + "/preview", {}, { blob: true });
       const a = $("previewAudio");
