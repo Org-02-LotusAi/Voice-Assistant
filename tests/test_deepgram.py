@@ -334,12 +334,26 @@ def test_key_never_appears_in_any_response_body(dg_client):
 # ---------- supervisor preflight ----------
 
 
+def dg_transport(status=200, exc=None):
+    seen: list[httpx.Request] = []
+
+    def handle(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        if exc is not None:
+            raise exc
+        return httpx.Response(status, json={})
+
+    t = httpx.MockTransport(handle)
+    t.seen = seen  # type: ignore[attr-defined]
+    return t
+
+
 def dg_supervisor(conn, stack, **kw):
     path = conn.execute("PRAGMA database_list").fetchone()[2]
     lk, worker = FakeLK(), FakeWorker()
     sup = LiveKitSupervisor(
         _settings(path, **DG, **kw), engine=stack.engine.client, llm_transport=_llm_transport(200),
-        api_factory=lambda: lk, worker=worker, worker_ready_timeout_s=2,
+        deepgram_transport=dg_transport(200), api_factory=lambda: lk, worker=worker, worker_ready_timeout_s=2,
     )
     return sup, lk, worker
 
@@ -378,6 +392,76 @@ def test_preflight_in_deepgram_mode_still_checks_livekit_and_llm(conn, stack):
     with pytest.raises(DependencyUnavailable) as exc:
         asyncio.run(sup.launch("ava-001"))
     assert exc.value.details["dependency"] == "llm"
+
+
+def probe_sup(conn, stack, transport, **kw):
+    identities_repo.patch_identity(conn, "ava-001", {"voice.profile_id": THALIA})
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    return LiveKitSupervisor(
+        _settings(path, **DG, **kw), engine=stack.engine.client, llm_transport=_llm_transport(200),
+        deepgram_transport=transport, api_factory=lambda: FakeLK(), worker=FakeWorker(), worker_ready_timeout_s=2,
+    )
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_preflight_deepgram_key_rejected_is_auth_failed(conn, stack, status):
+    sup = probe_sup(conn, stack, dg_transport(status))
+    with pytest.raises(DependencyUnavailable) as exc:
+        asyncio.run(sup.launch("ava-001"))
+    assert exc.value.code == "deepgram_auth_failed" and exc.value.status == 503
+    assert KEY not in exc.value.message and KEY not in str(exc.value.details)
+
+
+@pytest.mark.parametrize("kind", ["5xx", "network"])
+def test_preflight_deepgram_outage_is_unavailable(conn, stack, kind):
+    t = dg_transport(503) if kind == "5xx" else dg_transport(exc=httpx.ConnectError(f"boom {KEY}"))
+    sup = probe_sup(conn, stack, t)
+    with pytest.raises(DependencyUnavailable) as exc:
+        asyncio.run(sup.launch("ava-001"))
+    assert exc.value.code == "deepgram_unavailable"
+    assert KEY not in exc.value.message and KEY not in str(exc.value.details)
+
+
+def test_preflight_deepgram_probe_sends_token_header_and_caches_success(conn, stack):
+    t = dg_transport(200)
+    sup = probe_sup(conn, stack, t)
+    asyncio.run(sup.preflight(THALIA))
+    asyncio.run(sup.preflight(THALIA))
+    assert len(t.seen) == 1 and t.seen[0].headers["Authorization"] == f"Token {KEY}"
+    sup._deepgram_ok_until = 0.0  # TTL expired
+    asyncio.run(sup.preflight(THALIA))
+    assert len(t.seen) == 2
+
+
+def test_preflight_deepgram_failure_is_not_cached(conn, stack):
+    t = dg_transport(401)
+    sup = probe_sup(conn, stack, t)
+    for _ in range(2):
+        with pytest.raises(DependencyUnavailable):
+            asyncio.run(sup.preflight(THALIA))
+    assert len(t.seen) == 2
+
+
+def test_preflight_local_mode_does_not_probe_deepgram(conn, stack):
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    t = dg_transport(401)
+    sup = LiveKitSupervisor(
+        _settings(path), engine=stack.engine.client, llm_transport=_llm_transport(200), deepgram_transport=t,
+        api_factory=lambda: FakeLK(), worker=FakeWorker(), worker_ready_timeout_s=2,
+    )
+    asyncio.run(sup.preflight("vp-ava"))
+    assert t.seen == []
+
+
+def test_settings_strip_the_deepgram_key():
+    assert settings(DEEPGRAM_API_KEY="  " + KEY + "\n").deepgram_api_key == KEY
+
+
+def test_preview_without_client_is_503_not_assert(db_file, voice_stack):
+    with TestClient(make_app(db_file, voice_stack, FakeSupervisor(), **DG)) as c:
+        c.app.state.deepgram_speak = None
+        r = c.post(f"/voices/{THALIA}/preview", headers=H["operator"], json={})
+    assert r.status_code == 503 and r.json()["error"]["code"] == "deepgram_unavailable"
 
 
 # ---------- worker wiring ----------

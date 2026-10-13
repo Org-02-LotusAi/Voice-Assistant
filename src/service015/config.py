@@ -147,9 +147,14 @@ class Settings(BaseSettings):
     # Empty = the persona's own language (primary subtag, e.g. en-US -> en); "multi" = nova-3 code-switching.
     deepgram_stt_language: str = Field("", validation_alias="SERVICE015_DEEPGRAM_STT_LANGUAGE")
 
+    @field_validator("deepgram_api_key", mode="after")
+    @classmethod
+    def _strip_deepgram_key(cls, value: str) -> str:
+        return value.strip()  # a pasted trailing space/newline must not reach the Authorization header
+
     @property
     def deepgram_key_configured(self) -> bool:
-        key = self.deepgram_api_key.strip()
+        key = self.deepgram_api_key
         return bool(key) and key != DEEPGRAM_KEY_PLACEHOLDER
 
     @property

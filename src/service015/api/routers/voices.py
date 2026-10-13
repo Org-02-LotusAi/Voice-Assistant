@@ -14,7 +14,7 @@ from service015.api.deps import get_conn, get_deepgram_speak, get_voice_engine, 
 from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePatch, VoicePreviewRequest, VoiceProfile
 from service015 import accounts
 from service015.auth import Principal, require_author, require_principal
-from service015.errors import DomainError, NotFound, ValidationFailed
+from service015.errors import DependencyUnavailable, DomainError, NotFound, ValidationFailed
 from service015.voice import authz
 from service015.voice import deepgram as dg
 from service015.voice.deepgram import DeepgramSpeakClient
@@ -222,7 +222,10 @@ async def preview_voice(
     speak: DeepgramSpeakClient | None = Depends(get_deepgram_speak),
 ):
     if authz.check_voice_provider(voice_profile_id, request.app.state.settings.tts_provider):
-        assert speak is not None  # tts_provider == deepgram always builds the client
+        if speak is None:
+            raise DependencyUnavailable(
+                "deepgram_unavailable", "the Deepgram preview client is not configured", details={"dependency": "deepgram"}
+            )
         wav = await speak.preview(voice_profile_id, (body.text if body is not None and body.text else None) or DEFAULT_PREVIEW_TEXT)
         return Response(wav, media_type="audio/wav")
     await _existing_profile(voicebox, voice_profile_id)

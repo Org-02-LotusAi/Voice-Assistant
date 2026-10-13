@@ -1326,10 +1326,11 @@ components:
     DependencyUnavailable:
       description: |
         A required backing service is not available (`dependency_unavailable`, `voicebox_unavailable`,
-        `voice_engine_unavailable`, `deepgram_unavailable`, `telephony_not_configured`, `runtime_unavailable`). Launch
+        `voice_engine_unavailable`, `deepgram_unavailable`, `deepgram_auth_failed`, `telephony_not_configured`, `runtime_unavailable`). Launch
         preflight failures are `dependency_unavailable` with `details.dependency` = `livekit` | `llm` | `voice_engine` |
         `voicebox` (the last two only with the local TTS provider), and leave
-        the Identity untouched. Nothing is persisted.
+        the Identity untouched. With either speech provider set to deepgram, launch also probes the Deepgram key (cached
+        5 minutes): a rejected key is `deepgram_auth_failed`, a network failure or 5xx is `deepgram_unavailable`. Nothing is persisted.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ErrorBody"}

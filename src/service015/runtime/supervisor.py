@@ -41,6 +41,9 @@ log = logging.getLogger("service015.supervisor")
 WORKER_READY_TIMEOUT_S = 60.0
 LIVEKIT_PROBE_TIMEOUT_S = 5.0
 LLM_PROBE_TIMEOUT_S = 10.0
+DEEPGRAM_PROBE_URL = "https://api.deepgram.com/v1/auth/token"  # "Get Token Details": 200 for any valid key, whatever its scopes
+DEEPGRAM_PROBE_TIMEOUT_S = 5.0
+DEEPGRAM_PROBE_TTL_S = 300.0  # a successful probe is trusted this long so launches do not re-probe every time
 ROOM_TIMEOUT_S = 24 * 3600  # keep the Default Room alive while only the agent is in it
 
 
@@ -67,6 +70,7 @@ class LiveKitSupervisor:
         *,
         engine: VoiceEngineClient | None = None,
         llm_transport: httpx.AsyncBaseTransport | None = None,
+        deepgram_transport: httpx.AsyncBaseTransport | None = None,
         api_factory: Callable[[], api.LiveKitAPI] | None = None,
         worker: WorkerProcess | None = None,
         worker_ready_timeout_s: float = WORKER_READY_TIMEOUT_S,
@@ -74,6 +78,8 @@ class LiveKitSupervisor:
         self._s = settings
         self._engine = engine or VoiceEngineClient(settings.voice_engine_url, settings.voice_engine_timeout_s)
         self._llm_transport = llm_transport
+        self._deepgram_transport = deepgram_transport
+        self._deepgram_ok_until = 0.0  # time.monotonic() until which the last successful key probe stays valid
         self._api_factory = api_factory or (
             lambda: api.LiveKitAPI(settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret)
         )
@@ -149,6 +155,8 @@ class LiveKitSupervisor:
             raise dependency_error("livekit", f"LiveKit is not reachable at {self._s.livekit_url}: {type(exc).__name__}") from None
 
         await self._probe_llm()
+        if self._s.uses_deepgram:
+            await self._probe_deepgram()
 
         if not local_tts:
             return
@@ -161,6 +169,30 @@ class LiveKitSupervisor:
             dep = "voicebox" if exc.code == "voicebox_unavailable" else "voice_engine"
             raise dependency_error(dep, exc.message, upstream_code=exc.code) from None
         # other DomainErrors (profile unknown to the engine, reference_too_short, ...) are not dependency outages: pass through
+
+    async def _probe_deepgram(self) -> None:
+        """Authenticated GET against Deepgram: 401/403 -> `deepgram_auth_failed`, network error / other status ->
+        `deepgram_unavailable` (both 503). A success is cached for DEEPGRAM_PROBE_TTL_S. The key never appears in an error."""
+        if time.monotonic() < self._deepgram_ok_until:
+            return
+        try:
+            async with httpx.AsyncClient(transport=self._deepgram_transport, timeout=DEEPGRAM_PROBE_TIMEOUT_S) as client:
+                resp = await client.get(DEEPGRAM_PROBE_URL, headers={"Authorization": f"Token {self._s.deepgram_api_key}"})
+        except httpx.HTTPError as exc:
+            raise DependencyUnavailable(
+                "deepgram_unavailable", f"Deepgram is unreachable: {type(exc).__name__}", details={"dependency": "deepgram"}
+            ) from None
+        if resp.status_code in (401, 403):
+            raise DependencyUnavailable(
+                "deepgram_auth_failed", f"Deepgram rejected the API key (HTTP {resp.status_code}); check DEEPGRAM_API_KEY",
+                details={"dependency": "deepgram", "upstream_status": resp.status_code},
+            )
+        if resp.status_code != 200:
+            raise DependencyUnavailable(
+                "deepgram_unavailable", f"Deepgram answered HTTP {resp.status_code} to the key check",
+                details={"dependency": "deepgram", "upstream_status": resp.status_code},
+            )
+        self._deepgram_ok_until = time.monotonic() + DEEPGRAM_PROBE_TTL_S
 
     async def _probe_llm(self) -> None:
         s = self._s

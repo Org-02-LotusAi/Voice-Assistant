@@ -234,6 +234,13 @@ session endpointing delay `SERVICE015_ENDPOINTING_MIN_DELAY_S` on top of Deepgra
 shortens the reply for Deepgram turns. Live checks need a real key: tests `tests/test_deepgram.py::test_live_*` skip without
 `DEEPGRAM_API_KEY`.
 
+Launch preflight also probes the Deepgram key (`GET /v1/auth/token`, 5 s timeout, success cached for 5 minutes): a rejected key is
+503 `deepgram_auth_failed`, a network failure or 5xx is 503 `deepgram_unavailable`.
+
+**To tune in the live run:** the Deepgram `endpointing_ms` is the plugin default of 25 ms (`DEEPGRAM_ENDPOINTING_MS` in
+`runtime/worker.py`) and has not been validated against real speech. If one spoken sentence splits into several final
+transcripts, raise it (about 100-300 ms) and re-check turn count, barge-in and T0 to T1.
+
 ## Configuration
 
 Everything is environment-driven; `.env.example` lists every variable with comments. `.env` is git-ignored: never commit it.
