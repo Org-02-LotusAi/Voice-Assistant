@@ -374,6 +374,7 @@ def worker_env(settings: Settings) -> dict[str, str]:
         SERVICE015_TTS_PROVIDER=settings.tts_provider,
         SERVICE015_DEEPGRAM_STT_MODEL=settings.deepgram_stt_model,
         SERVICE015_DEEPGRAM_STT_LANGUAGE=settings.deepgram_stt_language,
+        SERVICE015_DEEPGRAM_INTERRUPT_MIN_WORDS=str(settings.deepgram_interrupt_min_words),
         MOONSHINE_ARCH=settings.moonshine_arch,
         MOONSHINE_LANGUAGE=settings.moonshine_language,
         PYTHONUNBUFFERED="1",

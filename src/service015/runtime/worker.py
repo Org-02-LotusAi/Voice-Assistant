@@ -62,6 +62,7 @@ from service015.resolver import ResolvedIdentity
 from service015.runtime import presence as P
 from service015.runtime.latency import LatencyRecorder
 from service015.selfcontext import build_instructions
+from service015.stt.echo_guard import EchoFilteredSTT, SelfEchoGuard
 from service015.stt.moonshine import MoonshineSTT, load_transcriber
 from service015.voice import deepgram as dg
 from service015.voice.authz import check_voice_provider
@@ -80,6 +81,10 @@ HEARTBEAT_S = 5.0
 MAX_EMPTY_LLM_ATTEMPTS = 3  # total LLM requests per generation when the provider returns an empty completion
 GREETING_DELAY_S = 0.8
 DEEPGRAM_ENDPOINTING_MS = 25  # Deepgram's own silence endpointing (plugin default); the session's endpointing delay applies on top
+# Deepgram transcribes everything the mic picks up, including the agent's own voice leaking back from the speakers
+# (stt/echo_guard.py drops those transcripts). With Deepgram STT an interruption (and a turn committed over the agent's speech)
+# therefore needs `deepgram_interrupt_min_words` words of user speech, so VAD blips from echo or noise cannot cut a reply.
+# Local Moonshine yields no text while the user is still talking, so the gate would only delay its VAD barge-in and stays off there.
 HUMAN_KINDS = (rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD, rtc.ParticipantKind.PARTICIPANT_KIND_SIP)
 
 
@@ -151,11 +156,13 @@ class IdentityAgent(Agent):
         recorder: LatencyRecorder,
         max_history_turns: int = 8,
         on_lost_turn: Callable[[str], None] | None = None,
+        echo_guard: SelfEchoGuard | None = None,
     ) -> None:
         super().__init__(instructions=instructions)
         self._recorder = recorder
         self._max_history_items = max(2 * max_history_turns, 2)  # a turn = one user + one assistant message
         self._on_lost_turn = on_lost_turn
+        self._echo_guard = echo_guard
         self.rate_limited = False  # set by the session error handler when the provider answered HTTP 429
         self.chunks_seen = 0  # LLM output chunks produced so far (evidence that the LLM path works)
 
@@ -163,6 +170,8 @@ class IdentityAgent(Agent):
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> AsyncIterable[llm.ChatChunk | str | Any]:
         gen = self._recorder.begin_generation()
+        if self._echo_guard is not None:
+            self._echo_guard.begin_generation()
         t_start = time.monotonic()
         # Self-facts come from `instructions` every turn, so older history can be dropped without touching identity. The
         # instruction message is preserved by `truncate`; the session's own chat context is left untouched.
@@ -185,6 +194,8 @@ class IdentityAgent(Agent):
                     elif len(raw) < 5:
                         raw.append(repr(chunk)[:300])
                     self._recorder.on_llm_chunk(gen, text)
+                    if self._echo_guard is not None:
+                        self._echo_guard.add_text(text)
                     if text:
                         self.chunks_seen += 1
                     yield chunk
@@ -215,11 +226,15 @@ def _chunk_has_tool_call(chunk: Any) -> bool:
     return isinstance(chunk, llm.ChatChunk) and chunk.delta is not None and bool(chunk.delta.tool_calls)
 
 
-def build_stt(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess) -> stt.STT:
+def build_stt(
+    settings: Settings, resolved: ResolvedIdentity, proc: JobProcess, echo_guard: SelfEchoGuard | None = None
+) -> stt.STT:
     """Moonshine (local) or Deepgram streaming STT (interim results, server-side endpointing, final transcript per utterance)."""
     language = resolved.self_.language.split("-")[0]
     if settings.stt_provider == "deepgram":
-        return deepgram.STT(
+        extra: dict[str, Any] = {} if echo_guard is None else {"echo_guard": echo_guard}
+        return (deepgram.STT if echo_guard is None else EchoFilteredSTT)(
+            **extra,
             model=settings.deepgram_stt_model,
             language=settings.deepgram_stt_language or language,
             api_key=settings.deepgram_api_key,
@@ -246,10 +261,23 @@ def build_tts(settings: Settings, resolved: ResolvedIdentity, recorder: LatencyR
     )
 
 
-def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess, recorder: LatencyRecorder) -> AgentSession:
+def interruption_options(settings: Settings, resolved: ResolvedIdentity) -> dict[str, Any]:
+    opts: dict[str, Any] = {"enabled": resolved.conversation.barge_in, "mode": "vad", "min_duration": 0.3}
+    if settings.stt_provider == "deepgram" and settings.deepgram_interrupt_min_words > 0:
+        opts["min_words"] = settings.deepgram_interrupt_min_words
+    return opts
+
+
+def build_session(
+    settings: Settings,
+    resolved: ResolvedIdentity,
+    proc: JobProcess,
+    recorder: LatencyRecorder,
+    echo_guard: SelfEchoGuard | None = None,
+) -> AgentSession:
     effort: Any = settings.llm_reasoning_effort or NOT_GIVEN
     return AgentSession(
-        stt=build_stt(settings, resolved, proc),
+        stt=build_stt(settings, resolved, proc, echo_guard),
         vad=proc.userdata["vad"],
         llm=openai.LLM(
             base_url=settings.llm_base_url,
@@ -260,7 +288,7 @@ def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProce
         ),
         tts=build_tts(settings, resolved, recorder),
         turn_handling={
-            "interruption": {"enabled": resolved.conversation.barge_in, "mode": "vad", "min_duration": 0.3},
+            "interruption": interruption_options(settings, resolved),
             "endpointing": {"min_delay": settings.endpointing_min_delay_s},
             "preemptive_generation": {"enabled": settings.preemptive_generation},
         },
@@ -530,13 +558,15 @@ async def entrypoint(ctx: JobContext) -> None:
             return wrapper
 
         def make_session() -> tuple[IdentityAgent, AgentSession]:
+            echo_guard = SelfEchoGuard() if settings.stt_provider == "deepgram" else None
             agent = IdentityAgent(
                 instructions=build_instructions(resolved),
+                echo_guard=echo_guard,
                 recorder=recorder,
                 max_history_turns=settings.max_history_turns,
                 on_lost_turn=lambda msg: bg(pres.note_error, msg),
             )
-            session = build_session(settings, resolved, ctx.proc, recorder)
+            session = build_session(settings, resolved, ctx.proc, recorder, echo_guard)
             cur.update(agent=agent, session=session)
 
             def on_user_state(ev: UserStateChangedEvent) -> None:
@@ -546,6 +576,8 @@ async def entrypoint(ctx: JobContext) -> None:
             def on_agent_state(ev: AgentStateChangedEvent) -> None:
                 log.debug("%s: agent state %s -> %s", identity_id, ev.old_state, ev.new_state)
                 recorder.on_agent_state(ev.old_state, ev.new_state)
+                if echo_guard is not None:
+                    echo_guard.on_agent_state(ev.new_state)
                 if ev.old_state == "speaking" and ev.new_state != "speaking":
                     # Speech that played proves the TTS path; it proves the LLM only if the LLM produced output since it failed.
                     bg(pres.recovered, P.TTS_UNAVAILABLE)

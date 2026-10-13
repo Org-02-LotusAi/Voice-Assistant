@@ -146,6 +146,8 @@ class Settings(BaseSettings):
     deepgram_stt_model: str = Field("nova-3", min_length=1, validation_alias="SERVICE015_DEEPGRAM_STT_MODEL")
     # Empty = the persona's own language (primary subtag, e.g. en-US -> en); "multi" = nova-3 code-switching.
     deepgram_stt_language: str = Field("", validation_alias="SERVICE015_DEEPGRAM_STT_LANGUAGE")
+    # Words of user speech (as transcribed) needed before the user can interrupt the agent in Deepgram STT mode; 0 = VAD only.
+    deepgram_interrupt_min_words: int = Field(2, ge=0, le=10, validation_alias="SERVICE015_DEEPGRAM_INTERRUPT_MIN_WORDS")
 
     @field_validator("deepgram_api_key", mode="after")
     @classmethod

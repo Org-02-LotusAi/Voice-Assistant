@@ -212,6 +212,7 @@ STT and TTS are chosen independently by environment variables (restart the API t
 | `DEEPGRAM_API_KEY` | secret | Required (and not the `REPLACE_WITH_DEEPGRAM_KEY` placeholder) when either provider is `deepgram`; startup fails naming it otherwise. Only from the environment / `.env`; it is never logged, returned by the API or placed in an error. |
 | `SERVICE015_DEEPGRAM_STT_MODEL` | default `nova-3` | Any Deepgram streaming model name. |
 | `SERVICE015_DEEPGRAM_STT_LANGUAGE` | default empty | Empty = each persona's language (`en-US` becomes `en`). `multi` = nova-3 code-switching. |
+| `SERVICE015_DEEPGRAM_INTERRUPT_MIN_WORDS` | default `2` | Deepgram STT only: words of transcribed user speech needed to interrupt the agent. Deepgram also transcribes the agent's own voice leaking from the speakers; those transcripts are dropped while the agent speaks, and this gate keeps VAD blips from cutting a reply. Stopping the agent then takes about 2 s (interim transcripts arrive about once a second); `0` = VAD only (about 0.6 s, but speaker echo can cut replies mid-sentence). |
 
 **Why:** the local Chatterbox TTS needs a GPU for conversational latency (about 16.6 s to first audio on CPU, see
 `evidence/20261010T153557Z/latency.md`). `SERVICE015_TTS_PROVIDER=deepgram` needs no GPU, no engine, no Voicebox and (with
