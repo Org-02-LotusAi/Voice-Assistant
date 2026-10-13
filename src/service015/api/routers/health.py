@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from service015.api.schemas import Health
+from service015.api.schemas import Health, HealthProviders
 from service015.db import connect
 from service015.runtime.supervisor_protocol import NullSupervisor
 from service015.voice.engine import VoiceEngineClient
@@ -30,14 +30,19 @@ async def get_health(request: Request) -> JSONResponse:
     except Exception:  # health must report the failure, not raise it
         log.exception("health check: database unreachable")
         database = "error"
-    voicebox: VoiceboxClient = request.app.state.voicebox
-    engine: VoiceEngineClient = request.app.state.voice_engine
-    voicebox_state, engine_state = await asyncio.gather(voicebox.health(), engine.health())  # never raise
+    settings = request.app.state.settings
+    if settings.tts_provider == "deepgram":
+        voicebox_state = engine_state = "not_used"  # Deepgram mode neither needs nor probes the local TTS stack
+    else:
+        voicebox: VoiceboxClient = request.app.state.voicebox
+        engine: VoiceEngineClient = request.app.state.voice_engine
+        voicebox_state, engine_state = await asyncio.gather(voicebox.health(), engine.health())  # never raise
     runtime = "not_configured" if isinstance(request.app.state.supervisor, NullSupervisor) else "ok"
     body = Health(
         status="ok" if database == "ok" else "degraded",
         version=request.app.state.version,
         dependencies={"database": database, "runtime": runtime, "voicebox": voicebox_state, "voice_engine": engine_state},
+        providers=HealthProviders(stt=settings.stt_provider, tts=settings.tts_provider),
     )
     return JSONResponse(body.model_dump(), status_code=200 if database == "ok" else 503)
 

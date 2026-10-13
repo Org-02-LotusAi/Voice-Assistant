@@ -8,14 +8,16 @@ import re
 import sqlite3
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 
-from service015.api.deps import get_conn, get_voice_engine, get_voicebox
+from service015.api.deps import get_conn, get_deepgram_speak, get_voice_engine, get_voicebox
 from service015.api.schemas import VoiceAuthorization, VoiceAuthorizationCreate, VoicePatch, VoicePreviewRequest, VoiceProfile
 from service015 import accounts
 from service015.auth import Principal, require_author, require_principal
 from service015.errors import DomainError, NotFound, ValidationFailed
 from service015.voice import authz
+from service015.voice import deepgram as dg
+from service015.voice.deepgram import DeepgramSpeakClient
 from service015.voice.engine import VoiceEngineClient
 from service015.voice.voicebox import VoiceboxClient
 
@@ -31,6 +33,10 @@ ALLOWED_TYPES = {
     "audio/m4a", "audio/aac", "audio/ogg", "audio/flac", "audio/x-flac", "audio/webm", "video/webm", "application/octet-stream",
 }
 ENGINE = "chatterbox-turbo"
+VOICE_CLONING_UNAVAILABLE = (
+    "voice cloning is not available while SERVICE015_TTS_PROVIDER=deepgram: Deepgram offers a fixed catalog of voices. "
+    "Switch the provider back to local to upload and clone a voice"
+)
 
 _Name = Annotated[str, Form(min_length=1, max_length=100, pattern=r"\S")]
 _Short = Annotated[str, Form(min_length=1, max_length=200, pattern=r"\S")]
@@ -80,14 +86,32 @@ async def _existing_profile(voicebox: VoiceboxClient, voice_profile_id: str) -> 
     return profile
 
 
+def _reject_deepgram_id(voice_profile_id: str) -> None:
+    """Catalog Deepgram voices are not Voicebox profiles: they have no authorization, owner or disabled flag to manage."""
+    if dg.is_deepgram_voice_id(voice_profile_id):
+        raise ValidationFailed(
+            "voice_profile_not_cloned", "Deepgram catalog voices cannot be authorized, handed over or disabled",
+            details={"voice_profile_id": voice_profile_id},
+        )
+
+
 @router.get("/voices", response_model=list[VoiceProfile])
 async def list_voices(
+    request: Request,
     principal: Principal = Depends(require_principal("viewer")),
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
     """Admin, tokens and env keys see every cloned profile; a human `user` / `viewer` sees shared voices plus their own
     (profiles without a recorded authorization are visible only to the unrestricted)."""
+    if request.app.state.settings.tts_provider == "deepgram":
+        # Fixed Aura-2 catalog: stock voices, usable by everyone, no cloning authorization. Voicebox is not consulted.
+        return [
+            VoiceProfile(
+                voice_profile_id=v.voice_id, name=v.display_name, language="en", engine=dg.ENGINE, authorized=True, shared=True
+            )
+            for v in dg.AURA_2_ENGLISH
+        ]
     index = authz.voice_index(conn)
     vis = principal.visibility
     return [
@@ -165,6 +189,7 @@ async def authorize_voice(
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
+    _reject_deepgram_id(voice_profile_id)
     profile = await _existing_profile(voicebox, voice_profile_id)
     if profile.get("voice_type") != "cloned":
         raise ValidationFailed(
@@ -188,12 +213,18 @@ async def authorize_voice(
 )
 async def preview_voice(
     voice_profile_id: str,
+    request: Request,
     principal: Principal = Depends(require_principal("operator")),
     body: VoicePreviewRequest | None = None,
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
     engine: VoiceEngineClient = Depends(get_voice_engine),
+    speak: DeepgramSpeakClient | None = Depends(get_deepgram_speak),
 ):
+    if authz.check_voice_provider(voice_profile_id, request.app.state.settings.tts_provider):
+        assert speak is not None  # tts_provider == deepgram always builds the client
+        wav = await speak.preview(voice_profile_id, (body.text if body is not None and body.text else None) or DEFAULT_PREVIEW_TEXT)
+        return Response(wav, media_type="audio/wav")
     await _existing_profile(voicebox, voice_profile_id)
     meta = authz.voice_index(conn).get(voice_profile_id)
     if principal.visibility.restricted and not authz.voice_visible(meta, principal.visibility):
@@ -227,6 +258,7 @@ async def patch_voice(
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
     """Admin: disable/enable (blocks new attachment and launch; running personas are not interrupted) or hand the voice to a user."""
+    _reject_deepgram_id(voice_profile_id)
     changes = {k: getattr(body, k) for k in body.model_fields_set}
     if not changes:
         raise ValidationFailed("empty_patch", "give at least one of disabled, owner_user_id")

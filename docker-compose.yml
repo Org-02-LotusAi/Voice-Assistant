@@ -146,6 +146,12 @@ services:
       LIVEKIT_PUBLIC_URL: "${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}"
       VOICEBOX_URL: http://voicebox:17493
       VOICE_ENGINE_URL: http://engine:17494
+      # Speech providers: local (default; engine + Voicebox + Moonshine) or deepgram (hosted, no GPU; needs DEEPGRAM_API_KEY)
+      SERVICE015_STT_PROVIDER: "${SERVICE015_STT_PROVIDER:-local}"
+      SERVICE015_TTS_PROVIDER: "${SERVICE015_TTS_PROVIDER:-local}"
+      DEEPGRAM_API_KEY: "${DEEPGRAM_API_KEY:-}"
+      SERVICE015_DEEPGRAM_STT_MODEL: "${SERVICE015_DEEPGRAM_STT_MODEL:-nova-3}"
+      SERVICE015_DEEPGRAM_STT_LANGUAGE: "${SERVICE015_DEEPGRAM_STT_LANGUAGE:-}"
       # Runtime tuning and privacy knobs (defaults match config.py; override in .env)
       SERVICE015_MAX_ACTIVE_IDENTITIES: "${SERVICE015_MAX_ACTIVE_IDENTITIES:-2}"
       SERVICE015_PREEMPTIVE_GENERATION: "${SERVICE015_PREEMPTIVE_GENERATION:-false}"

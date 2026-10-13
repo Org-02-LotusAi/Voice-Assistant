@@ -52,7 +52,7 @@ from livekit.agents.voice.events import (
     UserInputTranscribedEvent,
     UserStateChangedEvent,
 )
-from livekit.plugins import openai, silero
+from livekit.plugins import deepgram, openai, silero
 
 from service015.config import Settings, get_settings
 from service015.db import connect, migrate
@@ -63,6 +63,9 @@ from service015.runtime import presence as P
 from service015.runtime.latency import LatencyRecorder
 from service015.selfcontext import build_instructions
 from service015.stt.moonshine import MoonshineSTT, load_transcriber
+from service015.voice import deepgram as dg
+from service015.voice.authz import check_voice_provider
+from service015.voice.deepgram_tts import AuraTTS
 from service015.voice.engine import VoiceEngineClient
 from service015.voice.livekit_tts import ChatterboxTTS
 
@@ -76,6 +79,7 @@ if multiprocessing.current_process().name == "job_proc" and hasattr(signal, "SIG
 HEARTBEAT_S = 5.0
 MAX_EMPTY_LLM_ATTEMPTS = 3  # total LLM requests per generation when the provider returns an empty completion
 GREETING_DELAY_S = 0.8
+DEEPGRAM_ENDPOINTING_MS = 25  # Deepgram's own silence endpointing (plugin default); the session's endpointing delay applies on top
 HUMAN_KINDS = (rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD, rtc.ParticipantKind.PARTICIPANT_KIND_SIP)
 
 
@@ -89,10 +93,12 @@ def _is_human(p: rtc.Participant) -> bool:
 
 
 def prewarm(proc: JobProcess) -> None:
-    """Runs once per job process: silero VAD + the Moonshine model (the TTS engine is a remote sidecar)."""
+    """Runs once per job process: silero VAD + the Moonshine model when STT is local (the TTS engine is a remote sidecar;
+    Deepgram STT/TTS need nothing resident)."""
     settings = get_settings()
     proc.userdata["vad"] = silero.VAD.load()
-    proc.userdata["transcriber"] = load_transcriber(settings.moonshine_language, settings.moonshine_arch)
+    if settings.stt_provider == "local":
+        proc.userdata["transcriber"] = load_transcriber(settings.moonshine_language, settings.moonshine_arch)
 
 
 def identity_from_metadata(raw: str) -> str | None:
@@ -209,18 +215,41 @@ def _chunk_has_tool_call(chunk: Any) -> bool:
     return isinstance(chunk, llm.ChatChunk) and chunk.delta is not None and bool(chunk.delta.tool_calls)
 
 
-def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess, recorder: LatencyRecorder) -> AgentSession:
+def build_stt(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess) -> stt.STT:
+    """Moonshine (local) or Deepgram streaming STT (interim results, server-side endpointing, final transcript per utterance)."""
+    language = resolved.self_.language.split("-")[0]
+    if settings.stt_provider == "deepgram":
+        return deepgram.STT(
+            model=settings.deepgram_stt_model,
+            language=settings.deepgram_stt_language or language,
+            api_key=settings.deepgram_api_key,
+            interim_results=True,
+            punctuate=True,
+            endpointing_ms=DEEPGRAM_ENDPOINTING_MS,
+        )
+    return MoonshineSTT(proc.userdata["transcriber"], language=language)
+
+
+def build_tts(settings: Settings, resolved: ResolvedIdentity, recorder: LatencyRecorder) -> tts.TTS:
+    """Chatterbox engine (local, cloned voices) or Deepgram Aura-2 streaming over WebSocket. Both report T3 to the recorder."""
     profile_id = resolved.voice.profile_id
     assert profile_id is not None  # entrypoint refuses voiceless identities first
-    effort: Any = settings.llm_reasoning_effort or NOT_GIVEN
-    chatterbox = ChatterboxTTS(
+    if settings.tts_provider == "deepgram":
+        return AuraTTS(
+            model=dg.model_of(profile_id), api_key=settings.deepgram_api_key, on_first_audio=recorder.on_tts_first_audio
+        )
+    return ChatterboxTTS(
         base_url=settings.voice_engine_url,
         profile_id=profile_id,
         read_timeout_s=settings.voice_engine_timeout_s,
         on_first_audio=recorder.on_tts_first_audio,
     )
+
+
+def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProcess, recorder: LatencyRecorder) -> AgentSession:
+    effort: Any = settings.llm_reasoning_effort or NOT_GIVEN
     return AgentSession(
-        stt=MoonshineSTT(proc.userdata["transcriber"], language=resolved.self_.language.split("-")[0]),
+        stt=build_stt(settings, resolved, proc),
         vad=proc.userdata["vad"],
         llm=openai.LLM(
             base_url=settings.llm_base_url,
@@ -229,7 +258,7 @@ def build_session(settings: Settings, resolved: ResolvedIdentity, proc: JobProce
             reasoning_effort=effort,
             max_completion_tokens=300,
         ),
-        tts=chatterbox,
+        tts=build_tts(settings, resolved, recorder),
         turn_handling={
             "interruption": {"enabled": resolved.conversation.barge_in, "mode": "vad", "min_duration": 0.3},
             "endpointing": {"min_delay": settings.endpointing_min_delay_s},
@@ -469,14 +498,22 @@ async def entrypoint(ctx: JobContext) -> None:
         return
 
     try:
+        check_voice_provider(resolved.voice.profile_id, settings.tts_provider)
+    except DomainError as exc:  # the voice belongs to the other TTS provider (provider switched after the persona was set up)
+        fail_job(P.VOICE_PROVIDER_MISMATCH, exc.message, terminal=True)
+        ctx.shutdown("voice_provider_mismatch")
+        return
+
+    try:
         await ctx.connect()
-        engine = VoiceEngineClient(settings.voice_engine_url, settings.voice_engine_timeout_s)
-        try:
-            await engine.warm(resolved.voice.profile_id)  # conditionals cached now, so the greeting is fast
-        except DomainError as exc:
-            fail_job(P.TTS_UNAVAILABLE, f"voice engine could not warm the voice profile: {exc.message}", terminal=True)
-            ctx.shutdown("tts_unavailable")
-            return
+        if settings.tts_provider == "local":
+            engine = VoiceEngineClient(settings.voice_engine_url, settings.voice_engine_timeout_s)
+            try:
+                await engine.warm(resolved.voice.profile_id)  # conditionals cached now, so the greeting is fast
+            except DomainError as exc:
+                fail_job(P.TTS_UNAVAILABLE, f"voice engine could not warm the voice profile: {exc.message}", terminal=True)
+                ctx.shutdown("tts_unavailable")
+                return
 
         recovery = SessionRecovery(settings.session_recovery_attempts, settings.session_recovery_backoff_s)
         llm_failed_at = [0]  # agent.chunks_seen when the LLM last failed

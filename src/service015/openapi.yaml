@@ -717,11 +717,15 @@ paths:
     get:
       operationId: listVoices
       tags: [voices]
-      summary: List cloned Voicebox voice profiles and whether each is authorized
+      summary: List the voices usable with the active TTS provider
       description: |
-        Cloned Voicebox profiles only (the Chatterbox Turbo engine needs cloned voices). `authorized` is true when
-        a `voice_authorizations` row exists for the profile; only authorized voices can be attached to an Identity.
-        Voicebox down: 503 `voicebox_unavailable`.
+        With `SERVICE015_TTS_PROVIDER=local` (default): cloned Voicebox profiles only (the Chatterbox Turbo engine needs
+        cloned voices). `authorized` is true when a `voice_authorizations` row exists for the profile; only authorized voices
+        can be attached to an Identity. Voicebox down: 503 `voicebox_unavailable`.
+        With `SERVICE015_TTS_PROVIDER=deepgram`: the fixed Deepgram Aura-2 English catalog (41 stock voices, `engine`
+        `deepgram-aura-2`, `voice_profile_id` = `deepgram:<model>`, for example `deepgram:aura-2-thalia-en`), all `authorized`
+        and `shared`. Voicebox is not consulted. Cloned voices are not listed in that mode and cannot be attached
+        (422 `voice_provider_mismatch`).
       x-required-role: viewer
       responses:
         "500": {$ref: "#/components/responses/InternalError"}
@@ -750,6 +754,8 @@ paths:
         (415 `unsupported_media_type`). The stored filename is sanitized to a basename. Empty file: 422 `empty_sample`.
         Only cloned profiles exist for this engine: Chatterbox Turbo has no presets in Voicebox, so preset voices
         cannot be created, authorized or attached.
+        When `SERVICE015_TTS_PROVIDER=deepgram` voice cloning does not exist: 409 `voice_cloning_unavailable`, answered
+        before the body is read.
         Voicebox down: 503 `voicebox_unavailable`; Voicebox rejecting the sample: 502 `voicebox_rejected`.
         An admin creates a shared voice; a `user` account creates a voice they own, usable only for their own personas.
         The consent statement, subject name and authorizing person are mandatory for everyone.
@@ -779,6 +785,7 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorBody"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/Unprocessable"}
         "502": {$ref: "#/components/responses/BadGateway"}
         "503": {$ref: "#/components/responses/DependencyUnavailable"}
@@ -851,7 +858,9 @@ paths:
       tags: [voices]
       summary: Synthesize a short preview of an authorized voice (audio/wav)
       description: |
-        Synthesis runs on the voice engine sidecar (Chatterbox Turbo). On CPU a short sentence takes roughly
+        With the Deepgram provider the preview is synthesized by Deepgram (REST, about a second); a Deepgram key that
+        Deepgram rejects, or an outage, is 503 `deepgram_unavailable`; a voice of the other provider is 422
+        `voice_provider_mismatch`. Otherwise synthesis runs on the voice engine sidecar (Chatterbox Turbo). On CPU a short sentence takes roughly
         15-40 s; the wait is bounded by `VOICE_ENGINE_TIMEOUT_S` (default 120). The voice must exist in Voicebox
         (404 `voice_profile_not_found`) and be authorized (422 `voice_not_authorized`). Engine or Voicebox down:
         503 `voice_engine_unavailable` / `voicebox_unavailable`. `text` defaults to
@@ -1282,7 +1291,9 @@ components:
       description: |
         Request invalid: `invalid_request` (shape), `override_not_allowed`, `missing_required_field`,
         `invalid_override`, `voice_profile_not_found` / `voice_not_authorized` (the resolved `voice.profile_id` must
-        exist in Voicebox and have a cloning authorization), `voice_profile_not_cloned`, `empty_sample`,
+        exist in Voicebox and have a cloning authorization, or be a Deepgram catalog voice in Deepgram mode),
+        `voice_provider_mismatch` (a `deepgram:` voice with the local TTS provider, or a cloned voice with the Deepgram one),
+        `voice_profile_not_cloned`, `empty_sample`,
         `voice_required` (launch), `reference_too_short`, `weak_password`, `invalid_username`, `role_not_allowed`, `empty_patch`.
       content:
         application/json:
@@ -1315,8 +1326,9 @@ components:
     DependencyUnavailable:
       description: |
         A required backing service is not available (`dependency_unavailable`, `voicebox_unavailable`,
-        `voice_engine_unavailable`, `telephony_not_configured`, `runtime_unavailable`). Launch preflight failures are
-        `dependency_unavailable` with `details.dependency` = `livekit` | `llm` | `voice_engine` | `voicebox`, and leave
+        `voice_engine_unavailable`, `deepgram_unavailable`, `telephony_not_configured`, `runtime_unavailable`). Launch
+        preflight failures are `dependency_unavailable` with `details.dependency` = `livekit` | `llm` | `voice_engine` |
+        `voicebox` (the last two only with the local TTS provider), and leave
         the Identity untouched. Nothing is persisted.
       content:
         application/json:
@@ -1340,24 +1352,33 @@ components:
     Health:
       type: object
       additionalProperties: false
-      required: [status, version, dependencies]
+      required: [status, version, dependencies, providers]
       properties:
         status: {type: string, enum: [ok, degraded]}
         version: {type: string}
+        providers:
+          type: object
+          description: The active speech providers (`SERVICE015_STT_PROVIDER` / `SERVICE015_TTS_PROVIDER`; restart to switch).
+          additionalProperties: false
+          required: [stt, tts]
+          properties:
+            stt: {type: string, enum: [local, deepgram]}
+            tts: {type: string, enum: [local, deepgram]}
         dependencies:
           type: object
           description: |
             `database`: ok | error. `runtime`: ok when a runtime supervisor is configured,
             otherwise not_configured (informational; does not degrade status). `voicebox`: ok | unavailable.
-            `voice_engine`: ok | loading | error | unavailable (the sidecar's own status). The voice
+            `voice_engine`: ok | loading | error | unavailable (the sidecar's own status). Both are `not_used` (and not
+            probed) when the TTS provider is deepgram. The voice
             dependencies are informational: they never fail or degrade /health.
           additionalProperties: {type: string}
           required: [database, runtime, voicebox, voice_engine]
           properties:
             database: {type: string, enum: [ok, error]}
             runtime: {type: string, enum: [ok, not_configured]}
-            voicebox: {type: string, enum: [ok, unavailable]}
-            voice_engine: {type: string, enum: [ok, loading, error, unavailable]}
+            voicebox: {type: string, enum: [ok, unavailable, not_used]}
+            voice_engine: {type: string, enum: [ok, loading, error, unavailable, not_used]}
 
     VoiceProfile:
       type: object
@@ -1367,8 +1388,8 @@ components:
         voice_profile_id: {type: string}
         name: {type: string}
         language: {type: string}
-        engine: {type: string, enum: [chatterbox-turbo]}
-        authorized: {type: boolean, description: "True when a voice_authorizations row exists for this profile."}
+        engine: {type: string, enum: [chatterbox-turbo, deepgram-aura-2]}
+        authorized: {type: boolean, description: "True when a voice_authorizations row exists for this profile (always true for a Deepgram catalog voice)."}
         shared: {type: boolean, description: "Unowned or admin-owned: usable by every account. False for a profile without an authorization record."}
         owned_by_me: {type: boolean, description: "Uploaded by the calling account. Always false for token / env-key callers."}
 

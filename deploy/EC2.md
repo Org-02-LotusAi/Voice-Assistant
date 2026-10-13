@@ -6,6 +6,13 @@ Windows laptop with no AWS access in this task. What WAS verified locally: the `
 `docker compose --profile cpu|gpu|sip|tls config` validates. Every EC2-, NVIDIA- and CUDA-specific step below is
 **unverified** and is marked as such. Treat the first deployment as the verification and fix this file from what you learn.
 
+> **No GPU? Deepgram mode.** With `SERVICE015_STT_PROVIDER=deepgram` and `SERVICE015_TTS_PROVIDER=deepgram` plus
+> `DEEPGRAM_API_KEY` in `.env`, speech is hosted: the `engine`, `voicebox` and GPU are not needed. Set `COMPOSE_PROFILES=`
+> (empty, or `tls`) so the `cpu`/`gpu` voice containers are not started (`service015` does not depend on them), a CPU instance
+> such as `t3.large`/`c6i.large` is enough, and Moonshine is not loaded. The trade-off is no voice cloning (fixed Aura-2 catalog). The
+> sizing and GPU sections below apply to the local provider only. Unverified on EC2 like the rest of this file; see README
+> "Speech providers".
+
 ## 1. Architecture on one host
 
 ```

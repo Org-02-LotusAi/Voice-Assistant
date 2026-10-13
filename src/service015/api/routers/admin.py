@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from service015 import accounts, identities_repo
 from service015.api.deps import get_conn, get_voicebox
@@ -155,11 +155,14 @@ def assign_identity_owner(
 
 @router.get("/admin/voices", response_model=list[AdminVoice])
 async def list_all_voices(
+    request: Request,
     principal: Principal = Depends(require_principal("admin")),
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
 ):
     """Every cloned Voicebox profile with owner, shared/disabled flags and the recorded consent."""
+    if request.app.state.settings.tts_provider == "deepgram":
+        return []  # cloned voices are neither usable nor managed in Deepgram mode (and Voicebox need not be running)
     index, consent = authz.voice_index(conn), authz.consent_index(conn)
     out = []
     for p in await voicebox.list_profiles():

@@ -75,6 +75,7 @@ def get_identity(
 async def patch_identity(
     identity_id: str,
     body: PatchIdentityRequest,
+    request: Request,
     principal: Principal = Depends(require_principal("operator")),
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
@@ -82,7 +83,7 @@ async def patch_identity(
     scoped_identity(conn, principal, identity_id)
     before, after = identities_repo.patched_voice_profile_id(conn, identity_id, body.overrides)
     if after != before:  # an unchanged voice was validated when it was attached; unrelated patches don't need Voicebox
-        await ensure_voice_usable(conn, voicebox, after, principal.visibility)
+        await ensure_voice_usable(conn, voicebox, after, principal.visibility, request.app.state.settings.tts_provider)
     return identities_repo.patch_identity(conn, identity_id, body.overrides)
 
 
@@ -114,6 +115,7 @@ def get_self_context(
 @router.post("/identities/{identity_id}/launch", response_model=ParticipantStatus)
 async def launch(
     identity_id: str,
+    request: Request,
     principal: Principal = Depends(require_principal("operator")),
     conn: sqlite3.Connection = Depends(get_conn),
     sup: RuntimeSupervisor = Depends(get_supervisor),
@@ -122,7 +124,9 @@ async def launch(
     identity = scoped_identity(conn, principal, identity_id)  # 404 before touching the runtime
     owner = identities_repo.owner_map(conn).get(identity_id)
     # 422/503 before the supervisor is involved; the voice must still be usable by the persona's OWNER
-    await ensure_identity_voice_ready(conn, voicebox, identity, authz.owner_visibility(conn, owner))
+    await ensure_identity_voice_ready(
+        conn, voicebox, identity, authz.owner_visibility(conn, owner), request.app.state.settings.tts_provider
+    )
     return await sup.launch(identity_id)
 
 

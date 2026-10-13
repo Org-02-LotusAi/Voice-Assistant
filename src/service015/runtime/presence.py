@@ -28,6 +28,7 @@ LLM_EMPTY_COMPLETION = "llm_empty_completion"  # last_error text only; presence 
 STT_FAILURE = "stt_failure"
 TTS_UNAVAILABLE = "tts_unavailable"
 VOICE_REQUIRED = "voice_required"
+VOICE_PROVIDER_MISMATCH = "voice_provider_mismatch"  # the persona's voice belongs to the other TTS provider
 RECONNECTING = "RECONNECTING"
 LIVEKIT_DISCONNECTED = "livekit_disconnected"
 RUNTIME_LOST = "runtime_lost"

@@ -18,9 +18,24 @@
     }
   }
 
+  let catalog = false;  // Deepgram mode: a fixed catalog, no uploads
+
+  function applyMode(list) {
+    catalog = list.some((v) => v.engine === "deepgram-aura-2");
+    $("uploadSection").classList.toggle("hidden", catalog);
+    $("deepgramNote").classList.toggle("hidden", !catalog);
+    $("mineTitle").classList.toggle("hidden", catalog);
+    $("mineNote").classList.toggle("hidden", catalog);
+    $("mine").classList.toggle("hidden", catalog);
+    $("sharedTitle").textContent = catalog ? "Deepgram Aura-2 voices" : "Shared voices";
+    $("sharedNote").textContent = catalog ? "Stock voices; every account can use them. Preview takes about a second."
+      : "Provided by the administrator; every account can use them.";
+  }
+
   async function load() {
     try {
       const list = await api("GET", "/voices");
+      applyMode(list);
       renderVoices("mine", list.filter((v) => v.owned_by_me), "You have not uploaded a voice yet.");
       renderVoices("shared", list.filter((v) => !v.owned_by_me), "No shared voices.");
       showError("globalError", null);
@@ -29,7 +44,7 @@
 
   async function preview(v) {
     showError("globalError", null);
-    $("previewState").textContent = "Synthesizing preview for " + v.name + " - this takes 15-40 s on CPU...";
+    $("previewState").textContent = "Synthesizing preview for " + v.name + (catalog ? "..." : " - this takes 15-40 s on CPU...");
     document.querySelectorAll("#mine button, #shared button").forEach((b) => { b.disabled = true; });
     try {
       const blob = await api("POST", "/voices/" + encodeURIComponent(v.voice_profile_id) + "/preview", {}, { blob: true });

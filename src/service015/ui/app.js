@@ -128,7 +128,7 @@
       }));
     }
     if (selected && !state.voices.some((v) => v.voice_profile_id === selected)) {
-      sel.append(el("option", { value: selected, textContent: selected + " (not in Voicebox list)" }));
+      sel.append(el("option", { value: selected, textContent: selected + " (not in the current voice list)" }));
     }
     sel.value = selected || "";
   }

@@ -27,6 +27,7 @@ from service015.runtime.supervisor import LiveKitSupervisor
 from service015.runtime.supervisor_protocol import NullSupervisor, RuntimeSupervisor
 from service015.telephony.service014 import Service014Client
 from service015.templates_repo import seed_starter_templates
+from service015.voice.deepgram import DeepgramSpeakClient
 from service015.voice.engine import VoiceEngineClient
 from service015.voice.voicebox import VoiceboxClient
 
@@ -51,6 +52,7 @@ def create_app(
     expert_llm: Llm | None = None,
     voicebox: VoiceboxClient | None = None,
     voice_engine: VoiceEngineClient | None = None,
+    deepgram_speak: DeepgramSpeakClient | None = None,
 ) -> FastAPI:
     check_api_keys_for_deployment(settings)
     accounts.check_bootstrap_password(settings.admin_password)
@@ -111,6 +113,10 @@ def create_app(
     app.state.voice_engine = (
         voice_engine if voice_engine is not None else VoiceEngineClient(settings.voice_engine_url, settings.voice_engine_timeout_s)
     )
+    # Deepgram voice previews (REST); only built when the TTS provider is deepgram, and the key never leaves this object.
+    app.state.deepgram_speak = deepgram_speak if deepgram_speak is not None else (
+        DeepgramSpeakClient(settings.deepgram_api_key) if settings.tts_provider == "deepgram" else None
+    )
     app.state.version = package_version()
     app.state.openapi_yaml = openapi_yaml
 
@@ -130,6 +136,10 @@ def create_app(
                 ensure_author(principal)
             except DomainError as exc:
                 return error_response(exc.status, exc.code, exc.message, exc.details)
+            if settings.tts_provider == "deepgram":  # before the multipart body is read or validated
+                return error_response(
+                    409, "voice_cloning_unavailable", voices.VOICE_CLONING_UNAVAILABLE, {"tts_provider": settings.tts_provider}
+                )
             length = request.headers.get("content-length", "")
             if not length.isdigit() or int(length) > voices.MAX_BODY_BYTES:
                 return error_response(

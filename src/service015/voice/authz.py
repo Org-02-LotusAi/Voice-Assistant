@@ -8,6 +8,7 @@ from typing import Any
 
 from service015.errors import NotFound, ValidationFailed
 from service015.scope import UNRESTRICTED, Visibility
+from service015.voice import deepgram as dg
 from service015.voice.voicebox import VoiceboxClient
 
 
@@ -121,8 +122,41 @@ def voice_usable_by(conn: sqlite3.Connection, voice_profile_id: str, owner_user_
     return meta is None or owner_visibility(conn, owner_user_id).allows(meta["owner_user_id"], meta["shared"])
 
 
+def check_voice_provider(profile_id: str, tts_provider: str) -> bool:
+    """True when `profile_id` is a Deepgram catalog voice that is usable now (tts_provider == deepgram).
+
+    False means a local profile id under the local provider (the caller continues with the Voicebox checks). Raises
+    ValidationFailed `voice_provider_mismatch` when the id belongs to the other provider, or `voice_profile_not_found` for an
+    unknown `deepgram:` voice. Never touches Voicebox, so a mismatch is reported even while Voicebox is down.
+    """
+    deepgram_id = dg.is_deepgram_voice_id(profile_id)
+    if tts_provider == "deepgram":
+        if not deepgram_id:
+            raise ValidationFailed(
+                "voice_provider_mismatch",
+                f"voice {profile_id!r} is a local (cloned) voice but this service speaks through Deepgram "
+                "(SERVICE015_TTS_PROVIDER=deepgram); choose a Deepgram voice or switch the provider back to local",
+                details={"voice_profile_id": profile_id, "tts_provider": tts_provider},
+            )
+        if dg.find_voice(profile_id) is None:
+            raise ValidationFailed(
+                "voice_profile_not_found", f"voice {profile_id!r} is not a known Deepgram Aura-2 voice",
+                details={"voice_profile_id": profile_id},
+            )
+        return True
+    if deepgram_id:
+        raise ValidationFailed(
+            "voice_provider_mismatch",
+            f"voice {profile_id!r} is a Deepgram voice but this service uses the local TTS engine "
+            "(SERVICE015_TTS_PROVIDER=local); choose a cloned voice or switch the provider to deepgram",
+            details={"voice_profile_id": profile_id, "tts_provider": tts_provider},
+        )
+    return False
+
+
 async def ensure_voice_usable(
-    conn: sqlite3.Connection, voicebox: VoiceboxClient, profile_id: Any, vis: Visibility | None = None
+    conn: sqlite3.Connection, voicebox: VoiceboxClient, profile_id: Any, vis: Visibility | None = None,
+    tts_provider: str = "local",
 ) -> None:
     """None is fine (no voice). Otherwise the profile must exist in Voicebox AND carry an authorization row.
 
@@ -133,6 +167,8 @@ async def ensure_voice_usable(
     """
     if not isinstance(profile_id, str):
         return
+    if check_voice_provider(profile_id, tts_provider):
+        return  # a catalog Deepgram voice: stock voice, no cloning authorization, owner or Voicebox involved
     if await voicebox.get_profile(profile_id) is None:
         raise ValidationFailed(
             "voice_profile_not_found",
@@ -161,13 +197,14 @@ async def ensure_voice_usable(
 
 
 async def ensure_identity_voice_ready(
-    conn: sqlite3.Connection, voicebox: VoiceboxClient, resolved: Any, vis: Visibility | None = None
+    conn: sqlite3.Connection, voicebox: VoiceboxClient, resolved: Any, vis: Visibility | None = None,
+    tts_provider: str = "local",
 ) -> None:
     """Launch-time preflight: the Identity must have a voice, and it must still exist and be authorized.
 
     Instantiate/PATCH may leave `voice.profile_id` null (a draft Identity); launching may not, so the runtime
     never falls back to a default voice. Raises 422 `voice_required` / `voice_profile_not_found` /
-    `voice_not_authorized`, or 503 `voicebox_unavailable`.
+    `voice_not_authorized` / `voice_provider_mismatch`, or 503 `voicebox_unavailable`.
     """
     profile_id = resolved.voice.profile_id
     if profile_id is None:
@@ -176,4 +213,4 @@ async def ensure_identity_voice_ready(
             "this identity has no voice; attach an authorized voice (voice.profile_id) before launching",
             details={"identity_id": resolved.identity_id},
         )
-    await ensure_voice_usable(conn, voicebox, profile_id, vis)
+    await ensure_voice_usable(conn, voicebox, profile_id, vis, tts_provider)

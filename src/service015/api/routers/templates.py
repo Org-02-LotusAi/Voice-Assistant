@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from service015 import identities_repo, templates_repo
 from service015.api.deps import get_conn, get_voicebox
@@ -100,6 +100,7 @@ def list_versions(
 async def instantiate(
     template_id: str,
     body: InstantiateRequest,
+    request: Request,
     principal: Principal = Depends(require_principal("operator")),
     conn: sqlite3.Connection = Depends(get_conn),
     voicebox: VoiceboxClient = Depends(get_voicebox),
@@ -108,7 +109,8 @@ async def instantiate(
     template = templates_repo.get_template(conn, template_id, body.template_version)  # 404 before touching Voicebox
     templates_repo.ensure_enabled(conn, template_id)  # 409 template_disabled
     await ensure_voice_usable(
-        conn, voicebox, body.overrides.get("voice.profile_id", template.voice.default_voice_profile_id), principal.visibility
+        conn, voicebox, body.overrides.get("voice.profile_id", template.voice.default_voice_profile_id), principal.visibility,
+        request.app.state.settings.tts_provider,
     )
     return identities_repo.instantiate(
         conn, template_id, body.overrides, body.template_version, owner_user_id=principal.owner_id_for_new

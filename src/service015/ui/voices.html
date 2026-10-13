@@ -13,17 +13,19 @@
   <div id="globalError" class="error hidden" role="alert"></div>
 
   <section>
-    <div class="row"><h2 class="grow">My voices</h2><button id="refresh" type="button">Refresh</button></div>
-    <p class="notice">Voices you uploaded. A voice you upload is usable only for your own personas.</p>
+    <div class="row"><h2 id="mineTitle" class="grow">My voices</h2><button id="refresh" type="button">Refresh</button></div>
+    <p id="mineNote" class="notice">Voices you uploaded. A voice you upload is usable only for your own personas.</p>
     <div id="mine"></div>
-    <h2>Shared voices</h2>
-    <p class="notice">Provided by the administrator; every account can use them.</p>
+    <p id="deepgramNote" class="notice hidden">This service speaks through Deepgram Aura-2: the voices below are a fixed catalog and
+      voice cloning is unavailable. Switch SERVICE015_TTS_PROVIDER back to local to upload and clone a voice.</p>
+    <h2 id="sharedTitle">Shared voices</h2>
+    <p id="sharedNote" class="notice">Provided by the administrator; every account can use them.</p>
     <div id="shared"></div>
     <div id="previewState" class="notice"></div>
     <audio id="previewAudio" controls class="hidden"></audio>
   </section>
 
-  <section>
+  <section id="uploadSection">
     <h2>Upload a voice</h2>
     <p class="notice">Only upload a voice you have permission to clone. The consent details are recorded with the voice.
       The audio sample must be longer than 5 seconds, at most 25 MiB (wav, mp3, m4a, ogg, flac or webm).</p>

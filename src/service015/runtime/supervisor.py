@@ -33,6 +33,7 @@ from service015.db import connect
 from service015.errors import Conflict, DependencyUnavailable, DomainError
 from service015.participants import participant_status, roster
 from service015.runtime.procs import WorkerProcess, allowed_env
+from service015.voice.authz import check_voice_provider
 from service015.voice.engine import VoiceEngineClient
 
 log = logging.getLogger("service015.supervisor")
@@ -135,7 +136,9 @@ class LiveKitSupervisor:
     # -- preflight ------------------------------------------------------------------------------------------------------
 
     async def preflight(self, voice_profile_id: str) -> None:
-        """LiveKit reachable, LLM answers GET /models, engine healthy and the voice profile warmable."""
+        """Voice matches the TTS provider, LiveKit reachable, LLM answers GET /models, and (local TTS only) the engine is healthy
+        and the voice profile warmable. Deepgram mode needs neither the engine nor Voicebox."""
+        local_tts = not check_voice_provider(voice_profile_id, self._s.tts_provider)  # 422 voice_provider_mismatch
         try:
             lk = self._lk()
             try:
@@ -147,6 +150,8 @@ class LiveKitSupervisor:
 
         await self._probe_llm()
 
+        if not local_tts:
+            return
         health = await self._engine.health()
         if health != "ok":
             raise dependency_error("voice_engine", f"the voice engine is not healthy (status: {health})", engine_status=health)
@@ -333,10 +338,16 @@ def worker_env(settings: Settings) -> dict[str, str]:
         VOICE_ENGINE_URL=settings.voice_engine_url,
         VOICE_ENGINE_TIMEOUT_S=str(settings.voice_engine_timeout_s),
         VOICEBOX_URL=settings.voicebox_url,
+        SERVICE015_STT_PROVIDER=settings.stt_provider,
+        SERVICE015_TTS_PROVIDER=settings.tts_provider,
+        SERVICE015_DEEPGRAM_STT_MODEL=settings.deepgram_stt_model,
+        SERVICE015_DEEPGRAM_STT_LANGUAGE=settings.deepgram_stt_language,
         MOONSHINE_ARCH=settings.moonshine_arch,
         MOONSHINE_LANGUAGE=settings.moonshine_language,
         PYTHONUNBUFFERED="1",
     )
+    if settings.uses_deepgram:
+        env["DEEPGRAM_API_KEY"] = settings.deepgram_api_key  # only handed to the worker when a provider needs it
     return env
 
 

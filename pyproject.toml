@@ -20,6 +20,7 @@ dependencies = [
     "psutil>=5.9",
     "aiohttp>=3.9",
     "argon2-cffi==25.1.0",
+    "livekit-plugins-deepgram==1.8.3",
 ]
 
 [project.scripts]

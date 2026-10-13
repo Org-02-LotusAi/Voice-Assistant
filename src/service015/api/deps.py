@@ -11,6 +11,7 @@ from service015.db import connect
 from service015.expert.llm import Llm
 from service015.telephony.service014 import Service014Client
 from service015.runtime.supervisor_protocol import RuntimeSupervisor
+from service015.voice.deepgram import DeepgramSpeakClient
 from service015.voice.engine import VoiceEngineClient
 from service015.voice.voicebox import VoiceboxClient
 
@@ -34,6 +35,10 @@ def get_supervisor(request: Request) -> RuntimeSupervisor:
 
 def get_expert_llm(request: Request) -> Llm:
     return request.app.state.expert_llm
+
+
+def get_deepgram_speak(request: Request) -> DeepgramSpeakClient | None:
+    return request.app.state.deepgram_speak
 
 
 def get_voicebox(request: Request) -> VoiceboxClient:

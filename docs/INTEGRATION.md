@@ -42,8 +42,8 @@ Every non-2xx JSON body has the same shape:
 Branch on `error.code` (stable, snake_case), show `message` to humans, read `details` for structured context.
 Codes you will meet: `unauthorized` 401, `forbidden` 403, `identity_not_found` / `template_not_found` 404,
 `invalid_request` / `override_not_allowed` / `invalid_override` / `missing_required_field` / `voice_required` /
-`voice_profile_not_found` / `voice_not_authorized` 422, `capacity_exceeded` / `identity_not_ready` 409,
-`voicebox_unavailable` / `dependency_unavailable` / `telephony_not_configured` 503, `telephony_failed` /
+`voice_profile_not_found` / `voice_not_authorized` / `voice_provider_mismatch` 422, `voice_cloning_unavailable` 409, `capacity_exceeded` / `identity_not_ready` 409,
+`voicebox_unavailable` / `deepgram_unavailable` / `dependency_unavailable` / `telephony_not_configured` 503, `telephony_failed` /
 `voicebox_rejected` 502.
 
 ## 3. Walkthrough
@@ -195,7 +195,12 @@ instead of reaching into internals.
 ## 6. Operational notes for integrators
 
 - Run a single API process per database (launch/stop locking is per process).
-- `GET /health` is unauthenticated and reports dependency states (`database`, `runtime`, `voicebox`, `voice_engine`);
-  voice dependencies are informational and never fail the probe. Use it for load-balancer checks.
+- `GET /health` is unauthenticated and reports dependency states (`database`, `runtime`, `voicebox`, `voice_engine`) and the
+  active speech `providers` (`stt`, `tts`: `local` | `deepgram`); voice dependencies are informational and never fail the
+  probe (they read `not_used` when TTS is Deepgram). Use it for load-balancer checks.
+- The TTS provider decides which voices exist. With `SERVICE015_TTS_PROVIDER=deepgram`, `GET /voices` lists the fixed Aura-2
+  catalog (`voice_profile_id` `deepgram:aura-2-thalia-en`, `engine` `deepgram-aura-2`), `POST /voices` is
+  `409 voice_cloning_unavailable`, and a persona whose voice belongs to the other provider cannot be attached or launched
+  (`422 voice_provider_mismatch`). Branch on `providers.tts` before offering a voice upload.
 - Rooms persist while the Identity runs; a stopped Identity leaves its room.
 - Time fields are ISO-8601 UTC.

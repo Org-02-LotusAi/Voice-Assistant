@@ -6,10 +6,13 @@ from functools import lru_cache
 from typing import Annotated, Literal, get_args
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from service015.clientip import Network, parse_networks
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+Provider = Literal["local", "deepgram"]
+DEEPGRAM_KEY_PLACEHOLDER = "REPLACE_WITH_DEEPGRAM_KEY"  # what .env / .env.example carry until the operator supplies a real key
 
 Role = Literal["admin", "operator", "viewer"]
 ROLES: tuple[str, ...] = get_args(Role)
@@ -135,6 +138,32 @@ class Settings(BaseSettings):
 
     moonshine_arch: Literal["tiny", "small", "medium"] = Field("small", validation_alias="MOONSHINE_ARCH")
     moonshine_language: str = Field("en", validation_alias="MOONSHINE_LANGUAGE")
+
+    # Speech providers (restart to switch). `local` = Moonshine STT / Chatterbox engine + Voicebox TTS; `deepgram` = hosted, no GPU.
+    stt_provider: Provider = Field("local", validation_alias="SERVICE015_STT_PROVIDER")
+    tts_provider: Provider = Field("local", validation_alias="SERVICE015_TTS_PROVIDER")
+    deepgram_api_key: str = Field("", validation_alias="DEEPGRAM_API_KEY", repr=False)
+    deepgram_stt_model: str = Field("nova-3", min_length=1, validation_alias="SERVICE015_DEEPGRAM_STT_MODEL")
+    # Empty = the persona's own language (primary subtag, e.g. en-US -> en); "multi" = nova-3 code-switching.
+    deepgram_stt_language: str = Field("", validation_alias="SERVICE015_DEEPGRAM_STT_LANGUAGE")
+
+    @property
+    def deepgram_key_configured(self) -> bool:
+        key = self.deepgram_api_key.strip()
+        return bool(key) and key != DEEPGRAM_KEY_PLACEHOLDER
+
+    @property
+    def uses_deepgram(self) -> bool:
+        return "deepgram" in (self.stt_provider, self.tts_provider)
+
+    @model_validator(mode="after")
+    def _require_deepgram_key(self) -> "Settings":
+        if self.uses_deepgram and not self.deepgram_key_configured:
+            raise ValueError(
+                "DEEPGRAM_API_KEY is not set (or still the placeholder) but SERVICE015_STT_PROVIDER / SERVICE015_TTS_PROVIDER "
+                "selects deepgram: set DEEPGRAM_API_KEY in the environment or .env, or switch the provider back to local"
+            )
+        return self
 
     @property
     def livekit_client_url(self) -> str:

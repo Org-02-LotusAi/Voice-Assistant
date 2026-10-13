@@ -11,10 +11,16 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class HealthProviders(_Strict):
+    stt: Literal["local", "deepgram"]
+    tts: Literal["local", "deepgram"]
+
+
 class Health(_Strict):
     status: Literal["ok", "degraded"]
     version: str
     dependencies: dict[str, str]
+    providers: HealthProviders
 
 
 class InstantiateRequest(_Strict):
@@ -142,7 +148,7 @@ class VoiceProfile(_Strict):
     voice_profile_id: str
     name: str
     language: str
-    engine: Literal["chatterbox-turbo"]
+    engine: Literal["chatterbox-turbo", "deepgram-aura-2"]
     authorized: bool
     shared: bool = False  # unowned or admin-owned (usable by everyone)
     owned_by_me: bool = False  # uploaded by the calling account (false for tokens / env keys)

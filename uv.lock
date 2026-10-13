@@ -654,6 +654,19 @@ wheels = [
 ]
 
 [[package]]
+name = "livekit-plugins-deepgram"
+version = "1.8.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents", extra = ["codecs"] },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/25/eab580cc909aa0df1d4ffd88a34053e8646117d510a4f4df42c882f9db25/livekit_plugins_deepgram-1.8.3.tar.gz", hash = "sha256:9e3c350bea531dd45b7ac776011fb7b8879b1e02d618344e12148554d09d140a", size = 25848, upload-time = "2026-09-23T19:04:38.326Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/50/b68945531675f7b16b37b0c2f23bb11754546fd9243b8106c66c9be6f8a2/livekit_plugins_deepgram-1.8.3-py3-none-any.whl", hash = "sha256:64a18caf9a91f5ff852018765b8fe85ebbff5318cadffabef483c534133eb42c", size = 32749, upload-time = "2026-09-23T19:04:36.979Z" },
+]
+
+[[package]]
 name = "livekit-plugins-openai"
 version = "1.8.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1332,6 +1345,7 @@ dependencies = [
     { name = "httpx" },
     { name = "livekit-agents" },
     { name = "livekit-api" },
+    { name = "livekit-plugins-deepgram" },
     { name = "livekit-plugins-openai" },
     { name = "livekit-plugins-silero" },
     { name = "moonshine-voice" },
@@ -1359,6 +1373,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "livekit-agents", specifier = "==1.8.3" },
     { name = "livekit-api", specifier = "==1.2.1" },
+    { name = "livekit-plugins-deepgram", specifier = "==1.8.3" },
     { name = "livekit-plugins-openai", specifier = "==1.8.3" },
     { name = "livekit-plugins-silero", specifier = "==1.8.3" },
     { name = "moonshine-voice", specifier = "==0.1.5" },

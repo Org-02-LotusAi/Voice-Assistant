@@ -201,6 +201,39 @@ works with the API stopped or running:
 `SERVICE015_ADMIN_PASSWORD` only seeds the very first `admin`; it does nothing once an admin exists. If `uv run` cannot find the
 new script, run `uv sync` (stop the API first, see Known limits) or `uv pip install -e .`.
 
+## Speech providers: local or Deepgram
+
+STT and TTS are chosen independently by environment variables (restart the API to switch; the runtime worker is respawned by it):
+
+| Variable | Values | Effect |
+|---|---|---|
+| `SERVICE015_STT_PROVIDER` | `local` (default), `deepgram` | `local` = Moonshine. `deepgram` = streaming `nova-3` with interim results and server-side endpointing. |
+| `SERVICE015_TTS_PROVIDER` | `local` (default), `deepgram` | `local` = Chatterbox engine + Voicebox (cloned voices). `deepgram` = Aura-2 over a streaming WebSocket (audio starts on the first chunk). |
+| `DEEPGRAM_API_KEY` | secret | Required (and not the `REPLACE_WITH_DEEPGRAM_KEY` placeholder) when either provider is `deepgram`; startup fails naming it otherwise. Only from the environment / `.env`; it is never logged, returned by the API or placed in an error. |
+| `SERVICE015_DEEPGRAM_STT_MODEL` | default `nova-3` | Any Deepgram streaming model name. |
+| `SERVICE015_DEEPGRAM_STT_LANGUAGE` | default empty | Empty = each persona's language (`en-US` becomes `en`). `multi` = nova-3 code-switching. |
+
+**Why:** the local Chatterbox TTS needs a GPU for conversational latency (about 16.6 s to first audio on CPU, see
+`evidence/20261010T153557Z/latency.md`). `SERVICE015_TTS_PROVIDER=deepgram` needs no GPU, no engine, no Voicebox and (with
+`SERVICE015_STT_PROVIDER=deepgram`) no Moonshine model, so a small CPU host can serve conversations. The LLM is unchanged.
+
+**What you lose in Deepgram TTS mode: voice cloning.** There is a fixed catalog of 41 English Aura-2 voices. A persona refers
+to one in `voice.profile_id` as `deepgram:<model>`, for example `deepgram:aura-2-thalia-en` (the `deepgram:` prefix is the
+namespace; cloned Voicebox ids never carry it). In this mode:
+
+- `GET /voices` and the Voices page list the catalog (`engine` `deepgram-aura-2`); `POST /voices` answers
+  `409 voice_cloning_unavailable` and the page hides the upload form. Preview works (a Deepgram REST call, about a second).
+- A persona bound to a cloned voice cannot be attached or launched: `422 voice_provider_mismatch` (the same error in local
+  mode for a `deepgram:` voice). Nothing is deleted: cloned voices stay stored and work again after switching back to `local`.
+- Launch preflight does not probe the engine or Voicebox and `/health` reports them `not_used`; `/health` `providers` shows
+  the active `stt` / `tts`.
+- Admin voice management (`/admin/voices`) is empty; cloned voices are managed in local mode.
+
+Latency stamps T0..T5 are recorded the same way for both providers. Turn handling is unchanged (Silero VAD, barge-in, the
+session endpointing delay `SERVICE015_ENDPOINTING_MIN_DELAY_S` on top of Deepgram's own 25 ms endpointing); lowering that delay
+shortens the reply for Deepgram turns. Live checks need a real key: tests `tests/test_deepgram.py::test_live_*` skip without
+`DEEPGRAM_API_KEY`.
+
 ## Configuration
 
 Everything is environment-driven; `.env.example` lists every variable with comments. `.env` is git-ignored: never commit it.
