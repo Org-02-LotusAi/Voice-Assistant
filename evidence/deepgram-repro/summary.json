@@ -1,0 +1,134 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "Yes, I can hear you perfectly. How can I help you today?",
+    "heard": "Yes I can hear you perfectly. How can I help you today?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.39,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": "My name is Ava.",
+    "heard": "My name is Ava.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.92,
+    "interrupted": 0
+  },
+  {
+    "turn": 2,
+    "stem": "q_company",
+    "said": "Who do you work for?",
+    "llm_text": "I work for Safi.",
+    "heard": "I work for Safi.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.75,
+    "interrupted": 0
+  },
+  {
+    "turn": 3,
+    "stem": "q_role",
+    "said": "What is your role?",
+    "llm_text": "I am an Account Specialist.",
+    "heard": "I am an account specialist.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.41,
+    "interrupted": 0
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I rely on a consultative approach to understand your specific goals and current challenges. We then build a tailored solution that addresses those needs, supported by dedicated account management. I can provide a more detailed walkthrough at a demo if that works for you?",
+    "heard": "I rely on a consultative approach to understand your specific goals and current challenges We then build a tailored solution that addresses those needs, supported by dedicated account management. I can provide a more detailed walkthrough at a demo if that works for you.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 15.28,
+    "interrupted": 0
+  },
+  {
+    "turn": 5,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "At Safi, we help businesses optimize their operations and improve efficiency. What specific challenges are you currently facing that led you to reach out?",
+    "heard": "At Safi, we help businesses optimize their operations and improve efficiency. What specific challenges are you currently facing that led you to reach out?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.75,
+    "interrupted": 0
+  },
+  {
+    "turn": 6,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We work with a variety of companies, but I'd love to hear more about your specific goals to see if we're a good fit. What does your current process look like?",
+    "heard": "We work with a variety of companies that I'd love to hear more about your specific goals to see if we're a good fit. What does your current process look like?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 8.27,
+    "interrupted": 0
+  },
+  {
+    "turn": 7,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "Timelines vary depending on your specific needs and how quickly you want to move. To give you an accurate answer, could you share what your ideal start date looks like?",
+    "heard": "Timelines vary depending on your specific needs and how quickly you want to move. To give you an accurate answer, could you share what your ideal start date looks like?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.96,
+    "interrupted": 0
+  },
+  {
+    "turn": 8,
+    "stem": "turn_04",
+    "said": "Do you integrate with the tools we already use?",
+    "llm_text": "We often integrate with many popular platforms, but I'd need to know which specific tools you currently use to confirm compatibility. Which ones are you thinking of?",
+    "heard": "We often integrate with many popular platforms. But I'd need to know which specific tools you currently use to confirm compatibility. Which ones are you thinking of?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.62,
+    "interrupted": 0
+  },
+  {
+    "turn": 9,
+    "stem": "turn_05",
+    "said": "What does onboarding look like for a small team?",
+    "llm_text": "Onboarding is tailored to your team's size and workflow to ensure a smooth transition. I can walk you through the specific steps during a demo. Does that sound like a good next step?",
+    "heard": "Onboarding is tailored to your team's size and workflow to ensure a smooth transition. I can walk you through the specific steps during a demo. Does that sound like a good next step?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.45,
+    "interrupted": 0
+  },
+  {
+    "turn": 10,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I begin by listening to your goals and current challenges to understand exactly what a good outcome looks like for you. We then tailor a solution to address those specific needs, with ongoing support to help your team succeed. I can walk you through this process in more detail during a short demo if you'd like.",
+    "heard": "I begin by listening to your goals and current challenges to understand exactly what a good outcome looks like for you. We then tailor a solution to address those specific needs with ongoing support to help your team succeed. I can walk you through this process in more detail during a short demo if you'd like.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 17.55,
+    "interrupted": 0
+  },
+  {
+    "turn": 11,
+    "stem": "turn_06",
+    "said": "How do you handle security and privacy?",
+    "llm_text": "We prioritize security and privacy by following industry best practices to protect your data. I can provide specific details on our protocols during a follow-up call or proposal.",
+    "heard": "We prioritize security and privacy by following industry best practices to protect your data. I can provide specific details on our protocols during a follow-up call or proposal. Puzzle.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.49,
+    "interrupted": 0
+  }
+]

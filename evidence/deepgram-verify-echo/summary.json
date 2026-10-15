@@ -1,0 +1,90 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "I can hear you clearly. It looks like we both have the same name! How can Safi help you today?",
+    "heard": "I can hear you clearly. It looks like we both have the same name. How can Safi help you today?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 5.57,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": "My name is Ava.",
+    "heard": "My name is ava.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.75,
+    "interrupted": 0
+  },
+  {
+    "turn": 2,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "I am an Account Specialist at Safi. We help businesses by solving specific operational challenges they are facing. Could you tell me a bit about your current processes and what isn't working for you?",
+    "heard": "I didn't want to count specialists at SAFE. We help businesses by solving specific operational challenges they are facing. Could you tell me a bit about your current processes and what isn't working for you? Working for you?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.75,
+    "interrupted": 1
+  },
+  {
+    "turn": 3,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We work with a range of professionals and teams looking to streamline their operations and hit their goals more efficiently. To give you the best fit, who is usually involved in making decisions like this at your company?",
+    "heard": "We work with a range of professionals and teams looking to streamline their operations and hit their goals more efficiently to give you the best fit Who is usually involved in making decisions like this at your company?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 12.27,
+    "interrupted": 1
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "We start by learning your specific goals, then build a tailored solution together. I don't have the detailed workflow documentation ready to read aloud, so I can have the right person send you that in writing. Is there a specific part of that process you are most curious about?",
+    "heard": "We start by learning your specific goals, then build a tailored solution together. I don't have the detailed workflow documentation ready to read aloud, so I can have the right person send you that in writing. Is there a specific part of that process you are most curious about?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 15.68,
+    "interrupted": 1
+  },
+  {
+    "turn": 5,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "Timelines really depend on the scope of your specific project. I don't have exact implementation dates to promise you, so I can have the right person confirm that in writing. What is your ideal timeline for getting this resolved?",
+    "heard": "Timelines really depend on the scope of your specific project. I don't have exact implementation dates to promise you, so I can have the right person confirm that in writing. What is your ideal project? ideal timeline for getting this resolved.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 12.03,
+    "interrupted": 1
+  },
+  {
+    "turn": 6,
+    "stem": "turn_04",
+    "said": "Do you integrate with the tools we already use?",
+    "llm_text": "I don't have the full list of current integrations memorized to share accurately. I can have the right person send you that detail in writing. Which tools are you currently using?",
+    "heard": "I don't have the full list of current integrations memorized to share accurately I can have the right person send you that detail in writing. Which tools are you currently using?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.79,
+    "interrupted": 1
+  },
+  {
+    "turn": 7,
+    "stem": "turn_05",
+    "said": "What does onboarding look like for a small team?",
+    "llm_text": "I don't have the specific onboarding steps for small teams available to read to you here. I can have the right person send you that information in writing. Who would be leading the adoption on your end?",
+    "heard": "I don't have the specific onboarding steps for small teams available to read to you here. I can have the right person send you that information in writing who would be leading the adoption on your end",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.13,
+    "interrupted": 1
+  }
+]

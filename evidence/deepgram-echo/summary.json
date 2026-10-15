@@ -1,0 +1,68 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "Hi, my name is Ava with Safi. How can I help you today?",
+    "heard": "Hi, my name is Ava with Safi. How can I help you to-day?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.19,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": "My name is Ava.",
+    "heard": "My name is Ava.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.69,
+    "interrupted": 0
+  },
+  {
+    "turn": 2,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "I help businesses streamline their account management and improve customer engagement. Could you tell me a bit about your current process and what challenges you're facing?",
+    "heard": "I help business.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.46,
+    "interrupted": 1
+  },
+  {
+    "turn": 3,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We work",
+    "heard": "We work. I'm sorry i-",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.33,
+    "interrupted": 0
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I can certainly walk you",
+    "heard": "I can certainly walk you",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.94,
+    "interrupted": 1
+  },
+  {
+    "turn": 5,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "I don't have specific onboarding timelines",
+    "heard": "I don't have specific onboarding to.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.61,
+    "interrupted": 1
+  }
+]

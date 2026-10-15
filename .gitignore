@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 data/
 deps/
 .venv/
@@ -7,8 +9,12 @@ __pycache__/
 .superpowers/
 *.db
 *.db-*
-evidence/raw/
+**/raw/
+*.rotating.log
 .pytest_cache/
 logs/
 
 CREDENTIALS.local.md
+*.local.md
+*.key
+*.pem

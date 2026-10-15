@@ -1,0 +1,112 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "I apologize for the confusion. My name is Ava, and I am speaking with you as an Account Specialist at Safi. I would love to learn more about your current process to see how we might be able to help. What goals are you focusing on right now?",
+    "heard": "I apologize for the confusion. My name is Ava and I am speaking with you as an account specialist at Safi. I would love to learn more about your current process to see how we might be able to help. What goals are you focusing on right now?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 12.95,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": null,
+    "heard": "",
+    "reply_started": false,
+    "reply_complete": false,
+    "audio_s": 0.0,
+    "interrupted": null
+  },
+  {
+    "turn": 2,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "Safi helps businesses streamline their account management to save time and reduce errors. Our tools are designed to make your daily operations smoother and more efficient. Could you tell me a bit about what challenges you're currently facing with your accounts?",
+    "heard": "Safi helps businesses streamline their account management to save time and reduce errors. Our tools are designed to make your daily operations smoother, And more efficient could you tell me a bit about what challenges you're currently facing with your accounts",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 14.99,
+    "interrupted": 1
+  },
+  {
+    "turn": 3,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We typically work with mid-sized sales and account teams looking to scale without hiring more headcount. I\u2019m curious, what does your current team structure look like?",
+    "heard": "We typically work with mid-size sales and account teams looking to scale without hiring more headcount. I'm curious, what does your current sales cost?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 7.84,
+    "interrupted": 1
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I\u2019d love to give you a detailed walkthrough, but I need to check with our team to provide accurate specifics on our exact process. Could I schedule a brief follow-up call to explain this properly and answer any questions you have?",
+    "heard": "I'd love to give you a detailed walkthrough. But I need.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 3.57,
+    "interrupted": 1
+  },
+  {
+    "turn": 5,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "Onboarding timelines vary based on your specific needs and integration requirements, so I don't have a standard timeframe to quote you right now. I can connect you with our team to get an accurate estimate for your situation. Is that something you'd be interested in?",
+    "heard": "Onboarding timelines vary based on",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.42,
+    "interrupted": 1
+  },
+  {
+    "turn": 6,
+    "stem": "turn_04",
+    "said": "Do you integrate with the tools we already use?",
+    "llm_text": null,
+    "heard": "Or specific me? We typically integrate with major CIRCs I apologize, I didn't quite catch.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.96,
+    "interrupted": 1
+  },
+  {
+    "turn": 7,
+    "stem": "turn_05",
+    "said": "What does onboarding look like for a small team?",
+    "llm_text": "Onboarding usually involves a",
+    "heard": "Onboarding usually involves a",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.62,
+    "interrupted": 1
+  },
+  {
+    "turn": 8,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I don't have the specific details on your company's full onboarding workflow or final report templates to read out to you. I can arrange for a product specialist to walk you through the specific process in writing or on a follow-up call so you get accurate information.",
+    "heard": "I don't have the specific details on your company's full onboarding workflow or find",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.94,
+    "interrupted": 1
+  },
+  {
+    "turn": 9,
+    "stem": "turn_06",
+    "said": "How do you handle security and privacy?",
+    "llm_text": "We take data security seriously and follow industry best practices to protect your information. I don't have the specific technical details on our security architecture or compliance certifications available in this call. Let me have our security team send you the official documentation so you can review the exact measures.",
+    "heard": "We take data security seriously and follow industry best practices to protect your information. I don't have the specific technical details on our security architecture or compliance certifications available in this call. Let me have our security team send you the official documentation so you can review the exact measures.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 17.64,
+    "interrupted": 1
+  }
+]

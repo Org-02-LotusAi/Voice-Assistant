@@ -1,0 +1,90 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "Yes, I can hear you clearly. How can I help you today?",
+    "heard": "Yes, I can hear you clearly. How can I help you?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.85,
+    "interrupted": 1
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": "My name is Ava.",
+    "heard": "My name is Ava.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.91,
+    "interrupted": 1
+  },
+  {
+    "turn": 2,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "I\u2019m an Account Specialist at Safi, and we help businesses streamline their operations to save time and reduce costs. Could you share a bit about what challenges you\u2019re currently facing,",
+    "heard": "I'm an account specialist at Safi. And we help businesses streamline their operations to save time and reduce costs. Could you share a bit about what challenges you're currently facing?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.25,
+    "interrupted": 1
+  },
+  {
+    "turn": 3,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We work with a variety of businesses, but our clients typically value efficiency and are looking to automate manual processes. What does your",
+    "heard": "We work with a variety of businesses.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 2.27,
+    "interrupted": 1
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": null,
+    "heard": "But our clients, I apologize for the confusion earlier.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.91,
+    "interrupted": 1
+  },
+  {
+    "turn": 5,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "The timeline varies depending on the scope of your",
+    "heard": "It provides specific. The timeline varies depending on the scope of your walk.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 7.0,
+    "interrupted": 1
+  },
+  {
+    "turn": 6,
+    "stem": "turn_04",
+    "said": "Do you integrate with the tools we already use?",
+    "llm_text": "Safi integrates with many common platforms, but I don't have the specific compatibility details for your exact stack on hand. Could you tell me which tools you currently rely",
+    "heard": "Safi integrates with many common platforms. But I don't have the specific compatibility details for your exact stack on hand. Could you tell me which tools you currently rely?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.93,
+    "interrupted": 1
+  },
+  {
+    "turn": 7,
+    "stem": "turn_05",
+    "said": "What does onboarding look like for a small team?",
+    "llm_text": "Onboarding for a small team typically focuses on rapid setup and targeted training to get you up to speed quickly. I don\u2019t have the exact step-by-step timeline, so I can have a specialist confirm the specific details in",
+    "heard": "Onboarding for a small team typically focuses on rapid setup and targeted training to get you up to speed quickly. I don't have the exact step-by-step timeline, so I can have a specialist confirm the specific details in my video.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 13.81,
+    "interrupted": 1
+  }
+]

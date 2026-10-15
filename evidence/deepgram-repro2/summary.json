@@ -1,0 +1,68 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "Yes, I can hear you clearly. How can I help you today?",
+    "heard": "Yes, I can hear you clearly. How can I help you today?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.16,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "q_name",
+    "said": "What is your name?",
+    "llm_text": "My name is Ava.",
+    "heard": "My name is Ava.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 1.79,
+    "interrupted": 0
+  },
+  {
+    "turn": 2,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "I\u2019m with Safi, and I focus on helping clients streamline their account management processes. To make sure I give you the right information, who are you speaking for?",
+    "heard": "I'm with Safi, and I focus on helping clients streamline their account management processes. To make sure I give you the right information. Who are you speaking for?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.65,
+    "interrupted": 0
+  },
+  {
+    "turn": 3,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "We typically work with businesses that need to automate and manage their account workflows more efficiently. To help me qualify if we\u2019re a good fit, what industry is your company in?",
+    "heard": "We typically work with businesses that need to automate and manage their account workflows more efficiently to help me qualify if we're a good fit. What industry is your company in?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 9.74,
+    "interrupted": 0
+  },
+  {
+    "turn": 4,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I\u2019d be happy to walk you through how we work, but I want to make sure I tailor the explanation to your specific needs. Could you share a bit about your current process and what areas feel most challenging for your team right now?",
+    "heard": "I'd be happy to walk you through how we work. But I want to make sure I tailor the explanation to your specific needs. Could you share a bit about your current process and what areas feel most challenging for your team right now? Now.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 12.81,
+    "interrupted": 0
+  },
+  {
+    "turn": 5,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "Onboarding timelines vary significantly depending on your specific scope and requirements, so I don't have a universal timeframe to share. I can have our team confirm the exact next steps and expected dates in writing for you.",
+    "heard": "Onboarding timelines vary significantly depending on your specific scope and requirements. So I don't have a universal timeframe to share. I can have our team confirm the exact next steps and expected dates in writing for you.",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 13.55,
+    "interrupted": 0
+  }
+]

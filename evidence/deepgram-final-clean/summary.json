@@ -1,0 +1,57 @@
+[
+  {
+    "turn": 0,
+    "stem": "q_greeting",
+    "said": "Hello, can you hear me?",
+    "llm_text": "Yes, I can hear you clearly. How can I help you today?",
+    "heard": "Yes. I can hear you clearly. How can I help you today?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 4.22,
+    "interrupted": 0
+  },
+  {
+    "turn": 1,
+    "stem": "turn_01",
+    "said": "Hi, I would like to know what your company actually does.",
+    "llm_text": "I help organizations streamline their processes and achieve their goals. To give you the most relevant details, could you share a bit about your current setup and what you're looking to improve?",
+    "heard": "I help organizations streamline their processes and achieve their goals to give you the most relevant details Could you share a bit about your current setup and what you're looking to improve?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.39,
+    "interrupted": 0
+  },
+  {
+    "turn": 2,
+    "stem": "turn_02",
+    "said": "Who are your typical customers?",
+    "llm_text": "I work with a variety of organizations looking to optimize their operations and reach their targets. Who are you primarily serving in your role?",
+    "heard": "I work with a variety of organizations looking to optimize their operations and reach their targets. Who are you primarily serving in your role?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 8.37,
+    "interrupted": 0
+  },
+  {
+    "turn": 3,
+    "stem": "q_long_answer",
+    "said": "Please explain in detail how your service works, from the first call all the way through to the final report, and take your time.",
+    "llm_text": "I\u2019d be happy to walk you through our process, but I want to ensure it\u2019s tailored to your specific needs. Could you tell me a bit about your current workflow and what outcome you\u2019re hoping for?",
+    "heard": "I'd be happy to walk you through our process. but I want to ensure it's tailored to your specific needs. Could you tell me a bit about your current workflow and what outcome you're hoping for?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.4,
+    "interrupted": 0
+  },
+  {
+    "turn": 4,
+    "stem": "turn_03",
+    "said": "How long does it take to get started?",
+    "llm_text": "The timeline varies significantly depending on your specific requirements and current setup. Could you tell me what you\u2019re hoping to achieve and when you\u2019d ideally like to go live?",
+    "heard": "Timeline varies significantly depending on your specific requirements and current setup. Could you tell me what you're hoping to achieve and when you'd ideally like to go live?",
+    "reply_started": true,
+    "reply_complete": true,
+    "audio_s": 10.04,
+    "interrupted": 0
+  }
+]
